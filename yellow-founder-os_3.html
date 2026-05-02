@@ -1,0 +1,1971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yellow Productions — Founder OS</title>
+<script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #f5f4f1;
+    --surface: #ffffff;
+    --surface2: #f0eeea;
+    --border: #e0ddd8;
+    --yellow: #c8961a;
+    --yellow-dim: #a87818;
+    --text: #1a1a1a;
+    --muted: #888;
+    --green: #2a7a3a;
+    --red: #c0392b;
+    --blue: #2563eb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0;
+  }
+
+  .logo {
+    padding: 0 20px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .logo-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--yellow);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--muted);
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--yellow); border-left-color: var(--yellow); background: var(--surface2); }
+  .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+  /* MAIN */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .panel-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 24px;
+    color: var(--text);
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 14px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    padding: 9px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .btn-yellow { background: var(--yellow); color: #000; }
+  .btn-yellow:hover { background: var(--yellow-dim); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--yellow); color: var(--yellow); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-red { background: var(--red); color: #000; }
+
+  /* INPUTS */
+  input, select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    width: 100%;
+    transition: border 0.15s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--yellow);
+  }
+
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* CHAT */
+  .chat-container {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    height: 340px;
+    overflow-y: auto;
+    padding: 16px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+  .msg.user { background: var(--yellow); color: #000; align-self: flex-end; font-weight: 600; }
+  .msg.ai { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; }
+
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input { flex: 1; }
+
+  /* TASKS */
+  .task-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 120px 100px 1fr 80px;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .task-row:last-child { border-bottom: none; }
+
+  .status-badge {
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .status-pending { background: #fff3cd; color: #92640a; border: 1px solid #f0d080; }
+  .status-progress { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .status-done { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+
+  /* HR */
+  .hr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .present-list, .absent-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .person-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .chip-green { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .chip-red { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+  .chip-yellow { background: #fff3cd; color: #92640a; border-color: #f0d080; }
+
+  .leave-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  /* INSTAGRAM */
+  .insta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .metric-value { font-size: 28px; font-weight: 800; color: var(--yellow); }
+  .metric-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .upload-area {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+  }
+  .upload-area:hover { border-color: var(--yellow); }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .tab.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+
+  .form-row { display: grid; gap: 8px; margin-bottom: 12px; }
+  .form-row-2 { grid-template-columns: 1fr 1fr; }
+  .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-row-4 { grid-template-columns: 1fr 1fr 1fr auto; }
+
+  label { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .search-bar { margin-bottom: 16px; position: relative; }
+  .search-bar input { padding-left: 36px; }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-family: 'DM Mono', monospace; }
+
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+  .agent-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .agent-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .agent-card:hover { border-color: var(--yellow); }
+  .agent-card.selected { border-color: var(--yellow); background: var(--yellow); }
+  .agent-card.selected .agent-name { color: #fff; }
+  .agent-card.selected .agent-desc { color: rgba(255,255,255,0.75); }
+  .agent-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .agent-desc { font-size: 11px; color: var(--muted); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot-green { background: var(--green); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-red { background: var(--red); }
+
+  #loading { display: none; color: var(--muted); font-size: 12px; font-family: 'DM Mono', monospace; padding: 8px 0; }
+
+  .clickup-link { color: var(--blue); text-decoration: none; font-size: 11px; }
+  .clickup-link:hover { text-decoration: underline; }
+
+  .date-group-header {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--yellow);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 12px 0 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<!-- PASSWORD SCREEN -->
+<div id="pwd-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f5f4f1;display:flex;align-items:center;justify-content:center;z-index:99999">
+  <div style="background:#fff;border:1px solid #e0ddd8;border-radius:16px;padding:40px;width:360px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+    <div style="width:56px;height:56px;background:#c8961a;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px">🌕</div>
+    <div style="font-size:18px;font-weight:800;color:#c8961a;margin-bottom:4px">Yellowverse OS</div>
+    <div style="font-size:12px;color:#888;margin-bottom:24px;font-style:italic">Founder Access Only</div>
+    <div style="margin-bottom:14px;text-align:left">
+      <label style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;display:block;margin-bottom:6px">Password</label>
+      <input type="password" id="pwd-input" placeholder="Enter password..." onkeydown="if(event.key==='Enter')checkPassword()" style="background:#f0eeea;border:1px solid #e0ddd8;color:#1a1a1a;padding:11px 14px;border-radius:8px;font-family:'Poppins',sans-serif;font-size:14px;width:100%">
+    </div>
+    <div id="pwd-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none">Incorrect password. Try again.</div>
+    <button onclick="checkPassword()" style="width:100%;padding:13px;background:#c8961a;color:#fff;border:none;border-radius:10px;font-family:'Poppins',sans-serif;font-size:14px;font-weight:700;cursor:pointer">Enter →</button>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-title">Yellow OS</div>
+    <div class="logo-sub">Founder Dashboard</div>
+  </div>
+
+  <div class="nav-item active" onclick="showPanel('ceo')">
+    <span class="nav-icon">⚡</span> CEO
+  </div>
+  <div class="nav-item" onclick="showPanel('tasks')">
+    <span class="nav-icon">📋</span> Tasks
+  </div>
+  <div class="nav-item" onclick="showPanel('hr')">
+    <span class="nav-icon">👥</span> HR
+  </div>
+  <div class="nav-item" onclick="showPanel('calendar')">
+    <span class="nav-icon">📅</span> Calendar
+  </div>
+  <div class="nav-item" onclick="showPanel('instagram')">
+    <span class="nav-icon">📸</span> Instagram
+  </div>
+  <div class="nav-item" onclick="showPanel('review')">
+    <span class="nav-icon">✅</span> Review
+  </div>
+  <div class="nav-item" onclick="showPanel('finance')">
+    <span class="nav-icon">💰</span> Finance
+  </div>
+  <div class="nav-item" onclick="showPanel('agents')">
+    <span class="nav-icon">🤖</span> Agents
+  </div>
+  <div class="nav-item" onclick="showPanel('performance')">
+    <span class="nav-icon">🏆</span> Performance
+  </div>
+  <div class="nav-item" onclick="showPanel('clients')">
+    <span class="nav-icon">🤝</span> Clients
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- CEO PANEL -->
+  <div class="panel active" id="panel-ceo">
+    <div class="panel-title">Good morning, Suriti ☀️</div>
+
+    <div class="agent-grid">
+      <div class="agent-card selected" onclick="selectAgent(this,'ceo')">
+        <div class="agent-name">⚡ CEO Agent</div>
+        <div class="agent-desc">Strategy, decisions, priorities</div>
+      </div>
+      <div class="agent-card" onclick="selectAgent(this,'client')">
+        <div class="agent-name">🤝 Client Agent</div>
+        <div class="agent-desc">Proposals, follow-ups, briefs</div>
+      </div>
+      <div class="agent-card" onclick="selectAgent(this,'content')">
+        <div class="agent-name">✍️ Content Agent</div>
+        <div class="agent-desc">Scripts, captions, copy</div>
+      </div>
+      <div class="agent-card" onclick="selectAgent(this,'social')">
+        <div class="agent-name">📱 Social Agent</div>
+        <div class="agent-desc">Instagram & LinkedIn strategy</div>
+      </div>
+      <div class="agent-card" onclick="selectAgent(this,'ops')">
+        <div class="agent-name">⚙️ Ops Agent</div>
+        <div class="agent-desc">Process, timelines, blockers</div>
+      </div>
+      <div class="agent-card" onclick="selectAgent(this,'finance')">
+        <div class="agent-name">💰 Finance Agent</div>
+        <div class="agent-desc">Quotes, estimates, invoices</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chat-container" id="ceo-chat">
+        <div class="msg ai">Hi Suriti 👋 I'm your CEO Agent. I know your full team, all active projects, and both brands. What's on your mind today?</div>
+      </div>
+      <div id="loading">Agent is thinking...</div>
+      <div class="chat-input-row">
+        <input type="text" id="ceo-input" placeholder="Ask anything about your business..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="btn btn-yellow" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASKS PANEL -->
+  <div class="panel" id="panel-tasks">
+    <div class="panel-title">Task Manager</div>
+
+    <div class="card">
+      <div class="card-title">Add Task</div>
+      <div class="form-row form-row-4">
+        <div>
+          <label>Date</label>
+          <input type="date" id="task-date">
+        </div>
+        <div>
+          <label>Task</label>
+          <input type="text" id="task-name" placeholder="Task description">
+        </div>
+        <div>
+          <label>Assignee</label>
+          <select id="task-assignee">
+            <option value="">Select person</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <button class="btn btn-yellow btn-sm" onclick="addTask(false)">Add</button>
+          <button class="btn btn-outline btn-sm" onclick="addTask(true)">+ Email</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin:0">All Tasks</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="task-search" placeholder="🔍 Search task or person..." style="width:220px" oninput="filterTasks()">
+          <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
+          <button class="btn btn-yellow btn-sm" onclick="sendAllEmails()">📧 Email All</button>
+        </div>
+      </div>
+      <div id="quick-lookup-result" style="display:none;margin-bottom:12px;padding:12px;background:var(--surface2);border:1px solid var(--yellow);border-radius:6px"></div>
+      <div id="tasks-list"><div class="empty-state">No tasks yet. Add one above.</div></div>
+    </div>
+  </div>
+
+  <!-- HR PANEL -->
+  <div class="panel" id="panel-hr">
+    <div class="panel-title">HR — People & Attendance</div>
+
+    <div class="hr-grid">
+      <div class="card">
+        <div class="card-title">Today's Attendance</div>
+        <div id="attendance-today"><div class="empty-state" style="padding:20px">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Leave Requests</div>
+        <div id="leave-requests"><div class="empty-state" style="padding:20px">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin:0">Attendance Log</div>
+        <input type="date" id="hr-date-filter" onchange="loadHR()" style="width:150px">
+      </div>
+      <div id="attendance-log"><div class="empty-state">Select a date to view log.</div></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR PANEL -->
+  <div class="panel" id="panel-calendar">
+    <div class="panel-title">📅 Holiday Calendar 2026</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);flex-wrap:wrap">
+        <span style="width:12px;height:12px;background:var(--yellow);border-radius:2px;display:inline-block"></span> Fixed Holiday
+        <span style="width:12px;height:12px;background:#dcfce7;border:1px solid var(--green);border-radius:2px;display:inline-block;margin-left:8px"></span> Optional (O)
+        <span style="width:12px;height:12px;background:#fce7f3;border:1px solid #f9a8d4;border-radius:2px;display:inline-block;margin-left:8px"></span> 🎂 Birthday SOL
+      </div>
+    </div>
+
+    <div id="calendar-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"></div>
+
+    <!-- SOL Section -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">🎂 Special Occasion Leave (SOL) — Birthdays</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Each team member gets 1 day off for their birthday or anniversary.</p>
+      <div id="sol-list">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Faizan</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 21 April</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Sandesh</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 7 May</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Archana</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 21 May</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Vishwanath</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 10 June</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Ajay</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 8 July</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Kritya</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 20 August</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Viplav</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 9 September</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Prathamesh</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 27 September</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Gauri</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 17 October</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Siddhesh</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 21 November</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Sonal</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 14 December</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Gayatri</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 4 October</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+            <div style="font-size:13px;font-weight:700">Sam</div>
+            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 1 February</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTAGRAM PANEL -->
+  <div class="panel" id="panel-instagram">
+    <div class="panel-title">Instagram Strategy</div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchIgTab('analyse', this)">📊 Analyse</div>
+      <div class="tab" onclick="switchIgTab('strategy', this)">🎯 Strategy</div>
+      <div class="tab" onclick="switchIgTab('content', this)">✍️ Content Ideas</div>
+      <div class="tab" onclick="switchIgTab('chat', this)">💬 Chat</div>
+    </div>
+
+    <!-- ANALYSE TAB -->
+    <div id="ig-analyse" class="ig-tab-content">
+      <div class="card">
+        <div class="card-title">Paste Your Instagram Insights</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Go to Instagram → Insights → copy the data and paste below. Or describe your recent performance.</p>
+
+        <div style="margin-bottom:12px">
+          <label>Account</label>
+          <select id="ig-account" style="width:200px">
+            <option value="yellow">@yellowproductions_</option>
+            <option value="suriti">@suriti</option>
+          </select>
+        </div>
+
+        <div class="insta-grid">
+          <div>
+            <label>Followers</label>
+            <input type="number" id="ig-followers" placeholder="e.g. 4200">
+          </div>
+          <div>
+            <label>Avg Reach (last 30 days)</label>
+            <input type="number" id="ig-reach" placeholder="e.g. 1500">
+          </div>
+          <div>
+            <label>Avg Engagement Rate %</label>
+            <input type="number" id="ig-engagement" placeholder="e.g. 3.2" step="0.1">
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label>Your Top 3 Performing Posts/Reels (describe them)</label>
+          <textarea id="ig-top-posts" placeholder="e.g.&#10;1. BTS reel of Jindal shoot - 8000 views&#10;2. Team day out - 3200 likes&#10;3. Before/after design post - saved 200 times"></textarea>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label>Your Last 5 Posts (what they were about)</label>
+          <textarea id="ig-recent-posts" placeholder="e.g.&#10;1. Product shoot for Oman client&#10;2. Motivational quote&#10;3. Team photo&#10;4. Reel - day in the life&#10;5. Static - new project announcement"></textarea>
+        </div>
+
+        <button class="btn btn-yellow" onclick="analyseInstagram()">🔍 Analyse My Instagram</button>
+      </div>
+
+      <div class="card" id="ig-analysis-result" style="display:none">
+        <div class="card-title">Analysis Result</div>
+        <div id="ig-analysis-text" style="font-size:13px;line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <!-- STRATEGY TAB -->
+    <div id="ig-strategy" class="ig-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Growth Strategy Generator</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Tell me your goal and I'll build a 30-day Instagram strategy.</p>
+
+        <div class="form-row form-row-2" style="margin-bottom:12px">
+          <div>
+            <label>Account</label>
+            <select id="strat-account">
+              <option value="yellow">@yellowproductions_ (Production Agency)</option>
+              <option value="suriti">@suriti (Personal Brand)</option>
+            </select>
+          </div>
+          <div>
+            <label>Goal</label>
+            <select id="strat-goal">
+              <option>Get more clients</option>
+              <option>Build personal brand</option>
+              <option>Grow followers fast</option>
+              <option>Increase engagement</option>
+              <option>Establish thought leadership</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label>Anything specific you want to achieve or avoid?</label>
+          <textarea id="strat-notes" placeholder="e.g. I don't want to show my face. I want to attract Middle East clients. I post 3x a week." style="min-height:60px"></textarea>
+        </div>
+
+        <button class="btn btn-yellow" onclick="generateStrategy()">🎯 Build My 30-Day Strategy</button>
+      </div>
+
+      <div class="card" id="strat-result" style="display:none">
+        <div class="card-title">Your 30-Day Strategy</div>
+        <div id="strat-text" style="font-size:13px;line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <!-- CONTENT IDEAS TAB -->
+    <div id="ig-content" class="ig-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Content Idea Generator</div>
+
+        <div class="form-row form-row-2" style="margin-bottom:12px">
+          <div>
+            <label>Account</label>
+            <select id="content-account">
+              <option value="yellow">@yellowproductions_</option>
+              <option value="suriti">@suriti</option>
+            </select>
+          </div>
+          <div>
+            <label>Content Type</label>
+            <select id="content-type">
+              <option>Reel ideas (with hooks)</option>
+              <option>Carousel post ideas</option>
+              <option>Static post ideas</option>
+              <option>Story ideas</option>
+              <option>Caption for my post</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label>What's the context? (current project, client, mood, anything)</label>
+          <textarea id="content-context" placeholder="e.g. I just finished a big steel plant shoot in Oman. Want to show the scale of the project without revealing client details." style="min-height:60px"></textarea>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label>How many ideas?</label>
+          <select id="content-count" style="width:120px">
+            <option>5</option><option>10</option><option>3</option>
+          </select>
+        </div>
+
+        <button class="btn btn-yellow" onclick="generateContentIdeas()">💡 Generate Ideas</button>
+      </div>
+
+      <div class="card" id="content-result" style="display:none">
+        <div class="card-title">Content Ideas</div>
+        <div id="content-text" style="font-size:13px;line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <!-- CHAT TAB -->
+    <div id="ig-chat" class="ig-tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Chat with Social Agent</div>
+        <div class="chat-container" id="ig-chat-box">
+          <div class="msg ai">Hi! I'm your Social Agent. Ask me anything about Instagram, LinkedIn, content strategy, hashtags, or your personal brand. 📱</div>
+        </div>
+        <div id="ig-loading" style="display:none;color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;padding:8px 0">Agent is thinking...</div>
+        <div class="chat-input-row">
+          <input type="text" id="ig-input" placeholder="Ask about strategy, hashtags, captions..." onkeydown="if(event.key==='Enter') sendIgChat()">
+          <button class="btn btn-yellow" onclick="sendIgChat()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW PANEL -->
+  <div class="panel" id="panel-review">
+    <div class="panel-title">Creative Review Queue</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">All creatives go: Designer → Viplav → You → Client</p>
+
+    <div class="card">
+      <div class="card-title">Add to Review Queue</div>
+      <div class="form-row form-row-4" style="align-items:flex-end">
+        <div>
+          <label>Creative Name</label>
+          <input type="text" id="rev-name" placeholder="e.g. Jindal Rebar Poster">
+        </div>
+        <div>
+          <label>Designer</label>
+          <select id="rev-designer">
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option>
+          </select>
+        </div>
+        <div>
+          <label>Client/Brand</label>
+          <input type="text" id="rev-client" placeholder="e.g. Jindal">
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="addReview()" style="margin-top:18px">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Queue</div>
+      <div id="review-list"><div class="empty-state">No creatives in queue.</div></div>
+    </div>
+  </div>
+
+  <!-- FINANCE PANEL -->
+  <div class="panel" id="panel-finance">
+    <div class="panel-title">Finance & Estimates</div>
+
+    <div class="card">
+      <div class="card-title">Add Estimate</div>
+      <div class="form-row form-row-4" style="align-items:flex-end">
+        <div>
+          <label>Client</label>
+          <input type="text" id="fin-client" placeholder="Client name">
+        </div>
+        <div>
+          <label>Project</label>
+          <input type="text" id="fin-project" placeholder="What was delivered">
+        </div>
+        <div>
+          <label>Amount (₹)</label>
+          <input type="number" id="fin-amount" placeholder="0">
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="addEstimate()" style="margin-top:18px">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Estimates & Invoice Tracker</div>
+      <div id="finance-list"><div class="empty-state">No estimates yet.</div></div>
+    </div>
+  </div>
+
+  <!-- AGENTS PANEL -->
+  <div class="panel" id="panel-agents">
+    <div class="panel-title">All Agents</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Switch between agents below or use the CEO panel for quick access.</p>
+
+    <div class="agent-grid">
+      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('ceo')">
+        <div class="agent-name">⚡ CEO Agent</div>
+        <div class="agent-desc">Morning briefing, decisions, prioritisation</div>
+      </div>
+      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('client')">
+        <div class="agent-name">🤝 Client Agent</div>
+        <div class="agent-desc">Proposals, follow-ups, briefs, client comms</div>
+      </div>
+      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('content')">
+        <div class="agent-name">✍️ Content Agent</div>
+        <div class="agent-desc">Scripts, captions, decks, copy</div>
+      </div>
+      <div class="agent-card" onclick="showPanel('instagram');switchIgTab('chat',null)">
+        <div class="agent-name">📱 Social Agent</div>
+        <div class="agent-desc">Instagram, LinkedIn, personal brand</div>
+      </div>
+      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('ops')">
+        <div class="agent-name">⚙️ Ops Agent</div>
+        <div class="agent-desc">Process, timelines, team blockers</div>
+      </div>
+      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('finance')">
+        <div class="agent-name">💰 Finance Agent</div>
+        <div class="agent-desc">Quotes, estimates, invoice reminders</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERFORMANCE PANEL -->
+  <div class="panel" id="panel-performance">
+    <div class="panel-title">🏆 Performance & Variable Pay</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="metric-card">
+        <div class="metric-value" id="perf-month">—</div>
+        <div class="metric-label">Current Month</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" style="color:var(--green)" id="perf-revenue-status">—</div>
+        <div class="metric-label">Revenue Gate (₹15L)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" style="color:var(--yellow)" id="perf-top-scorer">—</div>
+        <div class="metric-label">🎁 Top Scorer</div>
+      </div>
+    </div>
+
+    <!-- RATE A DELIVERABLE -->
+    <div class="card">
+      <div class="card-title">Rate a Deliverable</div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr auto;align-items:flex-end;gap:8px">
+        <div>
+          <label>Team Member</label>
+          <select id="perf-person">
+            <option value="">Select</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
+          </select>
+        </div>
+        <div>
+          <label>Task / Deliverable</label>
+          <input type="text" id="perf-task" placeholder="e.g. Jindal poster">
+        </div>
+        <div>
+          <label>Quality</label>
+          <select id="perf-quality">
+            <option value="10">Client ready ✅ (10)</option>
+            <option value="7">Minor changes (7)</option>
+            <option value="4">Major rework (4)</option>
+            <option value="0">Rejected ❌ (0)</option>
+          </select>
+        </div>
+        <div>
+          <label>Ownership</label>
+          <select id="perf-ownership">
+            <option value="10">Proactive ✅ (10)</option>
+            <option value="6">Reminded once (6)</option>
+            <option value="2">Chased multiple times (2)</option>
+            <option value="0">No update (0)</option>
+          </select>
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="addRating()" style="margin-top:18px">Rate</button>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin:0">Monthly Leaderboard</div>
+        <div style="display:flex;gap:8px">
+          <input type="month" id="perf-month-filter" onchange="loadPerformance()" style="width:160px">
+          <button class="btn btn-outline btn-sm" onclick="loadPerformance()">Refresh</button>
+        </div>
+      </div>
+      <div id="perf-leaderboard"><div class="empty-state">No ratings this month yet.</div></div>
+    </div>
+
+    <!-- VARIABLE PAY SUMMARY -->
+    <div class="card">
+      <div class="card-title">Variable Pay Summary</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Pays out on 10th of next month if revenue gate (₹15L) is met. Top scorer gets ₹5,000 Amazon voucher (₹2,500 each if tie).</p>
+      <div>
+        <label style="margin-bottom:8px;display:block">Did revenue cross ₹15L this month?</label>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn btn-green btn-sm" onclick="setRevenueGate(true)">✅ Yes — Pay out</button>
+          <button class="btn btn-red btn-sm" onclick="setRevenueGate(false)">❌ No — Accrue</button>
+        </div>
+      </div>
+      <div id="perf-payout-table"><div class="empty-state">Set revenue gate above to see payout.</div></div>
+    </div>
+  </div>
+
+  <!-- CLIENTS PANEL -->
+  <div class="panel" id="panel-clients">
+    <div class="panel-title">🤝 Client Portal Manager</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="card" style="border-color:var(--yellow)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:16px;font-weight:800;margin-bottom:4px">🏗️ Jindal Portal</div>
+            <div style="font-size:12px;color:var(--muted)">Steel City · Youth League · Oman Build · Product Boards</div>
+          </div>
+          <a href="jindal-portal.html" target="_blank" class="btn btn-yellow btn-sm">Open Portal ↗</a>
+        </div>
+      </div>
+      <div class="card" style="border-style:dashed">
+        <div style="text-align:center;color:var(--muted);padding:10px">
+          <div style="font-size:20px;margin-bottom:6px">+</div>
+          <div style="font-size:13px">Add New Client Portal</div>
+          <div style="font-size:11px;margin-top:4px">Coming soon</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD CREATIVE TO JINDAL -->
+    <div class="card">
+      <div class="card-title">Upload Creative to Jindal Portal</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Add a creative with the designer tagged — feedback will go directly to them.</p>
+
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <label>Project Folder</label>
+          <select id="cl-folder">
+            <option value="guidelines">Brand Guidelines</option>
+            <option value="imagebank">Image Bank</option>
+            <option value="steelcity">Steel City</option>
+            <option value="youthleague">Youth League</option>
+            <option value="omanbuild">Oman Build</option>
+            <option value="productboards">Product Boards</option>
+          </select>
+        </div>
+        <div>
+          <label>Creative Name</label>
+          <input type="text" id="cl-name" placeholder="e.g. Billboard v2">
+        </div>
+        <div>
+          <label>Designer</label>
+          <select id="cl-designer">
+            <option value="">Select designer</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Siddhesh</option><option>Ajay</option>
+          </select>
+        </div>
+        <div>
+          <label>ClickUp / File Link</label>
+          <input type="text" id="cl-link" placeholder="Paste link">
+        </div>
+      </div>
+
+      <button class="btn btn-yellow" onclick="uploadCreative()">+ Add to Portal</button>
+    </div>
+
+    <!-- CREATIVES LIST -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin:0">All Creatives on Jindal Portal</div>
+        <select id="cl-filter-folder" onchange="loadClientCreatives()" style="width:180px">
+          <option value="">All Folders</option>
+          <option value="guidelines">Brand Guidelines</option>
+          <option value="imagebank">Image Bank</option>
+          <option value="steelcity">Steel City</option>
+          <option value="youthleague">Youth League</option>
+          <option value="omanbuild">Oman Build</option>
+          <option value="productboards">Product Boards</option>
+        </select>
+      </div>
+      <div id="cl-list"><div class="empty-state">No creatives uploaded yet.</div></div>
+    </div>
+  </div>
+
+</div><!-- end main -->
+
+<script>
+// ====== CONFIG ======
+const ANTHROPIC_KEY = ''; // Key handled by backend only
+const BACKEND_URL = 'https://yellowbackend.onrender.com/api/claude';
+const SHEETDB_URL = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
+const EMAILJS_SERVICE = 'service_786h8bh';
+const EMAILJS_TEMPLATE = 'template_w1gbhz9';
+const EMAILJS_KEY = '_sfXlprhHHUbt55qV';
+
+emailjs.init(EMAILJS_KEY);
+
+const TEAM = {
+  Sandesh: 'sandesh@perkyowl.com',
+  Gayatri: 'gayatri.v@perkyowl.com',
+  Faizan: 'faizan@yellowproductions.co.in',
+  Prathamesh: 'prathamesh@yellowproductions.co.in',
+  Archana: 'archana@yellowproductions.co.in',
+  Gauri: 'gauri@perkyowl.com',
+  Sonal: 'sonal.j@perkyowl.com',
+  Vishwanath: 'vishvanath@perkyowl.com',
+  Viplav: 'viplav@yellowproductions.co.in',
+  Siddhesh: 'siddhesh@yellowproductions.co.in',
+  Kritya: 'kritya@yellowproductions.co.in',
+  Ajay: 'ajay@yellowproductions.co.in',
+  Sam: 'sam@yellowproductions.co.in'
+};
+
+const TEAM_LIST = Object.keys(TEAM);
+
+// ====== PASSWORD ======
+function checkPassword() {
+  const val = document.getElementById('pwd-input').value;
+  if (val === 'Yellow@1234') {
+    document.getElementById('pwd-screen').style.display = 'none';
+  } else {
+    document.getElementById('pwd-error').style.display = 'block';
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+  }
+}
+
+// ====== NAV ======
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(n => { if(n.textContent.trim().toLowerCase().includes(name === 'instagram' ? 'instagram' : name === 'ceo' ? 'ceo' : name)) n.classList.add('active'); });
+  if(name === 'hr') loadHR();
+  if(name === 'tasks') loadTasks();
+  if(name === 'finance') loadFinance();
+  if(name === 'review') renderReview();
+  if(name === 'clients') loadClientCreatives();
+  if(name === 'calendar') renderCalendar();
+}
+
+// ====== AGENT SYSTEM ======
+let currentAgent = 'ceo';
+const agentSystemPrompts = {
+  ceo: `You are the CEO Agent for Yellow Productions, a production, content and photography agency based in Mumbai. Founder: Suriti Arora. Team: Sandesh (hard working, concepts), Gayatri (precision, slow), Faizan (AI creatives, new age), Prathamesh (AI, depends on Faizan), Archana (real estate, football league), Gauri (versatile), Sonal (moody, good at posters/social when pushed), Vishwanath (adapt jobs, old), Viplav (copywriter, underused, good ideas), Siddhesh (strategy, decks), Kritya (strategy, decks, on leave for bereavement), Ajay (video editor). Also Oman team: Sam (BD). Suriti also runs Perky Owl Designs (Delhi), Yellow Designs SPC (Muscat, Oman - clients Jindal Shadeed, Sohar Steel), Chor Sipahi, and is building The Raas (kirtan spiritual community). Be sharp, strategic, direct. Help Suriti prioritise and make smart decisions.`,
+  client: `You are the Client Agent for Yellow Productions. Help draft proposals, follow-up emails, briefs, and client communication. Clients include Jindal Shadeed, Sohar Steel, and other corporate clients in India and Oman. Be professional, warm, and sharp.`,
+  content: `You are the Content Agent for Yellow Productions. Write reel scripts, captions, copy, decks, and briefs. Understand the brand: production agency, Mumbai-based, works across India and Middle East. Tone: sharp, creative, confident.`,
+  social: `You are the Social Media Agent for Yellow Productions and Suriti Arora's personal brand. @yellowproductions_ is a production/content agency. @suriti is Suriti's personal brand (entrepreneur, design thinker, spiritual, Radha Krishna devotee, building The Raas kirtan community). Give sharp, specific Instagram and LinkedIn strategies. No generic advice.`,
+  ops: `You are the Operations Agent for Yellow Productions. Help with project timelines, process improvements, team coordination, and removing blockers. Be practical and specific.`,
+  finance: `You are the Finance Agent for Yellow Productions. Help create quotes, estimates, and remind about invoicing. All amounts in INR unless specified for Oman (use OMR). Be precise and professional.`
+};
+
+function selectAgent(el, agent) {
+  document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  currentAgent = agent;
+  const chatBox = document.getElementById('ceo-chat');
+  chatBox.innerHTML = `<div class="msg ai">Switched to ${agent.toUpperCase()} Agent. How can I help?</div>`;
+}
+
+function selectAgentByName(agent) {
+  currentAgent = agent;
+}
+
+// ====== CHAT ======
+async function callAI(systemPrompt, userMessage) {
+  const res = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }]
+    })
+  });
+  const data = await res.json();
+  return data.content?.[0]?.text || 'Could not get response.';
+}
+
+let ceoHistory = [];
+
+async function sendChat() {
+  const input = document.getElementById('ceo-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value = '';
+
+  const chat = document.getElementById('ceo-chat');
+  chat.innerHTML += `<div class="msg user">${msg}</div>`;
+  chat.scrollTop = chat.scrollHeight;
+
+  document.getElementById('loading').style.display = 'block';
+
+  ceoHistory.push({ role: 'user', content: msg });
+
+  try {
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        system: agentSystemPrompts[currentAgent],
+        messages: ceoHistory
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || 'Could not reach agent.';
+    ceoHistory.push({ role: 'assistant', content: reply });
+    chat.innerHTML += `<div class="msg ai">${reply.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+    chat.innerHTML += `<div class="msg ai" style="color:var(--red)">Could not reach agent. Try again.</div>`;
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ====== TASKS ======
+let allTasks = [];
+
+async function loadTasks() {
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const data = await res.json();
+    allTasks = data.filter(r => r.Type === 'task' || r.Type === '' || !r.Type);
+    renderTasks(allTasks);
+  } catch(e) {
+    document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
+  }
+}
+
+function renderTasks(tasks) {
+  const el = document.getElementById('tasks-list');
+  if(!tasks.length) { el.innerHTML = '<div class="empty-state">No tasks found.</div>'; return; }
+
+  const grouped = {};
+  tasks.forEach((t, idx) => {
+    const d = t.Date || 'No date';
+    if(!grouped[d]) grouped[d] = [];
+    grouped[d].push({...t, _idx: idx});
+  });
+
+  // Only the select gets colour — strong, not pastel
+  const STATUS_SELECT = {
+    'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
+    'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
+    'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+    'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+  };
+
+  const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
+  let html = '';
+  dates.forEach(date => {
+    const total = grouped[date].length;
+    const done  = grouped[date].filter(t => t.Status === 'Done').length;
+    html += `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>${date}</span>
+      <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} done</span>
+    </div>`;
+    grouped[date].forEach((t) => {
+      const status = t.Status || 'Pending';
+      const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
+      const link = t['ClickUp Link'] ? `<a href="${t['ClickUp Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
+      html += `
+      <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);font-size:12px;">
+        <span style="font-size:13px;">${t.Task || '—'}
+          <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
+        </span>
+        <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+          style="font-size:11px;padding:4px 6px;width:100%;border-radius:20px;${selectStyle}">
+          <option ${status==='Pending'?'selected':''}>Pending</option>
+          <option ${status==='In Progress'?'selected':''}>In Progress</option>
+          <option ${status==='Done'?'selected':''}>Done</option>
+          <option ${status==='On Hold'?'selected':''}>On Hold</option>
+        </select>
+        <input type="text" placeholder="Paste ClickUp link" value="${t['ClickUp Link']||''}"
+          onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+          style="font-size:11px;padding:4px 6px;">
+        <span>${link}</span>
+        <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
+          class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px">✕</button>
+      </div>`;
+    });
+  });
+  el.innerHTML = html;
+}
+
+async function updateTaskStatus(task, assignee, date, newStatus) {
+  try {
+    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { Status: newStatus } })
+    });
+    const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+    if(t) { t.Status = newStatus; renderTasks(allTasks); }
+  } catch(e) { alert('Error updating status.'); }
+}
+
+async function updateTaskLink(task, assignee, date, link) {
+  if(!link) return;
+  try {
+    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { 'ClickUp Link': link } })
+    });
+    const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+    if(t) t['ClickUp Link'] = link;
+  } catch(e) { console.log('Error updating link'); }
+}
+
+async function deleteTask(task, assignee, date) {
+  if(!confirm(`Delete task: "${task}" for ${assignee}?`)) return;
+  try {
+    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    allTasks = allTasks.filter(t => !(t.Task === task && t.Assignee === assignee && t.Date === date));
+    renderTasks(allTasks);
+  } catch(e) { alert('Error deleting task.'); }
+}
+
+function filterTasks() {
+  const search = document.getElementById('task-search').value.toLowerCase().trim();
+  const date = document.getElementById('task-filter-date').value;
+  let filtered = allTasks;
+  if(search) filtered = filtered.filter(t => (t.Task+t.Assignee).toLowerCase().includes(search));
+  if(date) filtered = filtered.filter(t => t.Date === date);
+
+  // Quick lookup — show ClickUp links prominently if search has 3+ chars
+  const lookupEl = document.getElementById('quick-lookup-result');
+  if(search.length >= 3) {
+    const withLinks = filtered.filter(t => t['ClickUp Link']);
+    if(withLinks.length) {
+      lookupEl.style.display = 'block';
+      lookupEl.innerHTML = `<div style="font-size:11px;color:var(--yellow);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">🔗 Quick Links</div>` +
+        withLinks.map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span><span style="color:var(--yellow);font-weight:700">${t.Assignee}</span> — ${t.Task} <span style="color:var(--muted);font-size:11px">(${t.Date})</span></span>
+          <a href="${t['ClickUp Link']}" target="_blank" class="btn btn-yellow btn-sm" style="text-decoration:none;font-size:11px">🔗 Open</a>
+        </div>`).join('');
+    } else {
+      lookupEl.style.display = 'block';
+      lookupEl.innerHTML = `<span style="font-size:12px;color:var(--muted)">No ClickUp links found for "${search}" yet.</span>`;
+    }
+  } else {
+    lookupEl.style.display = 'none';
+  }
+
+  renderTasks(filtered);
+}
+
+async function addTask(sendEmail) {
+  const date = document.getElementById('task-date').value;
+  const task = document.getElementById('task-name').value.trim();
+  const assignee = document.getElementById('task-assignee').value;
+  if(!task || !assignee) { alert('Please fill task and assignee.'); return; }
+
+  const row = { Date: date || new Date().toISOString().split('T')[0], Task: task, Assignee: assignee, Status: 'Pending', 'ClickUp Link': '', Type: 'task' };
+
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [row] })
+    });
+    allTasks.push(row);
+    renderTasks(allTasks);
+    document.getElementById('task-name').value = '';
+
+    if(sendEmail && TEAM[assignee]) {
+      const todayTasks = allTasks.filter(t => t.Assignee === assignee && t.Date === row.Date);
+      const taskList = todayTasks.map((t,i) => `Task ${i+1}: ${t.Task}`).join('\n');
+      await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+        to_email: TEAM[assignee], to_name: assignee,
+        task_name: `Tasks for ${row.Date}`, task_list: taskList,
+        task_date: row.Date
+      });
+      alert(`Email sent to ${assignee}!`);
+    }
+  } catch(e) { alert('Error saving task.'); }
+}
+
+async function sendAllEmails() {
+  const date = document.getElementById('task-filter-date').value || new Date().toISOString().split('T')[0];
+  const dayTasks = allTasks.filter(t => t.Date === date);
+  if(!dayTasks.length) { alert('No tasks for selected date.'); return; }
+
+  const byPerson = {};
+  dayTasks.forEach(t => {
+    if(!byPerson[t.Assignee]) byPerson[t.Assignee] = [];
+    byPerson[t.Assignee].push(t.Task);
+  });
+
+  let sent = 0;
+  for(const [person, tasks] of Object.entries(byPerson)) {
+    if(!TEAM[person]) continue;
+    const taskList = tasks.map((t,i) => `Task ${i+1}: ${t}`).join('\n');
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: TEAM[person], to_name: person,
+      task_name: `Your tasks for ${date}`, task_list: taskList,
+      task_date: date
+    });
+    sent++;
+  }
+  alert(`Emails sent to ${sent} people for ${date}!`);
+}
+
+// ====== HR ======
+async function loadHR() {
+  const today = new Date().toISOString().split('T')[0];
+  const filterDate = document.getElementById('hr-date-filter')?.value || today;
+
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const data = await res.json();
+
+    const attendance = data.filter(r => r.Type === 'attendance');
+    const leaves = data.filter(r => r.Type === 'leave');
+
+    // Today attendance
+    const todayAtt = attendance.filter(r => r.Date === today);
+    const presentNames = todayAtt.map(r => r.Assignee);
+    const absentNames = TEAM_LIST.filter(n => !presentNames.includes(n));
+
+    let attHtml = '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--green);margin-bottom:6px">PRESENT</div><div class="present-list">';
+    if(presentNames.length) presentNames.forEach(n => attHtml += `<span class="person-chip chip-green">${n}</span>`);
+    else attHtml += '<span style="color:var(--muted);font-size:12px">None yet</span>';
+    attHtml += '</div></div><div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">NOT MARKED</div><div class="absent-list">';
+    absentNames.forEach(n => attHtml += `<span class="person-chip chip-red">${n}</span>`);
+    attHtml += '</div></div>';
+    document.getElementById('attendance-today').innerHTML = attHtml;
+
+    // Leave requests
+    const pending = leaves.filter(r => r.Status === 'Pending');
+    let leaveHtml = '';
+    if(pending.length) {
+      pending.forEach((l, idx) => {
+        leaveHtml += `<div class="leave-card">
+          <div>
+            <div style="font-weight:700">${l.Assignee}</div>
+            <div style="font-size:11px;color:var(--muted)">${l.Date} → ${l.Task}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-green btn-sm" onclick="updateLeave(${idx},'Approved')">Approve</button>
+            <button class="btn btn-red btn-sm" onclick="updateLeave(${idx},'Rejected')">Reject</button>
+          </div>
+        </div>`;
+      });
+    } else {
+      leaveHtml = '<div class="empty-state" style="padding:12px">No pending requests</div>';
+    }
+    document.getElementById('leave-requests').innerHTML = leaveHtml;
+
+    // Attendance log for filter date
+    const logData = attendance.filter(r => r.Date === filterDate);
+    if(logData.length) {
+      document.getElementById('attendance-log').innerHTML = logData.map(r =>
+        `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span>${r.Assignee}</span>
+          <span class="status-badge status-done">${r.Status}</span>
+        </div>`).join('');
+    } else {
+      document.getElementById('attendance-log').innerHTML = '<div class="empty-state">No data for this date.</div>';
+    }
+
+    window._leaveData = leaves;
+
+  } catch(e) {
+    document.getElementById('attendance-today').innerHTML = '<div class="empty-state">Error loading data.</div>';
+  }
+}
+
+async function updateLeave(idx, status) {
+  const leaves = (window._leaveData || []).filter(r => r.Status === 'Pending');
+  const leave = leaves[idx];
+  if(!leave) return;
+  try {
+    await fetch(`${SHEETDB_URL}/Assignee/${leave.Assignee}?sheet=Type:tasks`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { Status: status } })
+    });
+    loadHR();
+  } catch(e) { alert('Error updating leave.'); }
+}
+
+// ====== INSTAGRAM ======
+function switchIgTab(tab, el) {
+  document.querySelectorAll('.ig-tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('ig-' + tab).style.display = 'block';
+  if(el) el.classList.add('active');
+}
+
+let igChatHistory = [];
+
+async function sendIgChat() {
+  const input = document.getElementById('ig-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value = '';
+
+  const chat = document.getElementById('ig-chat-box');
+  chat.innerHTML += `<div class="msg user">${msg}</div>`;
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById('ig-loading').style.display = 'block';
+
+  igChatHistory.push({ role: 'user', content: msg });
+
+  try {
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        system: agentSystemPrompts.social,
+        messages: igChatHistory
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || 'Could not get response.';
+    igChatHistory.push({ role: 'assistant', content: reply });
+    chat.innerHTML += `<div class="msg ai">${reply.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+    chat.innerHTML += `<div class="msg ai" style="color:var(--red)">Error. Try again.</div>`;
+  }
+
+  document.getElementById('ig-loading').style.display = 'none';
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function analyseInstagram() {
+  const account = document.getElementById('ig-account').value;
+  const followers = document.getElementById('ig-followers').value;
+  const reach = document.getElementById('ig-reach').value;
+  const engagement = document.getElementById('ig-engagement').value;
+  const topPosts = document.getElementById('ig-top-posts').value;
+  const recentPosts = document.getElementById('ig-recent-posts').value;
+
+  const handle = account === 'yellow' ? '@yellowproductions_ (production agency, Mumbai)' : '@suriti (Suriti Arora, founder, entrepreneur, Radha Krishna devotee, building The Raas kirtan community)';
+
+  const prompt = `Analyse this Instagram account:
+Account: ${handle}
+Followers: ${followers || 'unknown'}
+Avg Reach: ${reach || 'unknown'}
+Avg Engagement Rate: ${engagement || 'unknown'}%
+Top performing posts: ${topPosts || 'not provided'}
+Recent posts: ${recentPosts || 'not provided'}
+
+Give a sharp, honest analysis:
+1. What's working and why
+2. What's not working
+3. Content gaps
+4. Biggest opportunity right now
+5. One specific thing to change this week
+
+Be direct and specific. No generic advice.`;
+
+  const resultEl = document.getElementById('ig-analysis-result');
+  const textEl = document.getElementById('ig-analysis-text');
+  resultEl.style.display = 'block';
+  textEl.textContent = 'Analysing...';
+
+  try {
+    const reply = await callAI(agentSystemPrompts.social, prompt);
+    textEl.textContent = reply;
+  } catch(e) {
+    textEl.textContent = 'Error. Try again.';
+  }
+}
+
+async function generateStrategy() {
+  const account = document.getElementById('strat-account').value;
+  const goal = document.getElementById('strat-goal').value;
+  const notes = document.getElementById('strat-notes').value;
+  const handle = account === 'yellow' ? '@yellowproductions_ (production/content agency, Mumbai, works with corporate clients in India and Middle East)' : '@suriti (Suriti Arora - entrepreneur, founder of Perky Owl Designs, Yellow Productions, Chor Sipahi, building The Raas kirtan community, Radha Krishna devotee)';
+
+  const prompt = `Build a 30-day Instagram growth strategy for ${handle}.
+Goal: ${goal}
+Notes from founder: ${notes || 'none'}
+
+Give:
+1. Week-by-week content plan (what type of content each week)
+2. Posting frequency recommendation
+3. Top 5 content pillars for this account
+4. Reel hooks that will work for this audience
+5. Hashtag strategy
+6. One contrarian tip most agencies won't tell you
+
+Be specific to this brand. No generic tips.`;
+
+  const resultEl = document.getElementById('strat-result');
+  const textEl = document.getElementById('strat-text');
+  resultEl.style.display = 'block';
+  textEl.textContent = 'Building your strategy...';
+
+  try {
+    const reply = await callAI(agentSystemPrompts.social, prompt);
+    textEl.textContent = reply;
+  } catch(e) {
+    textEl.textContent = 'Error. Try again.';
+  }
+}
+
+async function generateContentIdeas() {
+  const account = document.getElementById('content-account').value;
+  const type = document.getElementById('content-type').value;
+  const context = document.getElementById('content-context').value;
+  const count = document.getElementById('content-count').value;
+  const handle = account === 'yellow' ? '@yellowproductions_ (production agency)' : '@suriti (founder, entrepreneur)';
+
+  const prompt = `Generate ${count} ${type} for ${handle}.
+Context: ${context || 'general content for the account'}
+
+For each idea include:
+- The hook or opening line
+- What the content is about
+- Why it will perform well
+- Best time to post
+
+Be specific, creative, and non-generic.`;
+
+  const resultEl = document.getElementById('content-result');
+  const textEl = document.getElementById('content-text');
+  resultEl.style.display = 'block';
+  textEl.textContent = 'Generating ideas...';
+
+  try {
+    const reply = await callAI(agentSystemPrompts.social, prompt);
+    textEl.textContent = reply;
+  } catch(e) {
+    textEl.textContent = 'Error. Try again.';
+  }
+}
+
+// ====== REVIEW ======
+let reviews = JSON.parse(localStorage.getItem('yp_reviews') || '[]');
+
+function addReview() {
+  const name = document.getElementById('rev-name').value.trim();
+  const designer = document.getElementById('rev-designer').value;
+  const client = document.getElementById('rev-client').value.trim();
+  if(!name) return;
+
+  reviews.push({ id: Date.now(), name, designer, client, stage: 'Designer', date: new Date().toLocaleDateString('en-IN') });
+  localStorage.setItem('yp_reviews', JSON.stringify(reviews));
+  document.getElementById('rev-name').value = '';
+  document.getElementById('rev-client').value = '';
+  renderReview();
+}
+
+function advanceReview(id) {
+  const stages = ['Designer', 'Viplav', 'Suriti', 'Client'];
+  const r = reviews.find(r => r.id === id);
+  if(!r) return;
+  const idx = stages.indexOf(r.stage);
+  if(idx < stages.length - 1) r.stage = stages[idx + 1];
+  else r.stage = 'Done';
+  localStorage.setItem('yp_reviews', JSON.stringify(reviews));
+  renderReview();
+}
+
+function renderReview() {
+  const el = document.getElementById('review-list');
+  if(!reviews.length) { el.innerHTML = '<div class="empty-state">No creatives in queue.</div>'; return; }
+  const stageColor = { Designer: 'status-pending', Viplav: 'status-progress', Suriti: 'status-progress', Client: 'status-progress', Done: 'status-done' };
+  el.innerHTML = reviews.map(r => `
+    <div style="display:grid;grid-template-columns:1fr 100px 100px 80px 80px 80px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span>${r.name}</span>
+      <span style="color:var(--muted);font-size:12px">${r.designer}</span>
+      <span style="color:var(--muted);font-size:12px">${r.client}</span>
+      <span class="status-badge ${stageColor[r.stage] || 'status-pending'}">${r.stage}</span>
+      <span style="color:var(--muted);font-size:11px">${r.date}</span>
+      <button class="btn btn-outline btn-sm" onclick="advanceReview(${r.id})">${r.stage === 'Done' ? '✓' : 'Next →'}</button>
+    </div>`).join('');
+}
+
+// ====== FINANCE ======
+let estimates = JSON.parse(localStorage.getItem('yp_estimates') || '[]');
+
+function addEstimate() {
+  const client = document.getElementById('fin-client').value.trim();
+  const project = document.getElementById('fin-project').value.trim();
+  const amount = document.getElementById('fin-amount').value;
+  if(!client || !project) return;
+
+  estimates.push({ id: Date.now(), client, project, amount: parseInt(amount) || 0, status: 'Estimate', date: new Date().toLocaleDateString('en-IN') });
+  localStorage.setItem('yp_estimates', JSON.stringify(estimates));
+  document.getElementById('fin-client').value = '';
+  document.getElementById('fin-project').value = '';
+  document.getElementById('fin-amount').value = '';
+  loadFinance();
+}
+
+function loadFinance() {
+  const el = document.getElementById('finance-list');
+  if(!estimates.length) { el.innerHTML = '<div class="empty-state">No estimates yet.</div>'; return; }
+
+  const statusClass = { Estimate: 'status-pending', 'Invoice Sent': 'status-progress', Paid: 'status-done' };
+  const nextStatus = { Estimate: 'Invoice Sent', 'Invoice Sent': 'Paid', Paid: 'Paid' };
+
+  el.innerHTML = estimates.map(e => `
+    <div style="display:grid;grid-template-columns:120px 1fr 100px 120px 120px 80px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span style="font-weight:700">${e.client}</span>
+      <span>${e.project}</span>
+      <span style="color:var(--yellow);font-family:'DM Mono',monospace">₹${e.amount.toLocaleString()}</span>
+      <span class="status-badge ${statusClass[e.status]}">${e.status}</span>
+      <span style="color:var(--muted);font-size:11px">${e.date}</span>
+      <button class="btn btn-outline btn-sm" onclick="advanceEstimate(${e.id})" ${e.status==='Paid'?'disabled':''}>→ ${nextStatus[e.status]}</button>
+    </div>`).join('');
+}
+
+function advanceEstimate(id) {
+  const e = estimates.find(e => e.id === id);
+  if(!e) return;
+  if(e.status === 'Estimate') e.status = 'Invoice Sent';
+  else if(e.status === 'Invoice Sent') e.status = 'Paid';
+  localStorage.setItem('yp_estimates', JSON.stringify(estimates));
+  loadFinance();
+}
+
+// ====== CLIENT PORTAL MANAGEMENT ======
+const FOLDER_NAMES = {
+  guidelines: '📐 Brand Guidelines', imagebank: '🖼️ Image Bank',
+  steelcity: '🏙️ Steel City', youthleague: '⚽ Youth League',
+  omanbuild: '🏗️ Oman Build', productboards: '📋 Product Boards'
+};
+
+let allClientCreatives = [];
+
+async function loadClientCreatives() {
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const data = await res.json();
+    allClientCreatives = data.filter(r => r.Type === 'creative');
+    renderClientList();
+  } catch(e) {
+    document.getElementById('cl-list').innerHTML = '<div class="empty-state">Error loading creatives.</div>';
+  }
+}
+
+function renderClientList() {
+  const el = document.getElementById('cl-list');
+  const filter = document.getElementById('cl-filter-folder')?.value;
+  let items = allClientCreatives;
+  if(filter) items = items.filter(c => c.Assignee === filter);
+
+  if(!items.length) { el.innerHTML = '<div class="empty-state">No creatives uploaded yet.</div>'; return; }
+
+  const statusColor = { 'Approved': 'var(--green)', 'Changes Requested': '#e67e22', 'Rejected': 'var(--red)', 'Pending Review': 'var(--yellow)' };
+
+  el.innerHTML = items.map(c => {
+    const taskParts = c.Task.split('|');
+    const creativeName = taskParts[0].trim();
+    const designerName = taskParts[1] ? taskParts[1].trim() : '—';
+    const status = c.Status || 'Pending Review';
+    const feedback = c['ClickUp Link2'] || '';
+    return `<div style="display:grid;grid-template-columns:140px 1fr 100px 100px 120px 1fr;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span style="font-size:11px;color:var(--yellow);font-weight:700">${FOLDER_NAMES[c.Assignee] || c.Assignee}</span>
+      <span style="font-weight:600">${creativeName}</span>
+      <span style="color:var(--muted)">${designerName}</span>
+      <span style="color:${statusColor[status]||'var(--yellow)'};font-weight:700;font-size:11px">${status}</span>
+      ${c['ClickUp Link'] ? `<a href="${c['ClickUp Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '<span style="color:var(--muted)">—</span>'}
+      <span style="font-size:11px;color:var(--muted);font-style:italic">${feedback || '—'}</span>
+    </div>`;
+  }).join('');
+}
+
+async function uploadCreative() {
+  const folder = document.getElementById('cl-folder').value;
+  const name = document.getElementById('cl-name').value.trim();
+  const designer = document.getElementById('cl-designer').value;
+  const link = document.getElementById('cl-link').value.trim();
+
+  if(!name || !designer) { alert('Please fill creative name and designer.'); return; }
+
+  // Store as "Creative Name | DesignerName" so portal can extract designer
+  const taskName = `${name} | ${designer}`;
+  const row = {
+    Date: new Date().toISOString().split('T')[0],
+    Task: taskName,
+    Assignee: folder,
+    Status: 'Pending Review',
+    'ClickUp Link': link,
+    Type: 'creative'
+  };
+
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [row] })
+    });
+    allClientCreatives.push(row);
+    document.getElementById('cl-name').value = '';
+    document.getElementById('cl-link').value = '';
+    renderClientList();
+    alert(`✅ "${name}" added to ${FOLDER_NAMES[folder]}. Jindal can now see it on their portal.`);
+  } catch(e) { alert('Error uploading creative.'); }
+}
+
+// ====== CALENDAR ======
+const HOLIDAYS_2026 = [
+  { date: '2026-01-01', name: "New Year's Day", type: 'fixed' },
+  { date: '2026-01-26', name: 'Republic Day', type: 'fixed' },
+  { date: '2026-03-03', name: 'Holi', type: 'fixed' },
+  { date: '2026-03-19', name: 'Gudi Padwa', type: 'optional' },
+  { date: '2026-03-31', name: 'Eid ul-Fitr', type: 'optional' },
+  { date: '2026-04-03', name: 'Good Friday', type: 'fixed' },
+  { date: '2026-04-21', name: '🎂 Faizan', type: 'sol' },
+  { date: '2026-05-01', name: 'Maharashtra Day', type: 'fixed' },
+  { date: '2026-05-07', name: '🎂 Sandesh', type: 'sol' },
+  { date: '2026-05-21', name: '🎂 Archana', type: 'sol' },
+  { date: '2026-06-10', name: '🎂 Vishwanath', type: 'sol' },
+  { date: '2026-07-08', name: '🎂 Ajay', type: 'sol' },
+  { date: '2026-08-09', name: 'Rakhi', type: 'optional' },
+  { date: '2026-08-15', name: 'Independence Day', type: 'fixed' },
+  { date: '2026-08-16', name: 'Janmashtami 🙏', type: 'fixed' },
+  { date: '2026-08-19', name: 'Ganesh Chaturthi', type: 'fixed' },
+  { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
+  { date: '2026-09-09', name: '🎂 Viplav', type: 'sol' },
+  { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
+  { date: '2026-09-27', name: '🎂 Prathamesh', type: 'sol' },
+  { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
+  { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
+  { date: '2026-10-20', name: 'Diwali ✨', type: 'fixed' },
+  { date: '2026-10-22', name: 'Bhai Dooj', type: 'optional' },
+  { date: '2026-02-01', name: '🎂 Sam', type: 'sol' },
+  { date: '2026-11-21', name: '🎂 Siddhesh', type: 'sol' },
+  { date: '2026-12-14', name: '🎂 Sonal', type: 'sol' },
+  { date: '2026-12-25', name: 'Christmas', type: 'fixed' },
+];
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  let html = '';
+
+  for(let m = 0; m < 12; m++) {
+    const monthHolidays = HOLIDAYS_2026.filter(h => {
+      const d = new Date(h.date);
+      return d.getMonth() === m;
+    });
+
+    const firstDay = new Date(2026, m, 1).getDay();
+    const daysInMonth = new Date(2026, m+1, 0).getDate();
+
+    // Build day map for quick lookup
+    const dayMap = {};
+    monthHolidays.forEach(h => {
+      const day = new Date(h.date).getDate();
+      dayMap[day] = h;
+    });
+
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">
+      <div style="font-size:13px;font-weight:800;color:var(--yellow);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">${MONTH_NAMES[m]}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">
+        ${['S','M','T','W','T','F','S'].map(d => `<div style="font-size:9px;color:var(--muted);text-align:center;font-weight:700">${d}</div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+        ${Array(firstDay).fill('<div></div>').join('')}
+        ${Array.from({length: daysInMonth}, (_,i) => {
+          const day = i+1;
+          const holiday = dayMap[day];
+          const today = new Date();
+          const isToday = today.getFullYear() === 2026 && today.getMonth() === m && today.getDate() === day;
+          let bg = 'transparent';
+          let color = 'var(--muted)';
+          let title = '';
+          if(holiday) {
+            bg = holiday.type === 'fixed' ? 'var(--yellow)' : holiday.type === 'optional' ? '#dcfce7' : holiday.type === 'sol' ? '#fce7f3' : '#dcfce7';
+            color = holiday.type === 'fixed' ? '#000' : holiday.type === 'optional' ? 'var(--green)' : holiday.type === 'sol' ? '#be185d' : 'var(--green)';
+            title = `title="${holiday.type === 'optional' ? 'O — ' : holiday.type === 'sol' ? 'SOL — ' : ''}${holiday.name}"`;
+          }
+          if(isToday && !holiday) { bg = 'var(--surface2)'; color = 'var(--text)'; }
+          return `<div ${title} style="font-size:10px;text-align:center;padding:3px 1px;border-radius:3px;background:${bg};color:${color};font-weight:${holiday?'700':'400'};cursor:${holiday?'pointer':'default'};border:${isToday?'1px solid var(--yellow)':'none'}">${day}</div>`;
+        }).join('')}
+      </div>
+      ${monthHolidays.length ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">
+        ${monthHolidays.map(h => `<div style="font-size:10px;color:${h.type==='fixed'?'var(--yellow)':h.type==='optional'?'var(--green)':h.type==='sol'?'#be185d':'var(--green)'};margin-bottom:2px">
+          ${h.type==='optional'?'O — ':h.type==='sol'?'SOL — ':''}${h.name}
+        </div>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// ====== PERFORMANCE & VARIABLE PAY ======
+const SALARIES = {
+  Gauri: 140000, Sandesh: 100000, Archana: 140000,
+  Prathamesh: 40000, Siddhesh: 60000, Kritya: 100000,
+  Gayatri: 80000, Vishwanath: 70000, Sonal: 60000,
+  Viplav: 112201, Faizan: 75000, Ajay: 80000
+};
+
+let revenueGateMet = false;
+
+function setRevenueGate(met) {
+  revenueGateMet = met;
+  renderPayoutTable();
+}
+
+async function addRating() {
+  const person = document.getElementById('perf-person').value;
+  const task = document.getElementById('perf-task').value.trim();
+  const quality = parseInt(document.getElementById('perf-quality').value);
+  const ownership = parseInt(document.getElementById('perf-ownership').value);
+  if(!person || !task) { alert('Please select person and enter task.'); return; }
+
+  const today = new Date().toISOString().split('T')[0];
+  const month = today.substring(0, 7);
+
+  // Score: quality 30%, ownership 20%, task completion 40% (default 10 since being rated = submitted), collaboration 10% (default 10)
+  const taskScore = 10; // rated = submitted
+  const collabScore = 10; // default
+  const totalScore = (taskScore * 0.4) + (quality * 0.3) + (ownership * 0.2) + (collabScore * 0.1);
+
+  const row = {
+    Date: today, Task: task, Assignee: person,
+    Status: 'Rated', 'ClickUp Link': '',
+    Type: 'rating',
+    Quality: quality, Ownership: ownership,
+    Score: totalScore.toFixed(1), Month: month
+  };
+
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [row] })
+    });
+    document.getElementById('perf-task').value = '';
+    alert(`Rating saved for ${person}! Score: ${totalScore.toFixed(1)}/10`);
+    loadPerformance();
+  } catch(e) { alert('Error saving rating.'); }
+}
+
+async function loadPerformance() {
+  const monthInput = document.getElementById('perf-month-filter');
+  const now = new Date();
+  if(!monthInput.value) monthInput.value = now.toISOString().substring(0, 7);
+  const month = monthInput.value;
+
+  document.getElementById('perf-month').textContent = new Date(month + '-01').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const data = await res.json();
+    const ratings = data.filter(r => r.Type === 'rating' && r.Month === month);
+
+    if(!ratings.length) {
+      document.getElementById('perf-leaderboard').innerHTML = '<div class="empty-state">No ratings for this month.</div>';
+      document.getElementById('perf-top-scorer').textContent = '—';
+      return;
+    }
+
+    // Aggregate by person
+    const personScores = {};
+    ratings.forEach(r => {
+      if(!personScores[r.Assignee]) personScores[r.Assignee] = { total: 0, count: 0 };
+      personScores[r.Assignee].total += parseFloat(r.Score) || 0;
+      personScores[r.Assignee].count++;
+    });
+
+    const ranked = Object.entries(personScores).map(([name, data]) => ({
+      name, avg: (data.total / data.count), count: data.count
+    })).sort((a, b) => b.avg - a.avg);
+
+    // Top scorer
+    const topScore = ranked[0].avg;
+    const topScorers = ranked.filter(r => r.avg === topScore);
+    const voucherPerPerson = topScorers.length > 1 ? '₹2,500 each 🎁' : '₹5,000 🎁';
+    document.getElementById('perf-top-scorer').textContent = topScorers.map(r => r.name).join(' & ');
+
+    // Render leaderboard
+    const medals = ['🥇', '🥈', '🥉'];
+    document.getElementById('perf-leaderboard').innerHTML = `
+      <div style="display:grid;grid-template-columns:30px 1fr 80px 80px 120px 120px;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
+        <span>#</span><span>Name</span><span>Avg Score</span><span>Ratings</span><span>Variable %</span><span>Variable Pay</span>
+      </div>
+      ${ranked.map((p, i) => {
+        const pct = p.avg >= 9 ? 15 : p.avg >= 7.5 ? 10 : p.avg >= 6 ? 5 : 0;
+        const salary = SALARIES[p.name] || 0;
+        const pay = Math.round(salary * pct / 100);
+        const isTop = topScorers.find(t => t.name === p.name);
+        return `<div style="display:grid;grid-template-columns:30px 1fr 80px 80px 120px 120px;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center;${isTop ? 'background:rgba(233,184,74,0.05);border-radius:4px;' : ''}">
+          <span style="font-size:16px">${medals[i] || i+1}</span>
+          <span style="font-weight:700">${p.name}${isTop ? ' ' + voucherPerPerson : ''}</span>
+          <span style="font-family:'DM Mono',monospace;color:var(--yellow)">${p.avg.toFixed(1)}/10</span>
+          <span style="color:var(--muted);font-size:12px">${p.count} tasks</span>
+          <span class="status-badge ${pct >= 15 ? 'status-done' : pct >= 10 ? 'status-progress' : pct >= 5 ? 'status-pending' : ''}">${pct}%</span>
+          <span style="font-family:'DM Mono',monospace;color:var(--green)">₹${pay.toLocaleString()}</span>
+        </div>`;
+      }).join('')}`;
+
+    window._perfRanked = ranked;
+    renderPayoutTable();
+
+  } catch(e) {
+    document.getElementById('perf-leaderboard').innerHTML = '<div class="empty-state">Error loading data.</div>';
+  }
+}
+
+function renderPayoutTable() {
+  const ranked = window._perfRanked;
+  if(!ranked) return;
+
+  const gateEl = document.getElementById('perf-revenue-status');
+  gateEl.textContent = revenueGateMet ? 'MET ✅' : 'NOT MET ❌';
+  gateEl.style.color = revenueGateMet ? 'var(--green)' : 'var(--red)';
+
+  const topScore = ranked[0].avg;
+  const topScorers = ranked.filter(r => r.avg === topScore);
+  const voucherPerPerson = topScorers.length > 1 ? 2500 : 5000;
+
+  let total = 0;
+  const rows = ranked.map(p => {
+    const pct = p.avg >= 9 ? 15 : p.avg >= 7.5 ? 10 : p.avg >= 6 ? 5 : 0;
+    const salary = SALARIES[p.name] || 0;
+    const pay = revenueGateMet ? Math.round(salary * pct / 100) : 0;
+    const voucher = topScorers.find(t => t.name === p.name) ? voucherPerPerson : 0;
+    total += pay + voucher;
+    return `<div style="display:grid;grid-template-columns:1fr 80px 120px 100px 120px;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:center">
+      <span style="font-weight:700">${p.name}</span>
+      <span style="color:var(--yellow)">${pct}%</span>
+      <span style="font-family:'DM Mono',monospace">₹${(Math.round((SALARIES[p.name]||0)*pct/100)).toLocaleString()}</span>
+      <span style="color:var(--yellow);font-size:12px">${voucher ? '🎁 ₹'+voucher.toLocaleString() : '—'}</span>
+      <span style="font-family:'DM Mono',monospace;color:${revenueGateMet?'var(--green)':'var(--muted)'}">
+        ${revenueGateMet ? '₹'+(Math.round((SALARIES[p.name]||0)*pct/100)+voucher).toLocaleString() : 'Accruing'}
+      </span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('perf-payout-table').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 80px 120px 100px 120px;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
+      <span>Name</span><span>Variable %</span><span>Variable Pay</span><span>Voucher</span><span>Total Payout</span>
+    </div>
+    ${rows}
+    <div style="display:flex;justify-content:flex-end;padding:12px 0;font-size:14px;font-weight:700;color:var(--yellow)">
+      Total: ₹${total.toLocaleString()}
+    </div>`;
+}
+
+// Init
+document.getElementById('task-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('perf-month-filter').value = new Date().toISOString().substring(0, 7);
+renderCalendar();
+
+</script>
+</body>
+</html>
