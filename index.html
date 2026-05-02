@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yellowverse</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#f5f4f1; font-family:'Poppins',sans-serif;
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:20px;
+}
+.container { width:100%; max-width:420px; text-align:center; }
+.logo { font-size:48px; margin-bottom:12px; }
+.title { font-size:28px; font-weight:800; color:#c8961a; margin-bottom:4px; }
+.sub { font-size:13px; color:#888; margin-bottom:40px; font-style:italic; }
+.portal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.portal-card {
+  background:#fff; border:1px solid #e0ddd8; border-radius:16px;
+  padding:24px 16px; text-decoration:none; color:#1a1a1a;
+  transition:all 0.15s; box-shadow:0 2px 8px rgba(0,0,0,0.06);
+}
+.portal-card:hover { border-color:#c8961a; transform:translateY(-2px); box-shadow:0 4px 16px rgba(200,150,26,0.15); }
+.portal-icon { font-size:32px; margin-bottom:10px; }
+.portal-name { font-size:14px; font-weight:700; margin-bottom:4px; }
+.portal-desc { font-size:11px; color:#888; }
+.footer { margin-top:32px; font-size:11px; color:#bbb; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">🌕</div>
+  <div class="title">Yellowverse</div>
+  <div class="sub">Powered by Yellow Productions</div>
+  <div class="portal-grid">
+    <a href="/yellow-founder-os_3.html" class="portal-card">
+      <div class="portal-icon">⚡</div>
+      <div class="portal-name">Founder OS</div>
+      <div class="portal-desc">CEO Dashboard</div>
+    </a>
+    <a href="/yellow-team-portal_2.html" class="portal-card">
+      <div class="portal-icon">👥</div>
+      <div class="portal-name">Team Portal</div>
+      <div class="portal-desc">Daily workspace</div>
+    </a>
+    <a href="/yellow-door.html" class="portal-card">
+      <div class="portal-icon">🚪</div>
+      <div class="portal-name">Yellow Door</div>
+      <div class="portal-desc">Client portal</div>
+    </a>
+    <a href="/quick-upload.html" class="portal-card">
+      <div class="portal-icon">📤</div>
+      <div class="portal-name">Quick Upload</div>
+      <div class="portal-desc">Upload creatives</div>
+    </a>
+  </div>
+  <div class="footer">Radha Krishna 🌸</div>
+</div>
+</body>
+</html>
