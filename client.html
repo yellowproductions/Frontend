@@ -9,7 +9,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap');
 :root {
   --bg:#f8f7f4; --surface:#fff; --surface2:#f2f0eb;
-  --border:#e0ddd6; --yellow:#c8961a; --yellow-light:#fef9ee;
+  --border:#e0ddd6; --yellow:#FEBC06; --yellow-light:#fef9ee;
   --text:#1a1a1a; --muted:#888; --green:#2d7a3a; --red:#c0392b;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -17,117 +17,100 @@ body { background:var(--bg); color:var(--text); font-family:'Poppins',sans-serif
 
 #login-overlay {
   position:fixed; top:0; left:0; width:100%; height:100%;
-  background:var(--bg); display:flex; align-items:center;
-  justify-content:center; z-index:9999;
+  background:#f7f5f0;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  display:flex; flex-direction:column;
+  z-index:9999;
 }
+.login-nav {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:24px 48px;
+}
+.login-nav-brand { font-size:13px; font-weight:700; color:#1a1a1a; letter-spacing:0.08em; }
+.login-nav-right { display:flex; align-items:center; gap:8px; }
+.login-nav-dot { width:36px; height:36px; border-radius:50%; background:#FEBC06; }
+.login-hero {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  padding:0 48px 48px;
+}
+.login-hero-inner {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:80px; max-width:860px; width:100%; align-items:center;
+}
+.login-headline {
+  font-size:clamp(44px,5.5vw,64px); font-weight:400;
+  color:#1a1a1a; line-height:1.1; letter-spacing:-1px;
+}
+.highlight-wrap { display:inline-block; position:relative; }
+.highlight-wrap::before {
+  content:''; position:absolute;
+  top:-4px; left:-10px; right:-10px; bottom:-4px;
+  background:#FEBC06; border-radius:6px;
+  transform:rotate(-1.8deg); z-index:0;
+}
+.highlight-wrap span { position:relative; z-index:1; }
+.login-sub { font-size:13px; color:#888; margin-top:20px; line-height:1.7; }
 .login-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:16px; padding:48px; width:420px; text-align:center;
-  box-shadow:0 4px 24px rgba(0,0,0,0.08);
+  background:#fff; border:1px solid #e8e3db;
+  border-radius:24px; padding:40px 36px;
+  text-align:left; box-shadow:none; width:auto;
 }
+.login-footer {
+  padding:20px 48px; border-top:1px solid #e0ddd8;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.login-footer-text { font-size:11px; color:#bbb; }
+.login-radhe { font-size:11px; color:#1a1a1a; }
 .header {
   background:var(--surface); border-bottom:1px solid var(--border);
   padding:16px 32px; display:flex; justify-content:space-between;
   align-items:center; position:sticky; top:0; z-index:100;
 }
 .container { max-width:1000px; margin:0 auto; padding:32px; }
-
-.tabs-bar {
-  display:flex; border-bottom:2px solid var(--border);
-  margin-bottom:32px; overflow-x:auto; gap:0;
-}
+.tabs-bar { display:flex; border-bottom:2px solid var(--border); margin-bottom:32px; overflow-x:auto; gap:0; }
 .tab-btn {
   padding:12px 22px; cursor:pointer; font-size:13px; font-weight:600;
   color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px;
   transition:all 0.15s; white-space:nowrap; background:none;
-  border-top:none; border-left:none; border-right:none;
-  font-family:'Poppins',sans-serif;
+  border-top:none; border-left:none; border-right:none; font-family:'Poppins',sans-serif;
 }
 .tab-btn:hover { color:var(--text); }
 .tab-btn.active { color:var(--yellow); border-bottom-color:var(--yellow); }
 .tab-content { display:none; }
 .tab-content.active { display:block; }
-
 .folders-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; margin-bottom:28px; }
-.folder-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:12px; padding:24px; text-align:center; transition:all 0.15s;
-}
+.folder-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; text-align:center; transition:all 0.15s; }
 .folder-card:hover { border-color:var(--yellow); }
-
-.section-label {
-  font-size:12px; font-weight:700; color:var(--muted);
-  text-transform:uppercase; letter-spacing:0.08em;
-  margin-bottom:14px; margin-top:28px;
-  padding-bottom:8px; border-bottom:1px solid var(--border);
-  display:flex; justify-content:space-between; align-items:center;
-}
-
-.creative-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:10px; padding:20px; margin-bottom:12px;
-  transition:all 0.15s;
-}
+.section-label { font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px; margin-top:28px; padding-bottom:8px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.creative-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:12px; transition:all 0.15s; }
 .creative-card:hover { box-shadow:0 2px 12px rgba(0,0,0,0.06); }
-
 .status-pill { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
 .pill-pending { background:#fef9ee; color:var(--yellow); border:1px solid #f0d080; }
 .pill-approved { background:#eafaf1; color:var(--green); border:1px solid #a9dfb0; }
 .pill-comment { background:#fef5e7; color:#e67e22; border:1px solid #f0c070; }
-
 .action-row { display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
-
-.feedback-box {
-  background:var(--surface2); border:1px solid var(--border);
-  border-radius:8px; padding:14px; margin-top:12px; display:none;
-}
+.feedback-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:12px; display:none; }
 .feedback-box textarea { margin-bottom:10px; }
-
-.btn {
-  padding:9px 18px; border-radius:8px; border:none; cursor:pointer;
-  font-family:'Poppins',sans-serif; font-size:13px; font-weight:600;
-  transition:all 0.15s; text-decoration:none; display:inline-block;
-}
-.btn-yellow { background:var(--yellow); color:#fff; }
+.btn { padding:9px 18px; border-radius:8px; border:none; cursor:pointer; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; transition:all 0.15s; text-decoration:none; display:inline-block; }
+.btn-yellow { background:var(--yellow); color:#000; }
 .btn-green { background:var(--green); color:#fff; }
 .btn-red { background:var(--red); color:#fff; }
 .btn-orange { background:#e67e22; color:#fff; }
 .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
 .btn-outline:hover { border-color:var(--yellow); color:var(--yellow); }
 .btn-sm { padding:6px 14px; font-size:12px; }
-
-input, textarea, select {
-  background:var(--surface2); border:1px solid var(--border); color:var(--text);
-  padding:10px 14px; border-radius:8px; font-family:'Poppins',sans-serif;
-  font-size:13px; width:100%; transition:border 0.15s;
-}
+input, textarea, select { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:10px 14px; border-radius:8px; font-family:'Poppins',sans-serif; font-size:13px; width:100%; transition:border 0.15s; }
 input:focus, textarea:focus { outline:none; border-color:var(--yellow); }
 textarea { resize:vertical; min-height:80px; }
 label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:0.05em; font-weight:600; }
-
-.coming-soon {
-  background:var(--surface); border:2px dashed var(--border);
-  border-radius:12px; padding:56px; text-align:center; color:var(--muted);
-}
-
-.toast {
-  position:fixed; bottom:24px; right:24px; background:#1a1a1a;
-  color:#fff; padding:12px 20px; border-radius:8px; font-size:13px;
-  font-weight:600; z-index:99999; display:none;
-}
-.empty-state {
-  text-align:center; padding:32px; color:var(--muted); font-size:14px;
-  background:var(--surface); border:1px dashed var(--border); border-radius:10px;
-}
-
-.action-select {
-  padding:8px 12px; border-radius:8px; font-size:13px;
-  font-weight:600; cursor:pointer; font-family:'Poppins',sans-serif;
-  background:var(--surface2); border:1px solid var(--border); color:var(--text);
-  width:auto;
-}
+.coming-soon { background:var(--surface); border:2px dashed var(--border); border-radius:12px; padding:56px; text-align:center; color:var(--muted); }
+.toast { position:fixed; bottom:24px; right:24px; background:#1a1a1a; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; font-weight:600; z-index:99999; display:none; }
+.empty-state { text-align:center; padding:32px; color:var(--muted); font-size:14px; background:var(--surface); border:1px dashed var(--border); border-radius:10px; }
+.action-select { padding:8px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Poppins',sans-serif; background:var(--surface2); border:1px solid var(--border); color:var(--text); width:auto; }
 .action-select:focus { outline:none; border-color:var(--yellow); }
-
 ::-webkit-scrollbar { height:4px; width:4px; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 </style>
@@ -138,21 +121,37 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 
 <!-- LOGIN -->
 <div id="login-overlay">
-  <div class="login-card">
-    <div style="width:60px;height:60px;background:var(--yellow);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px">🟡</div>
-    <h2 style="font-size:22px;font-weight:800;margin-bottom:6px">The Yellow Door</h2>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:4px;font-style:italic">Powered by Yellow Verse</p>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:28px">Your dedicated project space</p>
-    <div style="margin-bottom:14px;text-align:left">
-      <label>Your name</label>
-      <input type="text" id="login-name" placeholder="Enter your name..." onkeydown="if(event.key==='Enter')doLogin()">
+  <div class="login-nav">
+    <div class="login-nav-brand">THE YELLOW DOOR</div>
+    <div class="login-nav-right">
+      <span style="font-size:11px;color:#999">Powered by Yellow Productions</span>
+      <div class="login-nav-dot"></div>
     </div>
-    <div style="margin-bottom:16px;text-align:left">
-      <label>Password</label>
-      <input type="password" id="login-input" placeholder="Enter password..." onkeydown="if(event.key==='Enter')doLogin()">
+  </div>
+  <div class="login-hero">
+    <div class="login-hero-inner">
+      <div>
+        <div class="login-headline">
+          Your<br>workflow<br>made<br>
+          <div class="highlight-wrap"><span>efficient.</span></div>
+        </div>
+        <div class="login-sub">A dedicated space for creatives, approvals and collaboration.</div>
+      </div>
+      <div class="login-card">
+        <h2 style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome back</h2>
+        <p style="font-size:12px;color:#aaa;margin-bottom:32px;font-style:italic">Your dedicated project space</p>
+        <label style="display:block;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Your Name</label>
+        <input type="text" id="login-name" placeholder="Enter your name..." onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;background:#f5f4f1;border:1px solid #e0ddd8;border-radius:10px;padding:13px 16px;font-family:'Poppins',sans-serif;font-size:14px;color:#1a1a1a;outline:none;margin-bottom:20px;box-sizing:border-box">
+        <label style="display:block;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Password</label>
+        <input type="password" id="login-input" placeholder="Enter password..." onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;background:#f5f4f1;border:1px solid #e0ddd8;border-radius:10px;padding:13px 16px;font-family:'Poppins',sans-serif;font-size:14px;color:#1a1a1a;outline:none;margin-bottom:16px;box-sizing:border-box">
+        <div id="login-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none;font-weight:600">Incorrect password. Please try again.</div>
+        <button onclick="doLogin()" style="width:100%;background:#FEBC06;color:#000;border:none;border-radius:10px;padding:14px;font-family:'Poppins',sans-serif;font-size:15px;font-weight:700;cursor:pointer">Enter →</button>
+      </div>
     </div>
-    <div id="login-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none;font-weight:600">Incorrect password. Please try again.</div>
-    <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:14px" onclick="doLogin()">Enter →</button>
+  </div>
+  <div class="login-footer">
+    <div class="login-footer-text">© 2026 Yellow Productions</div>
+    <div class="login-radhe">🪷 Radhe Shyam</div>
   </div>
 </div>
 
@@ -160,10 +159,10 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 <div id="portal-wrap">
   <div class="header">
     <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:36px;height:36px;background:var(--yellow);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🟡</div>
+      <div style="width:36px;height:36px;background:#FEBC06;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🟡</div>
       <div>
         <div style="font-size:15px;font-weight:800">The Yellow Door</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Powered by Yellow Verse</div>
+        <div style="font-size:11px;color:var(--muted)">Powered by Yellow Productions</div>
       </div>
     </div>
     <div style="font-size:13px;color:var(--muted)">
@@ -172,22 +171,18 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <span style="cursor:pointer;color:var(--yellow)" onclick="doLogout()">Logout</span>
     </div>
   </div>
-
   <div class="container">
     <div style="margin-bottom:24px">
       <h1 style="font-size:22px;font-weight:800;margin-bottom:4px">Your Projects</h1>
       <p style="font-size:13px;color:var(--muted)">View creatives, share files and give feedback.</p>
     </div>
-
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchTab('jindal-steel',this)"> Jindal Steel</button>
-      <button class="tab-btn" onclick="switchTab('jindal-league',this)"> Jindal League</button>
-      <button class="tab-btn" onclick="switchTab('jindal-youth',this)"> Jindal Youth League</button>
-      <button class="tab-btn" onclick="switchTab('sohar-steel',this)"> Sohar Steel</button>
-      <button class="tab-btn" onclick="switchTab('duqm',this)"> Jindal Steel Duqm</button>
+      <button class="tab-btn active" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
+      <button class="tab-btn" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
+      <button class="tab-btn" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
+      <button class="tab-btn" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
+      <button class="tab-btn" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
     </div>
-
-    <!-- JINDAL STEEL -->
     <div id="tab-jindal-steel" class="tab-content active">
       <div class="folders-row">
         <div class="folder-card">
@@ -209,13 +204,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <a href="https://www.dropbox.com/scl/fo/kmfxydge8oiyxewto0w2l/AHkR7QjqmvrEdrv6PwdXDkw?rlkey=y6c4brnl8ae3t59iv3dbgxmak&st=dufp8cuq&dl=0" target="_blank" class="btn btn-yellow btn-sm">🎨 Open in Dropbox ↗</a>
         </div>
       </div>
-      <div class="section-label">Pending Review <span id="count-pending-steelcity" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div class="section-label">Pending Review <span id="count-pending-steelcity"></span></div>
       <div id="pending-steelcity"><div class="empty-state">No creatives pending review.</div></div>
       <div class="section-label">✅ Approved</div>
       <div id="approved-steelcity"><div class="empty-state">No approved creatives yet.</div></div>
     </div>
-
-    <!-- JINDAL LEAGUE -->
     <div id="tab-jindal-league" class="tab-content">
       <div class="folders-row">
         <div class="folder-card">
@@ -231,88 +224,20 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
         </div>
       </div>
-      <div class="section-label">Pending Review <span id="count-pending-youthleague" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div class="section-label">Pending Review <span id="count-pending-youthleague"></span></div>
       <div id="pending-youthleague"><div class="empty-state">No creatives pending review.</div></div>
       <div class="section-label">✅ Approved</div>
       <div id="approved-youthleague"><div class="empty-state">No approved creatives yet.</div></div>
     </div>
-
-    <!-- COMING SOON TABS -->
     <div id="tab-jindal-youth" class="tab-content">
-      <div class="folders-row">
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🖼️</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🎨</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-      </div>
-      <div class="section-label">Pending Review</div>
-      <div class="empty-state">No creatives pending review.</div>
-      <div class="section-label">✅ Approved</div>
-      <div class="empty-state">No approved creatives yet.</div>
+      <div class="coming-soon"><div style="font-size:40px;margin-bottom:12px">🏆</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Jindal Youth League</div><div style="font-size:13px">Coming soon.</div></div>
     </div>
-
     <div id="tab-sohar-steel" class="tab-content">
-      <div class="folders-row">
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">📐</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Brand Guidelines</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🖼️</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🎨</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-      </div>
-      <div class="section-label">Pending Review</div>
-      <div class="empty-state">No creatives pending review.</div>
-      <div class="section-label">✅ Approved</div>
-      <div class="empty-state">No approved creatives yet.</div>
+      <div class="coming-soon"><div style="font-size:40px;margin-bottom:12px">🇴🇲</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Sohar Steel</div><div style="font-size:13px">Coming soon.</div></div>
     </div>
-
     <div id="tab-duqm" class="tab-content">
-      <div class="folders-row">
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">📐</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Brand Guidelines</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🖼️</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-        <div class="folder-card" style="border:2px dashed var(--border);opacity:0.6">
-          <div style="font-size:32px;margin-bottom:10px">🎨</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Link coming soon</div>
-          <span class="btn btn-outline btn-sm" style="cursor:default">🔗 Pending</span>
-        </div>
-      </div>
-      <div class="section-label">Pending Review</div>
-      <div class="empty-state">No creatives pending review.</div>
-      <div class="section-label">✅ Approved</div>
-      <div class="empty-state">No approved creatives yet.</div>
+      <div class="coming-soon"><div style="font-size:40px;margin-bottom:12px">⚙️</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Jindal Steel Duqm</div><div style="font-size:13px">Coming soon.</div></div>
     </div>
-
   </div>
 </div>
 
@@ -321,7 +246,7 @@ const SHEETDB = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
 const EJS_SVC = 'service_786h8bh';
 const EJS_TPL = 'template_w1gbhz9';
 const EJS_KEY = '_sfXlprhHHUbt55qV';
-
+const BACKEND = 'https://yellowbackend.onrender.com';
 const DESIGNER_EMAILS = {
   Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
   Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
@@ -330,19 +255,12 @@ const DESIGNER_EMAILS = {
   Viplav:'viplav@yellowproductions.co.in', Siddhesh:'siddhesh@yellowproductions.co.in',
   Ajay:'ajay@yellowproductions.co.in'
 };
-
 const FOLDERS = ['steelcity','youthleague'];
-
 emailjs.init(EJS_KEY);
 let currentUser = '';
 let allCreatives = [];
 
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 3500);
-}
+function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3500); }
 
 function doLogin() {
   const name = document.getElementById('login-name').value.trim();
@@ -373,61 +291,34 @@ async function loadCreatives() {
   renderAll();
 }
 
-function renderAll() {
-  FOLDERS.forEach(folder => renderFolder(folder));
-}
+function renderAll() { FOLDERS.forEach(folder => renderFolder(folder)); }
 
 function renderFolder(folder) {
   const items = allCreatives.filter(c => c.Assignee === folder);
   const pending  = items.filter(c => c.Status === 'Pending Review' || c.Status === 'Comment' || !c.Status);
   const approved = items.filter(c => c.Status === 'Approved');
-
-  // Count badge
   const countEl = document.getElementById(`count-pending-${folder}`);
   if (countEl) countEl.textContent = pending.length || '';
-
-  // Pending
   const pendingEl = document.getElementById(`pending-${folder}`);
-  if (pendingEl) {
-    if (!pending.length) {
-      pendingEl.innerHTML = '<div class="empty-state">No creatives pending review.</div>';
-    } else {
-      pendingEl.innerHTML = pending.map((item, idx) => renderPendingCard(item, idx, folder)).join('');
-    }
-  }
-
-  // Approved
+  if (pendingEl) pendingEl.innerHTML = pending.length ? pending.map((item, idx) => renderPendingCard(item, idx, folder)).join('') : '<div class="empty-state">No creatives pending review.</div>';
   const approvedEl = document.getElementById(`approved-${folder}`);
-  if (approvedEl) {
-    if (!approved.length) {
-      approvedEl.innerHTML = '<div class="empty-state">No approved creatives yet.</div>';
-    } else {
-      approvedEl.innerHTML = approved.map(item => renderApprovedCard(item)).join('');
-    }
-  }
+  if (approvedEl) approvedEl.innerHTML = approved.length ? approved.map(item => renderApprovedCard(item)).join('') : '<div class="empty-state">No approved creatives yet.</div>';
 }
 
 function renderPendingCard(item, idx, folder) {
-  const parts    = item.Task.split('|');
-  const cName    = parts[0].trim();
+  const parts = item.Task.split('|');
+  const cName = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : 'Yellow Productions';
   const feedback = item['ClickUp Link2'] || '';
-  const status   = item.Status || 'Pending Review';
-  const uid      = `${folder}-${idx}`;
-
+  const status = item.Status || 'Pending Review';
+  const uid = `${folder}-${idx}`;
   return `<div class="creative-card" id="card-${uid}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-      <div>
-        <div style="font-size:15px;font-weight:700">${cName}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Uploaded ${item.Date} · ${designer}</div>
-      </div>
+      <div><div style="font-size:15px;font-weight:700">${cName}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Uploaded ${item.Date} · ${designer}</div></div>
       <span class="status-pill ${status==='Comment'?'pill-comment':'pill-pending'}">${status}</span>
     </div>
-
     ${feedback ? `<div style="background:#fef5e7;border:1px solid #f0c070;border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:13px"><div style="font-size:11px;color:#e67e22;margin-bottom:4px;font-weight:600">LAST FEEDBACK</div>${feedback}</div>` : ''}
-
     ${item['ClickUp Link'] ? `<a href="${item['ClickUp Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View Creative</a>` : '<span style="color:var(--muted);font-size:12px">Link coming soon</span>'}
-
     <div class="action-row">
       <select class="action-select" id="action-select-${uid}" onchange="handleActionSelect('${uid}','${folder}',${idx})">
         <option value="">Select action...</option>
@@ -436,7 +327,6 @@ function renderPendingCard(item, idx, folder) {
         <option value="Rejected">❌ Reject</option>
       </select>
     </div>
-
     <div class="feedback-box" id="feedback-box-${uid}">
       <label>Your Feedback</label>
       <textarea id="feedback-text-${uid}" placeholder="Describe what changes you need..."></textarea>
@@ -449,15 +339,12 @@ function renderPendingCard(item, idx, folder) {
 }
 
 function renderApprovedCard(item) {
-  const parts    = item.Task.split('|');
-  const cName    = parts[0].trim();
+  const parts = item.Task.split('|');
+  const cName = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : 'Yellow Productions';
   return `<div class="creative-card" style="border-color:#a9dfb0;background:#f9fef9">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:14px;font-weight:700">${cName}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">${designer} · Approved ${item.Date}</div>
-      </div>
+      <div><div style="font-size:14px;font-weight:700">${cName}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${designer} · Approved ${item.Date}</div></div>
       <span class="status-pill pill-approved">✅ Approved</span>
     </div>
     ${item['ClickUp Link'] ? `<div style="margin-top:10px"><a href="${item['ClickUp Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View</a></div>` : ''}
@@ -467,98 +354,42 @@ function renderApprovedCard(item) {
 function handleActionSelect(uid, folder, idx) {
   const val = document.getElementById(`action-select-${uid}`).value;
   const box = document.getElementById(`feedback-box-${uid}`);
-
-  if (val === 'Approved') {
-    if (confirm('Approve this creative?')) {
-      submitAction(uid, folder, idx, 'Approved');
-    } else {
-      document.getElementById(`action-select-${uid}`).value = '';
-    }
-  } else if (val === 'Rejected') {
-    if (confirm('Reject this creative? It will be removed from the portal and the designer will be notified.')) {
-      submitAction(uid, folder, idx, 'Rejected');
-    } else {
-      document.getElementById(`action-select-${uid}`).value = '';
-    }
-  } else if (val === 'Comment') {
-    box.style.display = 'block';
-  } else {
-    box.style.display = 'none';
-  }
+  if (val === 'Approved') { if (confirm('Approve this creative?')) { submitAction(uid, folder, idx, 'Approved'); } else { document.getElementById(`action-select-${uid}`).value = ''; } }
+  else if (val === 'Rejected') { if (confirm('Reject this creative?')) { submitAction(uid, folder, idx, 'Rejected'); } else { document.getElementById(`action-select-${uid}`).value = ''; } }
+  else if (val === 'Comment') { box.style.display = 'block'; }
+  else { box.style.display = 'none'; }
 }
 
-function cancelAction(uid) {
-  document.getElementById(`action-select-${uid}`).value = '';
-  document.getElementById(`feedback-box-${uid}`).style.display = 'none';
-}
-
-const BACKEND = 'https://yellowbackend.onrender.com';
+function cancelAction(uid) { document.getElementById(`action-select-${uid}`).value = ''; document.getElementById(`feedback-box-${uid}`).style.display = 'none'; }
 
 async function submitAction(uid, folder, idx, action) {
-  const items    = allCreatives.filter(c => c.Assignee === folder);
-  const pending  = items.filter(c => c.Status === 'Pending Review' || c.Status === 'Comment' || !c.Status);
-  const item     = pending[idx];
+  const items = allCreatives.filter(c => c.Assignee === folder);
+  const pending = items.filter(c => c.Status === 'Pending Review' || c.Status === 'Comment' || !c.Status);
+  const item = pending[idx];
   if (!item) return;
-
-  const comment  = document.getElementById(`feedback-text-${uid}`)?.value.trim() || '';
+  const comment = document.getElementById(`feedback-text-${uid}`)?.value.trim() || '';
   if (action === 'Comment' && !comment) { alert('Please write your feedback first.'); return; }
-
-  const parts        = item.Task.split('|');
-  const cName        = parts[0].trim();
+  const parts = item.Task.split('|');
+  const cName = parts[0].trim();
   const designerName = parts[1] ? parts[1].trim() : '';
-  const designerEmail= DESIGNER_EMAILS[designerName];
-  const fileDropboxPath = item['ClickUp Link'] || null; // Dropbox path stored here if uploaded via Quick Upload
-
+  const designerEmail = DESIGNER_EMAILS[designerName];
+  const fileDropboxPath = item['ClickUp Link'] || null;
   try {
     if (action === 'Rejected') {
-      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, {
-        method: 'DELETE', headers: {'Content-Type':'application/json'}
-      });
+      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, { method: 'DELETE', headers: {'Content-Type':'application/json'} });
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
     } else {
-      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, {
-        method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ data: { Status: action, 'ClickUp Link2': comment } })
-      });
-      item.Status = action;
-      item['ClickUp Link2'] = comment;
-
-      // On approval — move file in Dropbox to Creatives/Approved folder
+      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ data: { Status: action, 'ClickUp Link2': comment } }) });
+      item.Status = action; item['ClickUp Link2'] = comment;
       if (action === 'Approved' && fileDropboxPath) {
-        try {
-          await fetch(`${BACKEND}/api/dropbox-move`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fromPath: fileDropboxPath,
-              toFolder: '/Jindal/Creatives/Approved'
-            })
-          });
-        } catch(e) {
-          console.log('Dropbox move failed (non-critical):', e.message);
-        }
+        try { await fetch(`${BACKEND}/api/dropbox-move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromPath: fileDropboxPath, toFolder: '/Jindal/Creatives/Approved' }) }); } catch(e) {}
       }
     }
-
-    // Email designer for Comment and Rejected
     if (designerEmail && (action === 'Comment' || action === 'Rejected')) {
-      await emailjs.send(EJS_SVC, EJS_TPL, {
-        to_email: designerEmail, to_name: designerName,
-        task_name: `${action === 'Rejected' ? '❌ Rejected' : '💬 Feedback'}: ${cName}`,
-        task_list: `Action: ${action}\nFeedback: ${comment || 'No comments.'}\nBy: ${currentUser} (Jindal)\nDate: ${new Date().toLocaleDateString('en-IN')}`,
-        task_date: new Date().toLocaleDateString('en-IN')
-      });
+      await emailjs.send(EJS_SVC, EJS_TPL, { to_email: designerEmail, to_name: designerName, task_name: `${action === 'Rejected' ? '❌ Rejected' : '💬 Feedback'}: ${cName}`, task_list: `Action: ${action}\nFeedback: ${comment || 'No comments.'}\nBy: ${currentUser}\nDate: ${new Date().toLocaleDateString('en-IN')}`, task_date: new Date().toLocaleDateString('en-IN') });
     }
-
-    // Always notify Suriti
-    await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
-      task_name: `Jindal ${action}: ${cName}`,
-      task_list: `Action: ${action}\nFeedback: ${comment||'None'}\nBy: ${currentUser}\nDesigner: ${designerName}`,
-      task_date: new Date().toLocaleDateString('en-IN')
-    });
-
-    const msgs = { Approved:'✅ Approved and moved to Creatives folder!', Comment:'💬 Feedback sent to designer!', Rejected:'❌ Rejected and removed.' };
+    await emailjs.send(EJS_SVC, EJS_TPL, { to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti', task_name: `Jindal ${action}: ${cName}`, task_list: `Action: ${action}\nFeedback: ${comment||'None'}\nBy: ${currentUser}\nDesigner: ${designerName}`, task_date: new Date().toLocaleDateString('en-IN') });
+    const msgs = { Approved:'✅ Approved!', Comment:'💬 Feedback sent!', Rejected:'❌ Rejected.' };
     toast(msgs[action]);
     renderFolder(folder);
   } catch(e) { alert('Error. Please try again.'); }
