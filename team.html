@@ -14,169 +14,129 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--text); font-family:'Poppins',sans-serif; height:100vh; display:flex; overflow:hidden; }
-
-/* SIDEBAR */
-.sidebar {
-  width:200px; min-width:200px; background:var(--surface);
-  border-right:1px solid var(--border); display:flex;
-  flex-direction:column; padding:24px 0;
-}
+.sidebar { width:200px; min-width:200px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:24px 0; }
 .logo { padding:0 20px 20px; border-bottom:1px solid var(--border); margin-bottom:12px; }
 .logo-title { font-size:13px; font-weight:800; color:var(--yellow); letter-spacing:0.1em; text-transform:uppercase; }
 .logo-sub { font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; margin-top:2px; }
 .user-info { padding:10px 20px 14px; border-bottom:1px solid var(--border); margin-bottom:8px; }
 .user-name { font-size:13px; font-weight:700; color:var(--text); }
 .user-role { font-size:11px; color:var(--muted); }
-
-.nav-item {
-  display:flex; align-items:center; gap:10px; padding:10px 20px;
-  cursor:pointer; font-size:13px; color:var(--muted); transition:all 0.15s;
-  border-left:2px solid transparent;
-}
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; font-size:13px; color:var(--muted); transition:all 0.15s; border-left:2px solid transparent; }
 .nav-item:hover { color:var(--text); background:var(--surface2); }
 .nav-item.active { color:var(--yellow); border-left-color:var(--yellow); background:var(--surface2); }
-
 .main { flex:1; overflow-y:auto; padding:28px; }
 .panel { display:none; }
 .panel.active { display:block; }
 .panel-title { font-size:20px; font-weight:800; margin-bottom:20px; }
-
-/* CARDS */
 .card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:14px; }
 .card-title { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px; }
-
-input, select, textarea {
-  background:var(--surface2); border:1px solid var(--border); color:var(--text);
-  padding:9px 12px; border-radius:6px; font-family:'Poppins',sans-serif;
-  font-size:13px; width:100%; transition:border 0.15s;
-}
+input, select, textarea { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-family:'Poppins',sans-serif; font-size:13px; width:100%; transition:border 0.15s; }
 input:focus, select:focus, textarea:focus { outline:none; border-color:var(--yellow); }
 textarea { resize:vertical; min-height:70px; }
 label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:0.05em; }
-
 .btn { padding:9px 18px; border-radius:6px; border:none; cursor:pointer; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; transition:all 0.15s; }
 .btn-yellow { background:var(--yellow); color:#000; }
-.btn-yellow:hover { opacity:0.9; }
 .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
 .btn-outline:hover { border-color:var(--yellow); color:var(--yellow); }
 .btn-green { background:var(--green); color:#000; }
 .btn-red { background:var(--red); color:#000; }
 .btn-orange { background:#fb923c; color:#000; }
 .btn-sm { padding:6px 12px; font-size:12px; }
-
 .status-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; display:inline-block; }
 .status-pending { background:#fff3cd; color:#92640a; border:1px solid #f0d080; }
-.status-progress { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
 .status-done { background:#dcfce7; color:#166534; border:1px solid #86efac; }
-.status-hold { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
-
 .empty-state { text-align:center; padding:32px; color:var(--muted); font-size:13px; }
-
-/* LOGIN */
-#login-screen {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  background:var(--bg); display:flex; align-items:center;
-  justify-content:center; z-index:9999;
-}
-.login-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:16px; padding:40px; width:380px; text-align:center;
-  box-shadow:0 4px 24px rgba(0,0,0,0.08);
-}
-
-/* REVIEW TAB */
-.creative-review-card {
-  background:var(--surface2); border:1px solid var(--border);
-  border-radius:10px; padding:18px; margin-bottom:16px;
-}
-.creative-preview {
-  width:100%; max-height:300px; object-fit:contain;
-  border-radius:8px; margin:12px 0; background:#f0eeea;
-  border:1px solid var(--border);
-}
-.ai-check-box {
-  background:#fffbf0; border:1px solid #f0d080;
-  border-radius:8px; padding:14px; margin:12px 0;
-}
-.ai-check-title { font-size:11px; font-weight:700; color:var(--yellow); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-.ai-check-content { font-size:12px; color:#555; line-height:1.6; white-space:pre-wrap; }
-.ai-loading { color:var(--muted); font-size:12px; font-family:'DM Mono',monospace; }
-
+#login-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:#f7f5f0; background-image:linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px); background-size:32px 32px; display:flex; flex-direction:column; align-items:center; z-index:9999; overflow:hidden; }
+.m-nav { width:100%; display:flex; justify-content:space-between; align-items:center; padding:20px 40px; position:absolute; top:0; z-index:20; }
+.m-brand { font-size:13px; font-weight:700; color:#1a1a1a; letter-spacing:0.08em; }
+.m-dot { width:32px; height:32px; border-radius:50%; background:#FEBC06; }
+.m-header { position:absolute; top:55px; text-align:center; z-index:20; }
+.m-title { font-size:clamp(38px,6vw,68px); font-weight:900; color:#1a1a1a; letter-spacing:-2px; }
+.m-sub { font-size:13px; color:#888; margin-top:2px; }
+.m-scene { position:absolute; bottom:0; left:0; width:100%; display:flex; flex-direction:column; align-items:center; }
+.m-scene svg { width:100%; max-width:860px; display:block; }
+@keyframes mblink { 0%,80%,100%{ry:32px;} 86%{ry:3px;} }
+@keyframes mlook { 0%,100%{transform:translate(0,0);} 20%{transform:translate(8px,-6px);} 50%{transform:translate(-7px,5px);} 75%{transform:translate(7px,6px);} }
+.mpL { animation:mlook 4s ease-in-out infinite; }
+.mpR { animation:mlook 4s 0.2s ease-in-out infinite; }
+.meL { animation:mblink 3s infinite; transform-box:fill-box; transform-origin:center; }
+.meR { animation:mblink 3s 0.15s infinite; transform-box:fill-box; transform-origin:center; }
+.m-form { position:absolute; bottom:3vh; left:50%; transform:translateX(-50%); width:230px; background:white; border-radius:16px; padding:14px 16px 12px; border:3px solid #c8961a; box-shadow:0 8px 32px rgba(0,0,0,0.12); z-index:30; }
+.m-form select, .m-form input[type=password] { width:100%; border:none; border-bottom:1px solid #e8e3db; padding:8px 4px; font-family:'Poppins',sans-serif; font-size:12px; background:transparent; outline:none; color:#1a1a1a; margin-bottom:8px; }
+.m-gobtn { width:100%; background:#FEBC06; color:#000; border:none; border-radius:10px; padding:9px; font-family:'Poppins',sans-serif; font-size:13px; font-weight:700; cursor:pointer; margin-top:2px; }
+.m-err { color:#c0392b; font-size:9px; display:none; margin-bottom:3px; }
+.m-footer { position:absolute; bottom:8px; right:20px; font-size:11px; color:#1a1a1a; z-index:40; }
+.creative-review-card { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px; }
+.creative-preview { width:100%; max-height:300px; object-fit:contain; border-radius:8px; margin:12px 0; background:#f0eeea; border:1px solid var(--border); }
 .review-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
-.feedback-area { margin-top:10px; display:none; }
-.feedback-area textarea { margin-bottom:8px; }
-
 ::-webkit-scrollbar { width:4px; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-
-.dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; }
-.dot-yellow { background:var(--yellow); }
-.dot-green { background:var(--green); }
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login-screen">
-  <div class="login-card">
-    <div style="width:52px;height:52px;background:var(--yellow);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px">🌕</div>
-    <h2 style="font-size:18px;font-weight:800;margin-bottom:4px">Yellowverse Team</h2>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:24px">Your daily workspace</p>
-    <div style="margin-bottom:12px;text-align:left">
-      <label>Your Name</label>
-      <select id="login-select">
-        <option value="">Select your name...</option>
-        <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-        <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-        <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
-        <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
-      </select>
-    </div>
-    <div style="margin-bottom:14px;text-align:left">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="Enter your password..." onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none;font-weight:600">Incorrect password. Try again.</div>
-    <button class="btn btn-yellow" style="width:100%;padding:12px" onclick="doLogin()">Enter →</button>
+  <div class="m-nav">
+    <div class="m-brand">YELLOWVERSE TEAM</div>
+    <div class="m-dot" id="ndot"></div>
   </div>
+  <div class="m-header">
+    <div class="m-title" id="m-wtxt">Welcome,</div>
+    <div class="m-sub">let's get signed in!</div>
+  </div>
+  <div class="m-scene">
+    <svg viewBox="0 0 860 520" xmlns="http://www.w3.org/2000/svg">
+      <path id="hl" d="M 295,165 C 270,140 240,90 258,42 C 268,60 278,100 292,132 C 310,110 318,80 314,48 C 336,90 332,140 308,168 Z" fill="#8a0000"/>
+      <path id="hr" d="M 565,165 C 590,140 620,90 602,42 C 592,60 582,100 568,132 C 550,110 542,80 546,48 C 524,90 528,140 552,168 Z" fill="#8a0000"/>
+      <circle id="mbody" cx="430" cy="490" r="370" fill="#FEBC06"/>
+      <ellipse cx="430" cy="400" rx="250" ry="200" fill="#000" opacity="0.04"/>
+      <circle cx="430" cy="240" r="155" id="mhead" fill="#FEBC06"/>
+      <ellipse cx="350" cy="230" rx="58" ry="60" fill="white"/>
+      <g class="mpL"><ellipse class="meL" cx="350" cy="236" rx="26" ry="32" fill="#1a1a1a"/><circle cx="362" cy="220" r="10" fill="white"/></g>
+      <ellipse cx="510" cy="230" rx="58" ry="60" fill="white"/>
+      <g class="mpR"><ellipse class="meR" cx="510" cy="236" rx="26" ry="32" fill="#1a1a1a"/><circle cx="522" cy="220" r="10" fill="white"/></g>
+      <path id="lb" d="M 302,180 Q 350,164 396,177" stroke="#1a1a1a" stroke-width="8" stroke-linecap="round" fill="none"/>
+      <path id="rb" d="M 464,177 Q 510,164 558,180" stroke="#1a1a1a" stroke-width="8" stroke-linecap="round" fill="none"/>
+      <ellipse cx="295" cy="278" rx="28" ry="18" fill="#f0a000" opacity="0.3" id="blushL"/>
+      <ellipse cx="565" cy="278" rx="28" ry="18" fill="#f0a000" opacity="0.3" id="blushR"/>
+      <path id="mth" d="M 372,318 Q 430,348 488,318" stroke="#1a1a1a" stroke-width="6" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="m-form" id="fbox">
+    <select id="login-select" onchange="onMonsterName()">
+      <option value="">Select your name...</option>
+      <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+      <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+      <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+      <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
+    </select>
+    <input type="password" id="login-password" placeholder="Password..." onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="m-err" id="login-error">Wrong password!</div>
+    <button class="m-gobtn" id="m-gobtn" onclick="doLogin()">go →</button>
+  </div>
+  <div class="m-footer">🪷 Radhe Shyam</div>
 </div>
 
-<!-- SIDEBAR -->
 <div class="sidebar">
-  <div class="logo">
-    <div class="logo-title">Yellowverse</div>
-    <div class="logo-sub">Team Portal</div>
-  </div>
-  <div class="user-info">
-    <div class="user-name" id="sidebar-name">—</div>
-    <div class="user-role" id="sidebar-role">—</div>
-  </div>
+  <div class="logo"><div class="logo-title">Yellowverse</div><div class="logo-sub">Team Portal</div></div>
+  <div class="user-info"><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" id="review-nav" style="display:none" onclick="showPanel('review')"><span>🎨</span> Review <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px" id="review-badge"></span></div>
-  <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)">
-    <button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%">Logout</button>
-  </div>
+  <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)"><button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%">Logout</button></div>
 </div>
 
-<!-- MAIN -->
 <div class="main">
-
-  <!-- TASKS -->
   <div class="panel active" id="panel-tasks">
     <div class="panel-title">My Tasks</div>
-
-    <!-- PENDING / IN PROGRESS — always visible -->
-    <div class="card" id="card-open-tasks">
+    <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div class="card-title" style="margin:0;color:var(--yellow)">⚠️ Open Tasks</div>
         <span style="font-size:11px;color:var(--muted)">Pending &amp; In Progress across all dates</span>
       </div>
       <div id="tasks-open"><div class="empty-state">Loading...</div></div>
     </div>
-
-    <!-- TODAY'S TASKS (all statuses) -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div class="card-title" style="margin:0">📅 Browse by Date</div>
@@ -185,8 +145,6 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div id="tasks-list"><div class="empty-state">Select a date to view tasks.</div></div>
     </div>
   </div>
-
-  <!-- ATTENDANCE -->
   <div class="panel" id="panel-attendance">
     <div class="panel-title">Attendance</div>
     <div class="card">
@@ -194,13 +152,8 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="attendance-status-msg">Loading...</p>
       <button class="btn btn-yellow" id="mark-btn" onclick="markAttendance()" style="display:none">✅ Mark Present</button>
     </div>
-    <div class="card">
-      <div class="card-title">My Attendance History</div>
-      <div id="attendance-history"><div class="empty-state">Loading...</div></div>
-    </div>
+    <div class="card"><div class="card-title">My Attendance History</div><div id="attendance-history"><div class="empty-state">Loading...</div></div></div>
   </div>
-
-  <!-- LEAVE -->
   <div class="panel" id="panel-leave">
     <div class="panel-title">Leave</div>
     <div class="card">
@@ -211,491 +164,174 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       </div>
       <button class="btn btn-yellow" onclick="applyLeave()">Submit Leave Request</button>
     </div>
-    <div class="card">
-      <div class="card-title">My Leave History</div>
-      <div id="leave-history"><div class="empty-state">Loading...</div></div>
-    </div>
+    <div class="card"><div class="card-title">My Leave History</div><div id="leave-history"><div class="empty-state">Loading...</div></div></div>
   </div>
-
-  <!-- REVIEW (Viplav only) -->
   <div class="panel" id="panel-review">
     <div class="panel-title">🎨 Creative Review</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Review creatives before they go to the client. AI checks brand guidelines automatically.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Review creatives before they go to the client.</p>
     <div id="review-list"><div class="empty-state">Loading creatives...</div></div>
   </div>
-
 </div>
 
 <script>
-const SHEETDB  = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
-const BACKEND  = 'https://yellowbackend.onrender.com/api/claude';
-const EJS_SVC  = 'service_786h8bh';
-const EJS_TPL  = 'template_w1gbhz9';
-const EJS_KEY  = '_sfXlprhHHUbt55qV';
-
+const SHEETDB='https://sheetdb.io/api/v1/k06y2a6x3op7c';
+const EJS_SVC='service_786h8bh',EJS_TPL='template_w1gbhz9',EJS_KEY='_sfXlprhHHUbt55qV';
 emailjs.init(EJS_KEY);
+let currentUser='';
 
-let currentUser = '';
+const MOODS=[
+  {c:'#FEBC06',h:'#c8961a',blush:'#f0a000',lb:'M 302,180 Q 350,164 396,177',rb:'M 464,177 Q 510,164 558,180',mt:'M 372,318 Q 430,348 488,318'},
+  {c:'#FF6B6B',h:'#8a0000',blush:'#e05050',lb:'M 302,168 Q 350,150 396,164',rb:'M 464,164 Q 510,150 558,168',mt:'M 375,335 Q 430,315 485,335'},
+  {c:'#F97316',h:'#9a3412',blush:'#d06010',lb:'M 302,173 Q 350,161 396,170',rb:'M 464,170 Q 510,161 558,173',mt:'M 365,315 Q 430,352 495,315'},
+  {c:'#4ECDC4',h:'#2a7a74',blush:'#30b0a8',lb:'M 302,178 Q 350,170 396,178',rb:'M 464,178 Q 510,170 558,178',mt:'M 370,322 Q 430,340 490,322'},
+  {c:'#A855F7',h:'#6b21a8',blush:'#8030d0',lb:'M 302,174 Q 350,166 396,172',rb:'M 464,172 Q 510,166 558,174',mt:'M 378,325 Q 430,336 482,325'},
+];
+let mi=0,auto=true;
+function setMood(m){
+  try{
+    const mb=document.getElementById('mbody');if(mb){mb.setAttribute('fill',m.c);}
+    const mh=document.getElementById('mhead');if(mh){mh.setAttribute('fill',m.c);}
+    const hl=document.getElementById('hl');if(hl)hl.setAttribute('fill',m.h);
+    const hr=document.getElementById('hr');if(hr)hr.setAttribute('fill',m.h);
+    const bL=document.getElementById('blushL');if(bL)bL.setAttribute('fill',m.blush);
+    const bR=document.getElementById('blushR');if(bR)bR.setAttribute('fill',m.blush);
+    const nd=document.getElementById('ndot');if(nd)nd.style.background=m.c;
+    const gb=document.getElementById('m-gobtn');if(gb)gb.style.background=m.c;
+    const fb=document.getElementById('fbox');if(fb)fb.style.borderColor=m.h;
+    const lb=document.getElementById('lb');if(lb)lb.setAttribute('d',m.lb);
+    const rb=document.getElementById('rb');if(rb)rb.setAttribute('d',m.rb);
+    const mt=document.getElementById('mth');if(mt)mt.setAttribute('d',m.mt);
+  }catch(e){}
+}
+setMood(MOODS[0]);
+setInterval(()=>{if(!auto)return;mi=(mi+1)%MOODS.length;setMood(MOODS[mi]);},2000);
+function onMonsterName(){const n=document.getElementById('login-select').value;if(n){document.getElementById('m-wtxt').textContent='Hey '+n+',';auto=false;setMood(MOODS[0]);}}
 
-const JINDAL_GUIDELINES = `Jindal Shadeed Brand Guidelines Summary:
-COLOURS: Primary - Jindal Orange (#F5821E/RGB 245,130,30), Jindal Green (#5AAA46/RGB 90,170,70), Black, Grey. Secondary - Olive Green, Rust, Amber, Steel Blue, Copper, Silver, Crimson Red. Only use approved colours.
-FONTS: Roboto (Bold/Medium/Regular) and Raleway (Bold/Medium) only. DO NOT use special effects like bevel, emboss, outline on text. DO NOT use drop shadows on text. DO NOT use Bold/Black fonts when text is small.
-LOGO: Always horizontal orientation. Never at an angle. Never distorted. Maintain clear space equal to height of letter 'I' around logo. Never place logo on busy backgrounds. Never outline logo. Never alter logo colours. Never use logo smaller than 20mm/25mm wide.
-TONE: Professional, modern, quality-focused. Reflects commitment to sustainability, innovation, quality. No negative messaging.
-IMAGERY: High quality only. NO blurry, dark, crowded, cluttered, negative, or staged images. Use cultural, progressive, industrial imagery.
-GENERAL: No placeholder text. Clear message. Consistent brand identity.`;
+const TEAM_PASSWORDS={Faizan:'Faizan2104',Sandesh:'Sandesh0705',Archana:'Archana2105',Vishwanath:'Vishvanath1006',Ajay:'Ajay0807',Kritya:'Kritya2008',Viplav:'Viplav0909',Prathamesh:'Prathamesh2709',Gauri:'Gauri1710',Siddhesh:'Siddhesh2111',Sonal:'Sonal1412',Gayatri:'Gayatri0410',Sam:'Sam0102'};
 
-const TEAM_PASSWORDS = {
-  Faizan: 'Faizan2104', Sandesh: 'Sandesh0705', Archana: 'Archana2105',
-  Vishwanath: 'Vishvanath1006', Ajay: 'Ajay0807', Kritya: 'Kritya2008',
-  Viplav: 'Vipla0909', Prathamesh: 'Prathamesh2709', Gauri: 'Gauri1710',
-  Siddhesh: 'Siddhesh2111', Sonal: 'Sonal1412', Gayatri: 'Gayatri0410', Sam: 'Sam0102'
-};
+function doLogin(){
+  const name=document.getElementById('login-select').value;
+  const pwd=document.getElementById('login-password').value;
+  const err=document.getElementById('login-error');
+  if(!name){alert('Please select your name.');return;}
+  if(pwd!==TEAM_PASSWORDS[name]){err.style.display='block';document.getElementById('login-password').value='';auto=false;setMood(MOODS[1]);return;}
+  err.style.display='none';auto=false;setMood(MOODS[2]);
+  setTimeout(()=>{
+    currentUser=name;
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('sidebar-name').textContent=name;
+    const roles={Viplav:'Copywriter',Siddhesh:'CS & Strategy',Kritya:'CS & Strategy',Faizan:'Graphic Designer',Sandesh:'Graphic Designer',Gayatri:'Graphic Designer',Prathamesh:'Graphic Designer',Archana:'Graphic Designer',Gauri:'Graphic Designer',Sonal:'Graphic Designer',Vishwanath:'Graphic Designer',Ajay:'Video Editor',Sam:'BD'};
+    document.getElementById('sidebar-role').textContent=roles[name]||'Team Member';
+    loadTasks();loadAttendance();loadLeave();
+    if(name==='Viplav'){document.getElementById('review-nav').style.display='flex';loadReviews();}
+  },600);
+}
+function doLogout(){currentUser='';document.getElementById('login-screen').style.display='flex';document.getElementById('login-select').value='';document.getElementById('login-password').value='';document.getElementById('review-nav').style.display='none';auto=true;}
+function showPanel(name){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('panel-'+name).classList.add('active');event.currentTarget.classList.add('active');}
 
-function doLogin() {
-  const name = document.getElementById('login-select').value;
-  const pwd  = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  if (!name) { alert('Please select your name.'); return; }
-  if (pwd !== TEAM_PASSWORDS[name]) {
-    errEl.style.display = 'block';
-    document.getElementById('login-password').value = '';
-    return;
-  }
-  errEl.style.display = 'none';
-  currentUser = name;
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('sidebar-name').textContent = name;
-
-  const roles = {
-    Viplav: 'Copywriter', Siddhesh: 'CS & Strategy', Kritya: 'CS & Strategy',
-    Faizan: 'Graphic Designer', Sandesh: 'Graphic Designer', Gayatri: 'Graphic Designer',
-    Prathamesh: 'Graphic Designer', Archana: 'Graphic Designer', Gauri: 'Graphic Designer',
-    Sonal: 'Graphic Designer', Vishwanath: 'Graphic Designer', Ajay: 'Video Editor', Sam: 'BD'
-  };
-  document.getElementById('sidebar-role').textContent = roles[name] || 'Team Member';
-
-  // Show review tab only for Viplav
-  if (name === 'Viplav') {
-    document.getElementById('review-nav').style.display = 'flex';
-    loadReviews();
-  }
-
-  loadTasks();
-  loadAttendance();
-  loadLeave();
-
-  // Set today's date
-  document.getElementById('task-date-filter').value = new Date().toISOString().split('T')[0];
+function renderTaskRows(tasks,startIdx){
+  if(!tasks.length)return'<div class="empty-state">No tasks here.</div>';
+  const today=new Date().toISOString().split('T')[0];
+  const SS={'Pending':'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;','In Progress':'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;','Done':'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;','On Hold':'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;'};
+  return`<div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em"><span>#</span><span>Task</span><span>Status</span><span>ClickUp Link</span><span>Save</span></div>${tasks.map((t,i)=>{const idx=startIdx+i;const status=t.Status||'Pending';const isToday=t.Date===today;const isOverdue=t.Date&&t.Date<today&&status!=='Done';const ss=SS[status]||SS['Pending'];const badge=isToday?`<span style="background:#E9B84A;color:#000;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px">TODAY</span>`:isOverdue?`<span style="background:#fee2e2;color:#c0392b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px">OVERDUE</span>`:`<span style="font-size:10px;color:var(--muted);margin-left:6px">${t.Date||''}</span>`;return`<div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--muted);font-size:12px">${idx+1}</span><div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"><span>${t.Task||'—'}</span>${badge}</div><select id="status-dropdown-${idx}" style="font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${ss}" onchange="updateStatusFromDropdown(${idx},'${encodeURIComponent(t.Task)}')"><option ${status==='Pending'?'selected':''}>Pending</option><option ${status==='In Progress'?'selected':''}>In Progress</option><option ${status==='Done'?'selected':''}>Done</option><option ${status==='On Hold'?'selected':''}>On Hold</option></select><input type="text" id="link-${idx}" value="${t['ClickUp Link']||''}" placeholder="Paste ClickUp link..." style="font-size:12px;padding:5px 8px"><button class="btn btn-yellow btn-sm" onclick="saveTask(${idx},'${encodeURIComponent(t.Task)}')">Save</button></div>`;}).join('')}`;
 }
 
-function doLogout() {
-  currentUser = '';
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('login-select').value = '';
-  document.getElementById('login-password').value = '';
-  document.getElementById('review-nav').style.display = 'none';
+async function loadTasks(){
+  try{
+    const res=await fetch(SHEETDB+'?sheet=Type:tasks');const data=await res.json();
+    const all=Array.isArray(data)?data.filter(t=>t.Assignee===currentUser&&(t.Type==='task'||t.Type===''||!t.Type)):[];
+    const today=new Date().toISOString().split('T')[0];
+    const open=all.filter(t=>{const s=t.Status||'Pending';return s==='Pending'||s==='In Progress'||s==='On Hold';}).sort((a,b)=>{const aT=a.Date===today?0:1;const bT=b.Date===today?0:1;if(aT!==bT)return aT-bT;return new Date(b.Date)-new Date(a.Date);});
+    document.getElementById('tasks-open').innerHTML=open.length?renderTaskRows(open,0):'<div class="empty-state" style="color:var(--green)">✅ All caught up!</div>';
+    const todayEl=document.getElementById('task-date-filter');if(!todayEl.value){todayEl.value=today;loadTasksByDate(all);}
+  }catch(e){document.getElementById('tasks-open').innerHTML='<div class="empty-state">Error loading tasks.</div>';}
 }
 
-function showPanel(name) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('panel-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
+async function loadTasksByDate(cached){
+  const date=document.getElementById('task-date-filter').value;if(!date)return;
+  try{
+    let all=cached;
+    if(!all){const res=await fetch(SHEETDB+'?sheet=Type:tasks');const data=await res.json();all=Array.isArray(data)?data.filter(t=>t.Assignee===currentUser&&(t.Type==='task'||t.Type===''||!t.Type)):[];}
+    const day=all.filter(t=>t.Date===date);
+    document.getElementById('tasks-list').innerHTML=day.length?renderTaskRows(day,100):`<div class="empty-state">No tasks for ${date}.</div>`;
+  }catch(e){document.getElementById('tasks-list').innerHTML='<div class="empty-state">Error.</div>';}
 }
 
-// ====== TASKS ======
-function renderTaskRows(tasks, startIdx) {
-  if (!tasks.length) return '<div class="empty-state">No tasks here.</div>';
-  const today = new Date().toISOString().split('T')[0];
-
-  const STATUS_SELECT = {
-    'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-    'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-    'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-    'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
-  };
-
-  return `
-    <div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
-      <span>#</span><span>Task</span><span>Status</span><span>ClickUp Link</span><span>Save</span>
-    </div>
-    ${tasks.map((t, i) => {
-      const idx = startIdx + i;
-      const status = t.Status || 'Pending';
-      const isToday = t.Date === today;
-      const isOverdue = t.Date && t.Date < today && status !== 'Done';
-      const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
-      const dateBadge = isToday
-        ? `<span style="background:#E9B84A;color:#000;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px">TODAY</span>`
-        : isOverdue
-        ? `<span style="background:#fee2e2;color:#c0392b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px;border:1px solid #fca5a5">OVERDUE</span>`
-        : `<span style="font-size:10px;color:var(--muted);margin-left:6px">${t.Date||''}</span>`;
-      return `
-      <div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;">
-        <span style="color:var(--muted);font-size:12px">${idx+1}</span>
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-          <span>${t.Task || '—'}</span>${dateBadge}
-        </div>
-        <div>
-          <select id="status-dropdown-${idx}" style="font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
-            <option ${status==='Pending'?'selected':''}>Pending</option>
-            <option ${status==='In Progress'?'selected':''}>In Progress</option>
-            <option ${status==='Done'?'selected':''}>Done</option>
-            <option ${status==='On Hold'?'selected':''}>On Hold</option>
-          </select>
-        </div>
-        <input type="text" id="link-${idx}" value="${t['ClickUp Link']||''}" placeholder="Paste ClickUp link..." style="font-size:12px;padding:5px 8px">
-        <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')">Save</button>
-      </div>`;
-    }).join('')}`;
+async function updateStatusFromDropdown(idx,enc){
+  const task=decodeURIComponent(enc);const dd=document.getElementById(`status-dropdown-${idx}`);const s=dd.value;if(!s)return;
+  try{await fetch(`${SHEETDB}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{Status:s}})});loadTasks();}catch(e){alert('Error updating status.');}
 }
 
-async function loadTasks() {
-  try {
-    const res  = await fetch(SHEETDB + '?sheet=Type:tasks');
-    const data = await res.json();
-    const all  = Array.isArray(data) ? data.filter(t =>
-      t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
-    ) : [];
-
-    // Open tasks = Pending or In Progress or On Hold, any date
-    const today = new Date().toISOString().split('T')[0];
-    const open = all.filter(t => {
-      const s = t.Status || 'Pending';
-      return s === 'Pending' || s === 'In Progress' || s === 'On Hold';
-    }).sort((a, b) => {
-      // Today first, then most recent, then older
-      const aToday = a.Date === today ? 0 : 1;
-      const bToday = b.Date === today ? 0 : 1;
-      if (aToday !== bToday) return aToday - bToday;
-      return new Date(b.Date) - new Date(a.Date);
-    });
-
-    document.getElementById('tasks-open').innerHTML = open.length
-      ? renderTaskRows(open, 0)
-      : '<div class="empty-state" style="color:var(--green)">✅ All caught up! No open tasks.</div>';
-
-    // Default date picker to today
-    const todayEl = document.getElementById('task-date-filter');
-    if (!todayEl.value) {
-      todayEl.value = new Date().toISOString().split('T')[0];
-      loadTasksByDate(all);
-    }
-  } catch(e) {
-    document.getElementById('tasks-open').innerHTML = '<div class="empty-state">Error loading tasks.</div>';
-  }
+async function saveTask(idx,enc){
+  const task=decodeURIComponent(enc);const link=document.getElementById(`link-${idx}`).value.trim();const status=document.getElementById(`status-dropdown-${idx}`).value;
+  try{await fetch(`${SHEETDB}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{Status:status,'ClickUp Link':link}})});alert('✅ Saved!');}catch(e){alert('Error saving.');}
 }
 
-async function loadTasksByDate(cachedData) {
-  const date = document.getElementById('task-date-filter').value;
-  if (!date) return;
-  try {
-    let all;
-    if (cachedData) {
-      all = cachedData;
-    } else {
-      const res  = await fetch(SHEETDB + '?sheet=Type:tasks');
-      const data = await res.json();
-      all = Array.isArray(data) ? data.filter(t =>
-        t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
-      ) : [];
-    }
-    const dayTasks = all.filter(t => t.Date === date);
-    document.getElementById('tasks-list').innerHTML = dayTasks.length
-      ? renderTaskRows(dayTasks, 100)
-      : `<div class="empty-state">No tasks for ${date}.</div>`;
-  } catch(e) {
-    document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Error loading tasks.</div>';
-  }
+async function loadAttendance(){
+  const today=new Date().toISOString().split('T')[0];
+  try{
+    const res=await fetch(SHEETDB+'?sheet=Type:tasks');const data=await res.json();
+    const todayAtt=Array.isArray(data)?data.filter(r=>r.Type==='attendance'&&r.Assignee===currentUser&&r.Date===today):[];
+    const msg=document.getElementById('attendance-status-msg');const btn=document.getElementById('mark-btn');
+    if(todayAtt.length){msg.textContent='✅ Attendance marked for today.';msg.style.color='var(--green)';btn.style.display='none';}
+    else{msg.textContent="You haven't marked attendance yet today.";msg.style.color='var(--muted)';btn.style.display='inline-block';}
+    const hist=Array.isArray(data)?data.filter(r=>r.Type==='attendance'&&r.Assignee===currentUser).sort((a,b)=>new Date(b.Date)-new Date(a.Date)).slice(0,10):[];
+    document.getElementById('attendance-history').innerHTML=hist.length?hist.map(r=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${r.Date}</span><span class="status-badge status-done">${r.Status}</span></div>`).join(''):'<div class="empty-state">No history yet.</div>';
+  }catch(e){}
 }
 
-function toggleStatusSelect(idx) {} // no longer needed
-
-async function updateStatusFromDropdown(idx, encodedTask) {
-  const task = decodeURIComponent(encodedTask);
-  const dd = document.getElementById(`status-dropdown-${idx}`);
-  const newStatus = dd.value;
-  if (!newStatus) return;
-  try {
-    await fetch(`${SHEETDB}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: newStatus } })
-    });
-    loadTasks();
-  } catch(e) { alert('Error updating status.'); }
+async function markAttendance(){
+  const today=new Date().toISOString().split('T')[0];
+  try{await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[{Date:today,Task:'',Assignee:currentUser,Status:'Present','ClickUp Link':'',Type:'attendance'}]})});loadAttendance();}catch(e){alert('Error marking attendance.');}
 }
 
-async function updateStatus(idx, encodedTask) {
-  const task = decodeURIComponent(encodedTask);
-  const status = document.getElementById(`status-${idx}`).value;
-  try {
-    await fetch(`${SHEETDB}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: status } })
-    });
-  } catch(e) {}
+async function loadLeave(){
+  try{
+    const res=await fetch(SHEETDB+'?sheet=Type:tasks');const data=await res.json();
+    const leaves=Array.isArray(data)?data.filter(r=>r.Type==='leave'&&r.Assignee===currentUser).sort((a,b)=>new Date(b.Date)-new Date(a.Date)):[];
+    document.getElementById('leave-history').innerHTML=leaves.length?leaves.map(l=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px"><div style="font-weight:600">${l.Date} → ${l.Task||l.Date}</div><span class="status-badge status-pending">${l.Status||'Pending'}</span></div>`).join(''):'<div class="empty-state">No leave requests yet.</div>';
+  }catch(e){}
 }
 
-async function saveTask(idx, encodedTask) {
-  const task = decodeURIComponent(encodedTask);
-  const status = document.getElementById(`status-${idx}`).value;
-  const link = document.getElementById(`link-${idx}`).value.trim();
-  try {
-    await fetch(`${SHEETDB}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: status, 'ClickUp Link': link } })
-    });
-    alert('✅ Saved!');
-  } catch(e) { alert('Error saving.'); }
+async function applyLeave(){
+  const from=document.getElementById('leave-from').value;const to=document.getElementById('leave-to').value;if(!from){alert('Please select dates.');return;}
+  try{await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[{Date:from,Task:to||from,Assignee:currentUser,Status:'Pending','ClickUp Link':'',Type:'leave'}]})});alert('✅ Leave request submitted!');document.getElementById('leave-from').value='';document.getElementById('leave-to').value='';loadLeave();}catch(e){alert('Error.');}
 }
 
-// ====== ATTENDANCE ======
-async function loadAttendance() {
-  const today = new Date().toISOString().split('T')[0];
-  try {
-    const res  = await fetch(SHEETDB + '?sheet=Type:tasks');
-    const data = await res.json();
-    const todayAtt = Array.isArray(data) ? data.filter(r =>
-      r.Type === 'attendance' && r.Assignee === currentUser && r.Date === today
-    ) : [];
-
-    const msgEl = document.getElementById('attendance-status-msg');
-    const btnEl = document.getElementById('mark-btn');
-
-    if (todayAtt.length) {
-      msgEl.textContent = '✅ You have marked attendance for today.';
-      msgEl.style.color = 'var(--green)';
-      btnEl.style.display = 'none';
-    } else {
-      msgEl.textContent = "You haven't marked attendance yet today.";
-      msgEl.style.color = 'var(--muted)';
-      btnEl.style.display = 'inline-block';
-    }
-
-    // History
-    const history = Array.isArray(data) ? data.filter(r =>
-      r.Type === 'attendance' && r.Assignee === currentUser
-    ).sort((a,b) => new Date(b.Date) - new Date(a.Date)).slice(0, 10) : [];
-
-    document.getElementById('attendance-history').innerHTML = history.length
-      ? history.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span>${r.Date}</span><span class="status-badge status-done">${r.Status}</span>
-        </div>`).join('')
-      : '<div class="empty-state">No history yet.</div>';
-  } catch(e) {}
-}
-
-async function markAttendance() {
-  const today = new Date().toISOString().split('T')[0];
-  try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'ClickUp Link': '', Type: 'attendance' }] })
-    });
-    loadAttendance();
-  } catch(e) { alert('Error marking attendance.'); }
-}
-
-// ====== LEAVE ======
-async function loadLeave() {
-  try {
-    const res  = await fetch(SHEETDB + '?sheet=Type:tasks');
-    const data = await res.json();
-    const leaves = Array.isArray(data) ? data.filter(r =>
-      r.Type === 'leave' && r.Assignee === currentUser
-    ).sort((a,b) => new Date(b.Date) - new Date(a.Date)) : [];
-
-    document.getElementById('leave-history').innerHTML = leaves.length
-      ? leaves.map(l => {
-          const statusClass = l.Status === 'Approved' ? 'status-done' : l.Status === 'Rejected' ? '' : 'status-pending';
-          const statusColor = l.Status === 'Rejected' ? 'var(--red)' : '';
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
-            <div><div style="font-weight:600">${l.Date} → ${l.Task || l.Date}</div></div>
-            <span class="status-badge ${statusClass}" style="${statusColor?'background:#301010;color:'+statusColor:''}">${l.Status || 'Pending'}</span>
-          </div>`;
-        }).join('')
-      : '<div class="empty-state">No leave requests yet.</div>';
-  } catch(e) {}
-}
-
-async function applyLeave() {
-  const from = document.getElementById('leave-from').value;
-  const to   = document.getElementById('leave-to').value;
-  if (!from) { alert('Please select dates.'); return; }
-
-  try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'ClickUp Link': '', Type: 'leave' }] })
-    });
-    alert('✅ Leave request submitted!');
-    document.getElementById('leave-from').value = '';
-    document.getElementById('leave-to').value = '';
-    loadLeave();
-  } catch(e) { alert('Error submitting leave.'); }
-}
-
-// ====== VIPLAV REVIEW ======
-let reviewItems = [];
-
-async function loadReviews() {
-  try {
-    const res  = await fetch(SHEETDB + '?sheet=Type:tasks');
-    const data = await res.json();
-    reviewItems = Array.isArray(data) ? data.filter(r => r.Type === 'creative' && r.Status === 'Pending Viplav') : [];
-
-    const badge = document.getElementById('review-badge');
-    badge.textContent = reviewItems.length || '';
-    badge.style.display = reviewItems.length ? 'inline' : 'none';
-
+let reviewItems=[];
+async function loadReviews(){
+  try{
+    const res=await fetch(SHEETDB+'?sheet=Type:tasks');const data=await res.json();
+    reviewItems=Array.isArray(data)?data.filter(r=>r.Type==='creative'&&(r.Status==='Pending Viplav'||r.Status==='Pending Review')):[];
+    const badge=document.getElementById('review-badge');badge.textContent=reviewItems.length||'';badge.style.display=reviewItems.length?'inline':'none';
     renderReviews();
-  } catch(e) {
-    document.getElementById('review-list').innerHTML = '<div class="empty-state">Error loading creatives.</div>';
-  }
+  }catch(e){document.getElementById('review-list').innerHTML='<div class="empty-state">Error loading.</div>';}
 }
 
-function renderReviews() {
-  const el = document.getElementById('review-list');
-  if (!reviewItems.length) {
-    el.innerHTML = '<div class="empty-state">🎉 All caught up! No creatives pending review.</div>';
-    return;
-  }
-
-  el.innerHTML = reviewItems.map((item, idx) => {
-    const parts    = item.Task.split('|');
-    const cName    = parts[0].trim();
-    const designer = parts[1] ? parts[1].trim() : 'Unknown';
-    const fileUrl  = item['ClickUp Link'] || '';
-    const isImage  = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) || fileUrl.includes('dropbox');
-    const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
-
-    return `<div class="creative-review-card" id="rcard-${idx}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div>
-          <div style="font-size:15px;font-weight:700">${cName}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · Uploaded ${item.Date}</div>
-        </div>
-        <span style="font-size:11px;color:var(--yellow);background:#2a1f00;padding:3px 10px;border-radius:20px;font-weight:700">Pending Review</span>
-      </div>
-
-      ${fileUrl ? `
-        ${isImage ? `<img src="${previewUrl}" class="creative-preview" onerror="this.style.display='none'">` : ''}
-        <a href="${fileUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">🔗 Open File</a>
-      ` : '<p style="color:var(--muted);font-size:12px;margin-bottom:10px">No file attached</p>'}
-
-      <div class="ai-check-box">
-        <div class="ai-check-title">⚡ AI Brand Check <span style="color:var(--muted);font-weight:400;font-size:10px">(Jindal Shadeed Guidelines)</span></div>
-        <div class="ai-check-content" id="ai-check-${idx}">
-          <span class="ai-loading">Click "Run AI Check" to analyse this creative...</span>
-        </div>
-        <button class="btn btn-outline btn-sm" style="margin-top:10px" onclick="runAICheck(${idx}, '${encodeURIComponent(cName)}', '${designer}')">⚡ Run AI Check</button>
-      </div>
-
-      <div style="margin-top:12px">
-        <label>Viplav's Notes (optional)</label>
-        <textarea id="viplav-note-${idx}" placeholder="Add your copy/content feedback here..."></textarea>
-      </div>
-
-      <div class="review-actions">
-        <button class="btn btn-green btn-sm" onclick="submitReview(${idx}, 'approve')">✅ Approve → Send to Client</button>
-        <button class="btn btn-orange btn-sm" onclick="submitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
-      </div>
-    </div>`;
+function renderReviews(){
+  const el=document.getElementById('review-list');
+  if(!reviewItems.length){el.innerHTML='<div class="empty-state">🎉 No creatives pending review.</div>';return;}
+  el.innerHTML=reviewItems.map((item,idx)=>{
+    const parts=item.Task.split('|');const cName=parts[0].trim();const designer=parts[1]?parts[1].trim():'Unknown';
+    const fileUrl=item['ClickUp Link']||'';const previewUrl=fileUrl.replace('www.dropbox.com','dl.dropboxusercontent.com').replace('?dl=0','?raw=1');
+    return`<div class="creative-review-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div><div style="font-size:15px;font-weight:700">${cName}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${item.Date}</div></div><span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">Pending Review</span></div>${fileUrl?`<a href="${fileUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">🔗 Open File</a>`:'<p style="color:var(--muted);font-size:12px">No file attached</p>'}<div style="margin-top:12px"><label>Notes / Feedback</label><textarea id="note-${idx}" placeholder="Add feedback..."></textarea></div><div class="review-actions"><button class="btn btn-green btn-sm" onclick="submitReview(${idx},'approve')">✅ Approve → Client</button><button class="btn btn-orange btn-sm" onclick="submitReview(${idx},'sendback')">🔄 Send Back</button></div></div>`;
   }).join('');
 }
 
-async function runAICheck(idx, encodedName, designer) {
-  const cName = decodeURIComponent(encodedName);
-  const el = document.getElementById(`ai-check-${idx}`);
-  el.innerHTML = '<span class="ai-loading">⚡ Analysing against Jindal Shadeed brand guidelines...</span>';
-
-  const prompt = `You are a brand compliance reviewer for Jindal Shadeed Iron & Steel LLC.
-
-A creative named "${cName}" has been made by designer ${designer}.
-
-${JINDAL_GUIDELINES}
-
-Based on the creative name and context, provide a quick brand compliance check. Flag any potential issues with:
-1. Colour usage (should use Jindal Orange, Green, Black, Grey)
-2. Typography (Roboto/Raleway only, no special effects)
-3. Logo usage guidelines
-4. Tone and messaging
-5. Grammar/spelling check reminder
-6. Image quality standards
-
-Be specific and practical. Format as a quick checklist with ✅ or ⚠️ for each point. Keep it under 150 words. End with an overall recommendation: APPROVE or NEEDS REVIEW.`;
-
-  try {
-    const res  = await fetch(BACKEND, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
-    });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || 'Could not get AI analysis.';
-    el.textContent = reply;
-  } catch(e) {
-    el.textContent = 'AI check failed. Please review manually.';
-  }
+async function submitReview(idx,action){
+  const item=reviewItems[idx];const parts=item.Task.split('|');const cName=parts[0].trim();const designer=parts[1]?parts[1].trim():'';
+  const note=document.getElementById(`note-${idx}`).value.trim();
+  const EMAILS={Sandesh:'sandesh@perkyowl.com',Gayatri:'gayatri.v@perkyowl.com',Faizan:'faizan@yellowproductions.co.in',Prathamesh:'prathamesh@yellowproductions.co.in',Archana:'archana@yellowproductions.co.in',Gauri:'gauri@perkyowl.com',Sonal:'sonal.j@perkyowl.com',Vishwanath:'vishvanath@perkyowl.com',Siddhesh:'siddhesh@yellowproductions.co.in',Ajay:'ajay@yellowproductions.co.in'};
+  if(action==='sendback'&&!note){alert('Please add feedback.');return;}
+  if(!confirm(action==='approve'?`Approve "${cName}" and send to client?`:`Send "${cName}" back to ${designer}?`))return;
+  try{
+    await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{Status:action==='approve'?'Pending Review':'Sent Back','ClickUp Link2':note}})});
+    if(action==='sendback'&&EMAILS[designer])await emailjs.send(EJS_SVC,EJS_TPL,{to_email:EMAILS[designer],to_name:designer,task_name:`🔄 Rework: ${cName}`,task_list:`Feedback:\n${note}`,task_date:new Date().toLocaleDateString('en-IN')});
+    alert(action==='approve'?'✅ Approved!':'🔄 Sent back!');loadReviews();
+  }catch(e){alert('Error.');}
 }
 
-async function submitReview(idx, action) {
-  const item   = reviewItems[idx];
-  const parts  = item.Task.split('|');
-  const cName  = parts[0].trim();
-  const designer = parts[1] ? parts[1].trim() : '';
-  const note   = document.getElementById(`viplav-note-${idx}`).value.trim();
-
-  const DESIGNER_EMAILS = {
-    Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
-    Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
-    Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
-    Sonal:'sonal.j@perkyowl.com', Vishwanath:'vishvanath@perkyowl.com',
-    Siddhesh:'siddhesh@yellowproductions.co.in', Ajay:'ajay@yellowproductions.co.in'
-  };
-
-  if (action === 'sendback' && !note) {
-    alert('Please add feedback before sending back to the designer.');
-    return;
-  }
-
-  const newStatus = action === 'approve' ? 'Pending Review' : 'Sent Back';
-  const confirmMsg = action === 'approve'
-    ? `Approve "${cName}" and send to client portal?`
-    : `Send "${cName}" back to ${designer} with your feedback?`;
-
-  if (!confirm(confirmMsg)) return;
-
-  try {
-    await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: newStatus, 'ClickUp Link2': note } })
-    });
-
-    if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
-      await emailjs.send(EJS_SVC, EJS_TPL, {
-        to_email: DESIGNER_EMAILS[designer], to_name: designer,
-        task_name: `🔄 Rework needed: ${cName}`,
-        task_list: `Viplav has reviewed your creative and sent it back.\n\nFeedback:\n${note}\n\nPlease make the changes and re-upload.`,
-        task_date: new Date().toLocaleDateString('en-IN')
-      });
-    }
-
-    // Notify Suriti
-    await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
-      task_name: `Viplav ${action === 'approve' ? 'Approved ✅' : 'Sent Back 🔄'}: ${cName}`,
-      task_list: `Creative: ${cName}\nDesigner: ${designer}\nAction: ${action === 'approve' ? 'Approved — now in client portal' : 'Sent back with feedback'}\nNotes: ${note || 'None'}`,
-      task_date: new Date().toLocaleDateString('en-IN')
-    });
-
-    alert(action === 'approve' ? '✅ Approved! Creative is now live on client portal.' : '🔄 Sent back to designer with feedback!');
-    loadReviews();
-  } catch(e) { alert('Error. Please try again.'); }
-}
-
-// Set today's date defaults
-document.getElementById('leave-from').value = new Date().toISOString().split('T')[0];
+document.getElementById('leave-from').value=new Date().toISOString().split('T')[0];
 </script>
 </body>
 </html>
