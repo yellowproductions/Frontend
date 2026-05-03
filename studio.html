@@ -2,353 +2,212 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="YOS Upload">
-<meta name="theme-color" content="#f5f4f1">
-<title>Quick Upload</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOS Upload</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
-:root {
-  --bg:#f5f4f1; --surface:#ffffff; --surface2:#f0eeea;
-  --border:#e0ddd8; --yellow:#c8961a; --text:#1a1a1a;
-  --muted:#888; --green:#2a7a3a; --red:#c0392b;
-}
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-body {
-  background:var(--bg); color:var(--text); font-family:'Poppins',sans-serif;
-  min-height:100vh; min-height:-webkit-fill-available;
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:hidden; }
+.page {
+  width:100%; height:100vh;
+  background:#f7f5f0;
+  background-image:linear-gradient(rgba(0,0,0,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.04) 1px,transparent 1px);
+  background-size:32px 32px;
   display:flex; align-items:center; justify-content:center;
-  padding:20px; padding-top:max(20px, env(safe-area-inset-top));
-  padding-bottom:max(20px, env(safe-area-inset-bottom));
+  position:relative;
 }
-
-/* SPLASH */
-#splash {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  background:#f5f4f1; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; z-index:9999;
+.page-inner {
+  display:grid; grid-template-columns:1fr 1fr;
+  align-items:center;
+  gap:48px;
+  max-width:920px;
+  width:100%;
+  padding:0 32px;
 }
-.splash-icon {
-  width:88px; height:88px; background:var(--yellow); border-radius:22px;
-  display:flex; align-items:center; justify-content:center; font-size:44px;
-  margin-bottom:20px; animation:pop 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
-}
-@keyframes pop { 0%{transform:scale(0.5);opacity:0} 100%{transform:scale(1);opacity:1} }
-.splash-title { font-size:24px; font-weight:800; color:var(--yellow); margin-bottom:6px; }
-.splash-sub { font-size:13px; color:var(--muted); font-style:italic; }
-
-/* CARD */
-.card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:20px; padding:28px; width:100%; max-width:400px;
-  box-shadow:0 4px 24px rgba(0,0,0,0.08);
-}
-.logo-row {
-  display:flex; align-items:center; gap:10px; margin-bottom:24px;
-  padding-bottom:16px; border-bottom:1px solid var(--border);
-}
-.logo-dot {
-  width:38px; height:38px; background:var(--yellow); border-radius:10px;
-  display:flex; align-items:center; justify-content:center; font-size:20px;
-}
-.logo-title { font-size:15px; font-weight:800; color:var(--yellow); }
-.logo-sub { font-size:11px; color:var(--muted); }
-
-.field { margin-bottom:14px; }
-label {
-  font-size:11px; color:var(--muted); font-weight:600;
-  text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:6px;
-}
-input[type=text], select {
-  background:var(--surface2); border:1px solid var(--border); color:var(--text);
-  padding:12px 14px; border-radius:10px; font-family:'Poppins',sans-serif;
-  font-size:14px; width:100%; -webkit-appearance:none;
-}
-input:focus, select:focus { outline:none; border-color:var(--yellow); }
-select option { background:var(--surface2); }
-
-/* FILE DROP ZONE */
-.drop-zone {
-  border:2px dashed var(--border); border-radius:12px; padding:28px 16px;
-  text-align:center; cursor:pointer; transition:all 0.2s; position:relative;
-}
-.drop-zone:hover, .drop-zone.drag-over { border-color:var(--yellow); background:#fffbf0; }
-.drop-zone input[type=file] {
-  position:absolute; top:0; left:0; width:100%; height:100%;
-  opacity:0; cursor:pointer;
-}
-.drop-icon { font-size:32px; margin-bottom:8px; }
-.drop-text { font-size:13px; color:var(--muted); }
-.drop-text strong { color:var(--yellow); }
-.file-selected {
-  background:#fffbf0; border-color:var(--yellow);
-  border-style:solid;
-}
-.file-name {
-  font-size:13px; color:var(--yellow); font-weight:600;
-  margin-top:6px; word-break:break-all;
-}
-
-/* PROGRESS */
-.progress-bar {
-  background:var(--surface2); border-radius:100px;
-  height:6px; margin:12px 0; overflow:hidden; display:none;
-}
-.progress-fill {
-  height:100%; background:var(--yellow); border-radius:100px;
-  transition:width 0.3s ease; width:0%;
-}
-
-.btn {
-  width:100%; padding:14px; border-radius:12px; border:none;
-  cursor:pointer; font-family:'Poppins',sans-serif; font-size:15px;
-  font-weight:700; transition:all 0.15s; margin-top:4px;
-}
-.btn-yellow { background:var(--yellow); color:#000; }
-.btn-yellow:hover { opacity:0.9; }
-.btn-yellow:disabled { opacity:0.4; cursor:not-allowed; }
-.btn-ghost {
-  background:transparent; border:1px solid var(--border); color:var(--text);
-  margin-top:10px;
-}
-.btn-ghost:hover { border-color:var(--yellow); color:var(--yellow); }
-
-/* SUCCESS */
-#success-view { display:none; text-align:center; padding:16px 0; }
-.success-icon { font-size:56px; margin-bottom:16px; animation:pop 0.4s ease; }
-.success-title { font-size:18px; font-weight:800; margin-bottom:8px; color:var(--green); }
-.success-detail { font-size:13px; color:var(--muted); margin-bottom:20px; line-height:1.6; }
-
-/* ERROR */
-.error-msg {
-  background:#fff0f0; border:1px solid #fca5a5; border-radius:8px;
-  padding:10px 14px; font-size:13px; color:var(--red);
-  margin-top:10px; display:none;
-}
+.nav { position:absolute; top:0; left:0; width:100%; display:flex; justify-content:space-between; align-items:center; padding:20px 40px; }
+.nav-brand { font-size:13px; font-weight:700; color:#1a1a1a; letter-spacing:0.08em; }
+.nav-dot { width:32px; height:32px; border-radius:50%; background:#FEBC06; }
+.left { display:flex; flex-direction:column; align-items:flex-start; }
+.headline { font-size:clamp(36px,4.5vw,58px); font-weight:900; color:#1a1a1a; letter-spacing:-2px; line-height:1.05; margin-bottom:16px; }
+.headline span { color:#FEBC06; }
+.tagline { font-size:14px; color:#888; margin-bottom:40px; line-height:1.6; }
+.bag-scene { width:280px; height:280px; position:relative; display:flex; align-items:flex-end; justify-content:center; }
+@keyframes handBounce { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+@keyframes bagWiggle { 0%,100%{transform:rotate(-8deg) translateY(0);} 25%{transform:rotate(-8deg) translateY(-4px);} 50%{transform:rotate(8deg) translateY(0);} 75%{transform:rotate(8deg) translateY(-4px);} }
+.bag-wrap { transform-origin:top center; animation:bagWiggle 2.5s ease-in-out infinite; position:absolute; bottom:0; }
+.hand-wrap { position:absolute; top:0; left:50%; transform:translateX(-50%); animation:handBounce 2.5s ease-in-out infinite; z-index:10; }
+.right { display:flex; flex-direction:column; justify-content:center; }
+.form-card { background:#fff; border:1px solid #e8e3db; border-radius:24px; padding:40px 36px; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:380px; }
+.form-title { font-size:22px; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
+.form-sub { font-size:12px; color:#aaa; margin-bottom:28px; font-style:italic; }
+.field { margin-bottom:16px; }
+.field label { display:block; font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+.field select, .field input { width:100%; background:#f5f4f1; border:1px solid #e0ddd8; border-radius:10px; padding:12px 14px; font-family:'Poppins',sans-serif; font-size:13px; color:#1a1a1a; outline:none; transition:border-color 0.15s; }
+.field select:focus, .field input:focus { border-color:#FEBC06; }
+.drop-zone { border:2px dashed #e0ddd8; border-radius:12px; padding:24px 16px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+.drop-zone:hover { border-color:#FEBC06; background:#fffbf0; }
+.drop-zone input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.drop-icon { font-size:28px; margin-bottom:6px; }
+.drop-text { font-size:12px; color:#aaa; }
+.drop-text strong { color:#FEBC06; }
+.upload-btn { width:100%; background:#FEBC06; color:#000; border:none; border-radius:12px; padding:13px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s; }
+.upload-btn:hover { opacity:0.88; }
+.err { color:#c0392b; font-size:11px; display:none; margin-top:6px; }
+.success { display:none; text-align:center; padding:20px 0; }
+.success-icon { font-size:48px; margin-bottom:12px; }
+.success-title { font-size:18px; font-weight:700; color:#22c55e; margin-bottom:6px; }
+.success-sub { font-size:13px; color:#888; margin-bottom:20px; }
+.again-btn { background:transparent; border:1px solid #e0ddd8; border-radius:10px; padding:10px 20px; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; cursor:pointer; color:#1a1a1a; }
+.again-btn:hover { border-color:#FEBC06; color:#FEBC06; }
+.progress-bar { background:#f0eeea; border-radius:100px; height:5px; margin:10px 0; display:none; overflow:hidden; }
+.progress-fill { height:100%; background:#FEBC06; border-radius:100px; transition:width 0.3s; width:0%; }
+.footer { position:absolute; bottom:12px; right:24px; font-size:11px; color:#1a1a1a; }
 </style>
 </head>
 <body>
-
-<!-- SPLASH -->
-<div id="splash">
-  <div class="splash-icon">⚡</div>
-  <div class="splash-title">YOS Upload</div>
-  <div class="splash-sub">Powered by Yellow Verse</div>
-</div>
-
-<!-- MAIN -->
-<div class="card" id="main-card" style="display:none">
-  <div class="logo-row">
-    <div class="logo-dot">⚡</div>
-    <div>
-      <div class="logo-title">Quick Upload</div>
-      <div class="logo-sub">Yellow OS · Client Portal</div>
-    </div>
+<div class="page">
+  <div class="nav">
+    <div class="nav-brand">YELLOW STUDIO</div>
+    <div class="nav-dot"></div>
   </div>
 
-  <div id="form-view">
-    <div class="field">
-      <label>Client</label>
-      <select id="q-client">
-        <option value="steelcity">Jindal Steel</option>
-        <option value="youthleague">Jindal League</option>
-        <option value="jindal-youth">Jindal Youth League</option>
-        <option value="sohar-steel">Sohar Steel</option>
-        <option value="duqm">Jindal Steel Duqm</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Creative Name</label>
-      <input type="text" id="q-name" placeholder="e.g. Steel City Billboard v2">
-    </div>
-
-    <div class="field">
-      <label>Designer</label>
-      <select id="q-designer">
-        <option value="">Select designer</option>
-        <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-        <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-        <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
-        <option>Siddhesh</option><option>Ajay</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>File</label>
-      <div class="drop-zone" id="drop-zone">
-        <input type="file" id="q-file" accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
-        <div class="drop-icon">📎</div>
-        <div class="drop-text">Tap to select file<br><strong>or drag and drop</strong></div>
-        <div class="file-name" id="file-name-display" style="display:none"></div>
+  <div class="page-inner">
+    <div class="left">
+      <div class="headline">Your files are<br>ready to be<br><span>uploaded.</span></div>
+      <div class="tagline">Drop your creatives into the portal.</div>
+      <div class="bag-scene">
+        <div class="hand-wrap">
+          <svg width="120" height="90" viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="60" cy="55" rx="48" ry="35" fill="#FEBC06"/>
+            <ellipse cx="28" cy="38" rx="14" ry="18" fill="#FEBC06"/>
+            <ellipse cx="46" cy="30" rx="14" ry="20" fill="#FEBC06"/>
+            <ellipse cx="65" cy="28" rx="14" ry="20" fill="#FEBC06"/>
+            <ellipse cx="84" cy="32" rx="13" ry="18" fill="#FEBC06"/>
+            <ellipse cx="98" cy="40" rx="12" ry="16" fill="#FEBC06"/>
+            <path d="M 30,35 Q 38,28 46,32" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M 48,27 Q 56,20 64,24" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M 66,25 Q 74,18 82,22" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <line x1="44" y1="75" x2="54" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+            <line x1="76" y1="75" x2="66" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="bag-wrap">
+          <svg width="200" height="210" viewBox="0 0 200 210" xmlns="http://www.w3.org/2000/svg">
+            <line x1="62" y1="0" x2="72" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+            <line x1="138" y1="0" x2="128" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+            <rect x="10" y="48" width="180" height="150" rx="12" fill="#3b82f6"/>
+            <rect x="10" y="48" width="180" height="20" rx="8" fill="#2563eb"/>
+            <text x="100" y="145" font-size="42" font-family="Poppins,sans-serif" font-weight="900" fill="#1d4ed8" text-anchor="middle">FILES</text>
+            <path d="M 85,100 L 100,82 L 115,100" stroke="#60a5fa" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="100" y1="82" x2="100" y2="115" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
       </div>
     </div>
 
-    <div class="progress-bar" id="progress-bar">
-      <div class="progress-fill" id="progress-fill"></div>
+    <div class="right">
+      <div class="form-card">
+        <div id="form-view">
+          <div class="form-title">Upload Creative</div>
+          <div class="form-sub">It goes straight to the client portal</div>
+          <div class="field">
+            <label>Client</label>
+            <select id="q-client">
+              <option value="">Select client...</option>
+              <option value="duqm">Jindal Steel Duqm</option>
+              <option value="youthleague">Jindal League</option>
+              <option value="steelcity">Jindal Steel</option>
+              <option value="jindal-youth">Jindal Youth League</option>
+              <option value="sohar-steel">Sohar Steel</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Creative Name</label>
+            <input type="text" id="q-name" placeholder="Creative name...">
+          </div>
+          <div class="field">
+            <label>Designer</label>
+            <select id="q-designer">
+              <option value="">Select designer</option>
+              <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+              <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+              <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+              <option>Siddhesh</option><option>Ajay</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>File</label>
+            <div class="drop-zone" id="drop-zone">
+              <input type="file" id="q-file" accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
+              <div class="drop-icon" id="drop-icon">📎</div>
+              <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong></div>
+              <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px"></div>
+            </div>
+          </div>
+          <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="err" id="err-msg"></div>
+          <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
+        </div>
+        <div class="success" id="success-view">
+          <div class="success-icon">✅</div>
+          <div class="success-title">Uploaded!</div>
+          <div class="success-sub" id="success-detail">File is live on the portal.</div>
+          <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
+        </div>
+      </div>
     </div>
-
-    <div class="error-msg" id="error-msg"></div>
-
-    <button class="btn btn-yellow" id="submit-btn" onclick="submitUpload()">
-      ⚡ Upload to Portal
-    </button>
   </div>
 
-  <div id="success-view">
-    <div class="success-icon">✅</div>
-    <div class="success-title">Uploaded!</div>
-    <div class="success-detail" id="success-detail"></div>
-    <button class="btn btn-yellow" onclick="resetForm()">+ Upload Another</button>
-    <button class="btn btn-ghost" onclick="window.close()">Done</button>
-  </div>
+  <div class="footer">🪷 Radhe Shyam</div>
 </div>
 
 <script>
-const BACKEND   = 'https://yellowbackend.onrender.com';
-const SHEETDB   = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
-
-const CLIENT_NAMES = {
-  steelcity:'Jindal Steel', youthleague:'Jindal League',
-  'jindal-youth':'Jindal Youth League', 'sohar-steel':'Sohar Steel',
-  duqm:'Jindal Steel Duqm'
-};
-
-// Splash screen
-setTimeout(() => {
-  document.getElementById('splash').style.opacity = '0';
-  setTimeout(() => {
-    document.getElementById('splash').style.display = 'none';
-    document.getElementById('main-card').style.display = 'block';
-  }, 400);
-}, 1500);
-
-// Drag over
-const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) { document.getElementById('q-file').files = e.dataTransfer.files; handleFile(null, file); }
-});
-
-function handleFile(input, file) {
-  const f = file || input.files[0];
-  if (!f) return;
-  const nameEl = document.getElementById('file-name-display');
-  nameEl.textContent = `📄 ${f.name} (${(f.size/1024/1024).toFixed(1)}MB)`;
-  nameEl.style.display = 'block';
-  dz.classList.add('file-selected');
-  document.querySelector('.drop-icon').textContent = '✅';
-  document.querySelector('.drop-text').style.display = 'none';
-}
-
-function showError(msg) {
-  const el = document.getElementById('error-msg');
-  el.textContent = msg; el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 4000);
-}
-
-function setProgress(pct) {
-  document.getElementById('progress-bar').style.display = 'block';
-  document.getElementById('progress-fill').style.width = pct + '%';
-}
-
-async function submitUpload() {
-  const client   = document.getElementById('q-client').value;
-  const name     = document.getElementById('q-name').value.trim();
-  const designer = document.getElementById('q-designer').value;
-  const fileInput= document.getElementById('q-file');
-  const file     = fileInput.files[0];
-
-  if (!name)     { showError('Please enter a creative name.'); return; }
-  if (!designer) { showError('Please select a designer.'); return; }
-  if (!file)     { showError('Please select a file to upload.'); return; }
-
-  const btn = document.getElementById('submit-btn');
-  btn.textContent = 'Uploading...';
-  btn.disabled = true;
-  setProgress(20);
-
-  try {
-    // Upload to Dropbox via backend
-    const formData = new FormData();
-    const safeName = name.replace(/[^a-zA-Z0-9 _-]/g, '');
-    const ext = file.name.split('.').pop();
-    const dropboxPath = `/Jindal/Creatives/${safeName} — ${designer}.${ext}`;
-
-    formData.append('file', file, file.name);
-    formData.append('dropboxPath', dropboxPath);
-
+const BACKEND='https://yellowbackend.onrender.com';
+const SHEETDB='https://sheetdb.io/api/v1/k06y2a6x3op7c';
+const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#FEBC06';dz.style.background='#fffbf0';});
+dz.addEventListener('dragleave',()=>{dz.style.borderColor='#e0ddd8';dz.style.background='';});
+dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#e0ddd8';dz.style.background='';const f=e.dataTransfer.files[0];if(f){document.getElementById('q-file').files=e.dataTransfer.files;handleFile(null,f);}});
+function handleFile(input,file){const f=file||input.files[0];if(!f)return;document.getElementById('file-name').textContent='📄 '+f.name+' ('+(f.size/1024/1024).toFixed(1)+'MB)';document.getElementById('file-name').style.display='block';document.getElementById('drop-icon').textContent='✅';document.getElementById('drop-text').style.display='none';dz.style.borderColor='#FEBC06';}
+function showErr(msg){const e=document.getElementById('err-msg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4000);}
+function setProgress(pct){document.getElementById('progress-bar').style.display='block';document.getElementById('progress-fill').style.width=pct+'%';}
+async function submitUpload(){
+  const client=document.getElementById('q-client').value;
+  const name=document.getElementById('q-name').value.trim();
+  const designer=document.getElementById('q-designer').value;
+  const file=document.getElementById('q-file').files[0];
+  if(!client){showErr('Please select a client.');return;}
+  if(!name){showErr('Please enter a creative name.');return;}
+  if(!designer){showErr('Please select a designer.');return;}
+  if(!file){showErr('Please select a file.');return;}
+  const btn=document.getElementById('submit-btn');
+  btn.textContent='Uploading...';btn.disabled=true;setProgress(20);
+  try{
+    const formData=new FormData();
+    const safeName=name.replace(/[^a-zA-Z0-9 _-]/g,'');
+    const ext=file.name.split('.').pop();
+    formData.append('file',file,file.name);
+    formData.append('dropboxPath',`/Jindal/Creatives/${safeName} — ${designer}.${ext}`);
     setProgress(40);
-
-    const uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, {
-      method: 'POST',
-      body: formData
-    });
-
+    const uploadRes=await fetch(`${BACKEND}/api/dropbox-upload`,{method:'POST',body:formData});
     setProgress(70);
-
-    const uploadData = await uploadRes.json();
-    if (!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
-
-    const fileUrl = uploadData.url || uploadData.path;
+    const uploadData=await uploadRes.json();
+    if(!uploadData.success)throw new Error(uploadData.error||'Upload failed');
     setProgress(85);
-
-    // Save to SheetDB
-    const row = {
-      Date: new Date().toISOString().split('T')[0],
-      Task: `${name} | ${designer}`,
-      Assignee: client,
-      Status: 'Pending Viplav',
-      'ClickUp Link': fileUrl,
-      'ClickUp Link2': '',
-      Type: 'creative'
-    };
-
-    await fetch(SHEETDB, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [row] })
-    });
-
+    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[{Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':uploadData.url||uploadData.path,'ClickUp Link2':'',Type:'creative'}]})});
     setProgress(100);
-
-    document.getElementById('success-detail').innerHTML =
-      `<strong style="color:var(--text)">${name}</strong><br>
-       Added to <strong style="color:var(--yellow)">${CLIENT_NAMES[client]}</strong><br>
-       Designer: ${designer}<br>
-       <span style="color:var(--green)">Live on client portal ✓</span>`;
-
-    document.getElementById('form-view').style.display = 'none';
-    document.getElementById('success-view').style.display = 'block';
-
-  } catch(e) {
-    showError('Upload failed: ' + e.message + '. Check your connection and try again.');
-    btn.textContent = '⚡ Upload to Portal';
-    btn.disabled = false;
-    document.getElementById('progress-bar').style.display = 'none';
-  }
+    document.getElementById('success-detail').innerHTML=`<strong>${name}</strong><br>${CLIENT_NAMES[client]} · ${designer}<br><span style="color:#22c55e">Live on client portal ✓</span>`;
+    document.getElementById('form-view').style.display='none';
+    document.getElementById('success-view').style.display='block';
+  }catch(e){showErr('Upload failed: '+e.message);btn.textContent='⚡ Upload to Portal';btn.disabled=false;document.getElementById('progress-bar').style.display='none';}
 }
-
-function resetForm() {
-  document.getElementById('q-name').value = '';
-  document.getElementById('q-designer').value = '';
-  document.getElementById('q-file').value = '';
-  document.getElementById('file-name-display').style.display = 'none';
-  document.getElementById('file-name-display').textContent = '';
-  dz.classList.remove('file-selected');
-  document.querySelector('.drop-icon').textContent = '📎';
-  document.querySelector('.drop-text').style.display = 'block';
-  document.getElementById('submit-btn').textContent = '⚡ Upload to Portal';
-  document.getElementById('submit-btn').disabled = false;
-  document.getElementById('progress-bar').style.display = 'none';
-  document.getElementById('progress-fill').style.width = '0%';
-  document.getElementById('form-view').style.display = 'block';
-  document.getElementById('success-view').style.display = 'none';
+function resetForm(){
+  document.getElementById('q-name').value='';document.getElementById('q-designer').value='';document.getElementById('q-file').value='';
+  document.getElementById('file-name').style.display='none';document.getElementById('drop-icon').textContent='📎';document.getElementById('drop-text').style.display='block';
+  dz.style.borderColor='#e0ddd8';dz.style.background='';document.getElementById('submit-btn').textContent='⚡ Upload to Portal';document.getElementById('submit-btn').disabled=false;
+  document.getElementById('progress-bar').style.display='none';document.getElementById('progress-fill').style.width='0%';
+  document.getElementById('form-view').style.display='block';document.getElementById('success-view').style.display='none';
 }
 </script>
 </body>
