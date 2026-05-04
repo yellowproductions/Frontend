@@ -290,7 +290,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 </div>
 
 <script>
-const SHEETDB  = 'https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
+const SHEETDB  = 'https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const BACKEND  = 'https://yellowbackend.onrender.com/api/claude';
 const EJS_SVC  = 'service_786h8bh';
 const EJS_TPL  = 'template_w1gbhz9';
@@ -420,7 +420,7 @@ function renderTaskRows(tasks, startIdx) {
 
   return `
     <div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
-      <span>#</span><span>Task</span><span>Status</span><span>ClickUp Link</span><span>Save</span>
+      <span>#</span><span>Task</span><span>Status</span><span>Preview Link</span><span>Save</span>
     </div>
     ${tasks.map((t, i) => {
       const idx = startIdx + i;
@@ -447,7 +447,7 @@ function renderTaskRows(tasks, startIdx) {
             <option ${status==='On Hold'?'selected':''}>On Hold</option>
           </select>
         </div>
-        <input type="text" id="link-${idx}" value="${t['ClickUp Link']||''}" placeholder="Paste ClickUp link..." style="font-size:12px;padding:5px 8px">
+        <input type="text" id="link-${idx}" value="${t['Preview Link']||''}" placeholder="Paste ClickUp link..." style="font-size:12px;padding:5px 8px">
         <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')">Save</button>
       </div>`;
     }).join('')}`;
@@ -546,7 +546,7 @@ async function saveTask(idx, encodedTask) {
   try {
     await fetch(GAS_URL, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: status, 'ClickUp Link': link } })
+      body: JSON.stringify({ data: { Status: status, 'Preview Link': link } })
     });
     alert('✅ Saved!');
   } catch(e) { alert('Error saving.'); }
@@ -593,7 +593,7 @@ async function markAttendance() {
   try {
     await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'ClickUp Link': '', Type: 'attendance' }] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'Preview Link': '', Type: 'attendance' }] })
     });
     loadAttendance();
   } catch(e) { alert('Error marking attendance.'); }
@@ -629,7 +629,7 @@ async function applyLeave() {
   try {
     await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'ClickUp Link': '', Type: 'leave' }] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'Preview Link': '', Type: 'leave' }] })
     });
     alert('✅ Leave request submitted!');
     document.getElementById('leave-from').value = '';
@@ -646,8 +646,7 @@ async function loadReviews() {
     const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks');
     const data = await res.json();
     reviewItems = Array.isArray(data) ? data.filter(r => 
-      (r.Type === 'creative' || r.Type === '' || !r.Type) && 
-      (r.Status === 'Pending Viplav' || r.Status === 'Pending Review') &&
+      (r.Status === 'Pending Review' || r.Status === 'Pending Viplav' || r.Status === 'Sent Back') &&
       r.Task && r.Task.includes('|')
     ) : [];
 
@@ -672,7 +671,7 @@ function renderReviews() {
     const parts    = item.Task.split('|');
     const cName    = parts[0].trim();
     const designer = parts[1] ? parts[1].trim() : 'Unknown';
-    const fileUrl  = item['ClickUp Link'] || '';
+    const fileUrl  = item['Preview Link'] || '';
     const isImage  = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) || fileUrl.includes('dropbox');
     const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
 
@@ -749,7 +748,7 @@ async function saveFileLink(idx, encodedTask) {
     await fetch(GAS_URL, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { 'ClickUp Link': link } })
+      body: JSON.stringify({ data: { 'Preview Link': link } })
     });
     alert('✅ Link saved! Refreshing...');
     loadReviews();
@@ -757,11 +756,13 @@ async function saveFileLink(idx, encodedTask) {
 }
 
 async function submitReview(idx, action) {
-  const item   = reviewItems[idx];
-  const parts  = item.Task.split('|');
-  const cName  = parts[0].trim();
+  const item     = reviewItems[idx];
+  const parts    = item.Task.split('|');
+  const cName    = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : '';
-  const note   = document.getElementById(`viplav-note-${idx}`).value.trim();
+  const client   = item.Assignee || '';
+  const note     = document.getElementById(`viplav-note-${idx}`).value.trim();
+  const fileUrl  = item['Preview Link'] || '';
 
   const DESIGNER_EMAILS = {
     Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
@@ -771,44 +772,57 @@ async function submitReview(idx, action) {
     Siddhesh:'siddhesh@yellowproductions.co.in', Ajay:'ajay@yellowproductions.co.in'
   };
 
-  if (action === 'sendback' && !note) {
-    alert('Please add feedback before sending back to the designer.');
-    return;
-  }
+  const CLIENT_PENDING = {
+    steelcity: '/JINDAL/Pending', youthleague: '/Jindal League/Pending',
+    'jindal-youth': '/Jindal Youth League/Pending',
+    'sohar-steel': '/Sohar Steel/Pending', duqm: '/Jindal Steel Duqm/Pending'
+  };
 
-  const newStatus = action === 'approve' ? 'Pending Review' : 'Sent Back';
-  const confirmMsg = action === 'approve'
-    ? `Approve "${cName}" and send to client portal?`
-    : `Send "${cName}" back to ${designer} with your feedback?`;
-
-  if (!confirm(confirmMsg)) return;
+  if (action === 'sendback' && !note) { alert('Please add feedback before sending back.'); return; }
+  const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
+  if (!confirm(action === 'approve' ? `Approve "${cName}" and send to client?` : `Send "${cName}" back to ${designer}?`)) return;
 
   try {
     await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: newStatus, 'ClickUp Link2': note } })
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: newStatus } })
     });
+
+    if (action === 'approve' && fileUrl) {
+      try {
+        await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ fromPath: fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
+        });
+      } catch(e) { console.log('Move error:', e.message); }
+    }
 
     if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
       await emailjs.send(EJS_SVC, EJS_TPL, {
         to_email: DESIGNER_EMAILS[designer], to_name: designer,
         task_name: `🔄 Rework needed: ${cName}`,
-        task_list: `Viplav has reviewed your creative and sent it back.\n\nFeedback:\n${note}\n\nPlease make the changes and re-upload.`,
-        task_date: new Date().toLocaleDateString('en-IN'),
-        email: 'creative@yellowproductions.co.in'
+        task_list: `Viplav has reviewed and sent back.
+
+Feedback:
+${note}
+
+Please re-upload after changes.`,
+        task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
       });
     }
 
-    // Notify Suriti
     await emailjs.send(EJS_SVC, EJS_TPL, {
       to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
       task_name: `Viplav ${action === 'approve' ? 'Approved ✅' : 'Sent Back 🔄'}: ${cName}`,
-      task_list: `Creative: ${cName}\nDesigner: ${designer}\nAction: ${action === 'approve' ? 'Approved — now in client portal' : 'Sent back with feedback'}\nNotes: ${note || 'None'}`,
-      task_date: new Date().toLocaleDateString('en-IN'),
-      email: 'creative@yellowproductions.co.in'
+      task_list: `Creative: ${cName}
+Designer: ${designer}
+Client: ${client}
+Action: ${action === 'approve' ? 'Sent to client for review' : 'Sent back'}
+Notes: ${note || 'None'}`,
+      task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
     });
 
-    alert(action === 'approve' ? '✅ Approved! Creative is now live on client portal.' : '🔄 Sent back to designer with feedback!');
+    alert(action === 'approve' ? '✅ Sent to client for review!' : '🔄 Sent back to designer!');
     loadReviews();
   } catch(e) { alert('Error: ' + (e.message || JSON.stringify(e))); }
 }
