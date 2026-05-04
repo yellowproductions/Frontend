@@ -780,9 +780,9 @@ async function submitReview(idx, action) {
   if (!confirm(confirmMsg)) return;
 
   try {
-    await fetch(GAS_URL, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: newStatus, 'ClickUp Link2': note } })
+    await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: newStatus, 'ClickUp Link2': note } })
     });
 
     if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
@@ -806,7 +806,7 @@ async function submitReview(idx, action) {
 
     alert(action === 'approve' ? '✅ Approved! Creative is now live on client portal.' : '🔄 Sent back to designer with feedback!');
     loadReviews();
-  } catch(e) { alert('Error. Please try again.'); }
+  } catch(e) { alert('Error: ' + (e.message || JSON.stringify(e))); }
 }
 
 // Set today's date defaults
