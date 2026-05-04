@@ -593,7 +593,7 @@ async function markAttendance() {
   try {
     await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'ClickUp Link': '', Type: 'attendance' }] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'ClickUp Link': '', Type: 'attendance' }] })
     });
     loadAttendance();
   } catch(e) { alert('Error marking attendance.'); }
@@ -629,7 +629,7 @@ async function applyLeave() {
   try {
     await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'ClickUp Link': '', Type: 'leave' }] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'ClickUp Link': '', Type: 'leave' }] })
     });
     alert('✅ Leave request submitted!');
     document.getElementById('leave-from').value = '';
