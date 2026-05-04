@@ -645,7 +645,11 @@ async function loadReviews() {
   try {
     const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks');
     const data = await res.json();
-    reviewItems = Array.isArray(data) ? data.filter(r => r.Type === 'creative' && (r.Status === 'Pending Viplav' || r.Status === 'Pending Review')) : [];
+    reviewItems = Array.isArray(data) ? data.filter(r => 
+      (r.Type === 'creative' || r.Type === '' || !r.Type) && 
+      (r.Status === 'Pending Viplav' || r.Status === 'Pending Review') &&
+      r.Task && r.Task.includes('|')
+    ) : [];
 
     const badge = document.getElementById('review-badge');
     badge.textContent = reviewItems.length || '';
