@@ -321,6 +321,45 @@
     margin-bottom: 4px;
     font-family: 'DM Mono', monospace;
   }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .sidebar { display:none !important; }
+  .main { padding:16px !important; width:100% !important; }
+  body { overflow-y:auto !important; }
+  .panel-title { font-size:18px !important; }
+  .card { padding:14px !important; }
+  input, select, textarea { font-size:16px !important; }
+  .btn { padding:10px 14px !important; }
+  table { display:block; overflow-x:auto; }
+}
+@media (max-width: 768px) {
+  /* Login screens */
+  .login-hero-inner, .hero-inner, .page-inner { 
+    grid-template-columns:1fr !important; 
+    padding:80px 20px 20px !important;
+    gap:24px !important;
+  }
+  .headline, .login-headline, .m-title, .title {
+    font-size:clamp(36px,10vw,56px) !important;
+  }
+  .card, .login-card, .form-card, .hero-right {
+    width:100% !important;
+    max-width:100% !important;
+    padding:24px 20px !important;
+  }
+  /* Monster login */
+  .m-scene svg { max-width:100vw !important; }
+  .m-form { width:85vw !important; bottom:2vh !important; }
+  /* Studio */
+  .left { display:none !important; }
+  .right { width:100% !important; }
+}
+@media (max-width: 480px) {
+  .nav { padding:14px 20px !important; }
+  .nav-brand { font-size:11px !important; }
+}
+
 </style>
 </head>
 <body>
@@ -1028,7 +1067,7 @@
             <div style="font-size:16px;font-weight:800;margin-bottom:4px">🏗️ Jindal Portal</div>
             <div style="font-size:12px;color:var(--muted)">Steel City · Youth League · Oman Build · Product Boards</div>
           </div>
-          <a href="jindal-portal.html" target="_blank" class="btn btn-yellow btn-sm">Open Portal ↗</a>
+          <a href="client.html" target="_blank" class="btn btn-yellow btn-sm">Open Portal ↗</a>
         </div>
       </div>
       <div class="card" style="border-style:dashed">
