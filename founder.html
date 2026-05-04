@@ -525,7 +525,7 @@
           </select>
         </div>
         <div style="display:flex;gap:6px;align-items:flex-end">
-          <button class="btn btn-yellow btn-sm" onclick="addTask()">Add & Send ✉️</button>
+          <button class="btn btn-yellow btn-sm" onclick="addTask()">Add Task</button>
         </div>
       </div>
     </div>
@@ -1359,30 +1359,16 @@ async function addTask() {
     renderTasks(allTasks);
     document.getElementById('task-name').value = '';
 
-    // Auto send email every time
-    if(TEAM[assignee]) {
-      const todayTasks = allTasks.filter(t => t.Assignee === assignee && t.Date === row.Date);
-      const taskList = todayTasks.map((t,i) => `Task ${i+1}: ${t.Task}`).join('\n');
-      try {
-        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-          to_email: TEAM[assignee], to_name: assignee,
-          task_name: `New task assigned: ${task}`,
-          task_list: `New Task: ${task}\n\nAll tasks for ${row.Date}:\n${taskList}`,
-          task_date: row.Date
-        });
-        const btn = document.querySelector('[onclick="addTask()"]') || document.querySelector('[onclick*="addTask"]');
-        if(btn) { btn.textContent = '✅ Added & Emailed!'; setTimeout(() => btn.textContent = 'Add & Send ✉️', 2000); }
-      } catch(emailErr) {
-        console.error('Email error:', emailErr);
-        alert('Task saved but email failed: ' + (emailErr.text || emailErr.message || JSON.stringify(emailErr)));
-      }
-    }
+    // Task saved — no auto email
+    const btn = document.querySelector('[onclick="addTask()"]');
+    if(btn) { btn.textContent = '✅ Added!'; setTimeout(() => btn.textContent = 'Add Task', 2000); }
+  } catch(e) { alert('Error saving task: ' + e.message); }
   } catch(e) { alert('Error saving task.'); }
 }
 
 async function sendAllEmails() {
   const date = document.getElementById('task-filter-date').value || new Date().toISOString().split('T')[0];
-  const dayTasks = allTasks.filter(t => t.Date === date);
+  const dayTasks = allTasks.filter(t => t.Date === date && (t.Type === 'task' || !t.Type || t.Type === ''));
   if(!dayTasks.length) { alert('No tasks for selected date.'); return; }
 
   const byPerson = {};
@@ -1391,18 +1377,34 @@ async function sendAllEmails() {
     byPerson[t.Assignee].push(t.Task);
   });
 
-  let sent = 0;
+  const btn = document.querySelector('[onclick="sendAllEmails()"]');
+  if(btn) { btn.textContent = '⏳ Sending...'; btn.disabled = true; }
+
+  let sent = 0, failed = [];
   for(const [person, tasks] of Object.entries(byPerson)) {
-    if(!TEAM[person]) continue;
+    if(!TEAM[person]) { failed.push(`${person} (no email)`); continue; }
     const taskList = tasks.map((t,i) => `Task ${i+1}: ${t}`).join('\n');
-    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-      to_email: TEAM[person], to_name: person,
-      task_name: `Your tasks for ${date}`, task_list: taskList,
-      task_date: date
-    });
-    sent++;
+    try {
+      await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+        to_email: TEAM[person], to_name: person,
+        task_name: `Your tasks for ${date}`,
+        task_list: taskList,
+        task_date: date
+      });
+      sent++;
+    } catch(e) {
+      console.error('Email failed for', person, e);
+      failed.push(`${person} (${e.text || e.message || 'error'})`);
+    }
   }
-  alert(`Emails sent to ${sent} people for ${date}!`);
+
+  if(btn) { btn.textContent = '📧 Email All'; btn.disabled = false; }
+
+  if(failed.length) {
+    alert(`✅ Sent to ${sent} people.\n❌ Failed: ${failed.join(', ')}`);
+  } else {
+    alert(`✅ Emails sent to ${sent} people for ${date}!`);
+  }
 }
 
 // ====== HR ======
