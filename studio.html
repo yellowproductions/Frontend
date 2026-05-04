@@ -24,33 +24,84 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
   width:100%;
   padding:0 32px;
 }
+
 .nav { position:absolute; top:0; left:0; width:100%; display:flex; justify-content:space-between; align-items:center; padding:20px 40px; }
 .nav-brand { font-size:13px; font-weight:700; color:#1a1a1a; letter-spacing:0.08em; }
 .nav-dot { width:32px; height:32px; border-radius:50%; background:#FEBC06; }
+
+/* LEFT SIDE */
 .left { display:flex; flex-direction:column; align-items:flex-start; }
 .headline { font-size:clamp(36px,4.5vw,58px); font-weight:900; color:#1a1a1a; letter-spacing:-2px; line-height:1.05; margin-bottom:16px; }
 .headline span { color:#FEBC06; }
 .tagline { font-size:14px; color:#888; margin-bottom:40px; line-height:1.6; }
+
+/* BAG ANIMATION */
 .bag-scene { width:280px; height:280px; position:relative; display:flex; align-items:flex-end; justify-content:center; }
-@keyframes handBounce { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
-@keyframes bagWiggle { 0%,100%{transform:rotate(-8deg) translateY(0);} 25%{transform:rotate(-8deg) translateY(-4px);} 50%{transform:rotate(8deg) translateY(0);} 75%{transform:rotate(8deg) translateY(-4px);} }
-.bag-wrap { transform-origin:top center; animation:bagWiggle 2.5s ease-in-out infinite; position:absolute; bottom:0; }
-.hand-wrap { position:absolute; top:0; left:50%; transform:translateX(-50%); animation:handBounce 2.5s ease-in-out infinite; z-index:10; }
+
+@keyframes swing {
+  0%,100% { transform:rotate(-8deg); }
+  50% { transform:rotate(8deg); }
+}
+@keyframes handBounce {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-8px); }
+}
+@keyframes bagWiggle {
+  0%,100% { transform:rotate(-8deg) translateY(0); }
+  25% { transform:rotate(-8deg) translateY(-4px); }
+  50% { transform:rotate(8deg) translateY(0); }
+  75% { transform:rotate(8deg) translateY(-4px); }
+}
+
+.bag-wrap {
+  transform-origin: top center;
+  animation: bagWiggle 2.5s ease-in-out infinite;
+  position:absolute;
+  bottom:0;
+}
+
+.hand-wrap {
+  position:absolute;
+  top:0; left:50%; transform:translateX(-50%);
+  animation: handBounce 2.5s ease-in-out infinite;
+  z-index:10;
+}
+
+/* RIGHT SIDE */
 .right { display:flex; flex-direction:column; justify-content:center; }
-.form-card { background:#fff; border:1px solid #e8e3db; border-radius:24px; padding:40px 36px; box-shadow:0 4px 24px rgba(0,0,0,0.06); max-width:380px; }
+.form-card {
+  background:#fff;
+  border:1px solid #e8e3db;
+  border-radius:24px;
+  padding:40px 36px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.06);
+  max-width:380px;
+}
 .form-title { font-size:22px; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
 .form-sub { font-size:12px; color:#aaa; margin-bottom:28px; font-style:italic; }
 .field { margin-bottom:16px; }
 .field label { display:block; font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
-.field select, .field input { width:100%; background:#f5f4f1; border:1px solid #e0ddd8; border-radius:10px; padding:12px 14px; font-family:'Poppins',sans-serif; font-size:13px; color:#1a1a1a; outline:none; transition:border-color 0.15s; }
+.field select, .field input {
+  width:100%; background:#f5f4f1; border:1px solid #e0ddd8;
+  border-radius:10px; padding:12px 14px; font-family:'Poppins',sans-serif;
+  font-size:13px; color:#1a1a1a; outline:none; transition:border-color 0.15s;
+}
 .field select:focus, .field input:focus { border-color:#FEBC06; }
-.drop-zone { border:2px dashed #e0ddd8; border-radius:12px; padding:24px 16px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+.drop-zone {
+  border:2px dashed #e0ddd8; border-radius:12px; padding:24px 16px;
+  text-align:center; cursor:pointer; transition:all 0.2s; position:relative;
+}
 .drop-zone:hover { border-color:#FEBC06; background:#fffbf0; }
 .drop-zone input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
 .drop-icon { font-size:28px; margin-bottom:6px; }
 .drop-text { font-size:12px; color:#aaa; }
 .drop-text strong { color:#FEBC06; }
-.upload-btn { width:100%; background:#FEBC06; color:#000; border:none; border-radius:12px; padding:13px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s; }
+.upload-btn {
+  width:100%; background:#FEBC06; color:#000; border:none;
+  border-radius:12px; padding:13px; font-family:'Poppins',sans-serif;
+  font-size:14px; font-weight:700; cursor:pointer; margin-top:8px;
+  transition:opacity 0.15s;
+}
 .upload-btn:hover { opacity:0.88; }
 .err { color:#c0392b; font-size:11px; display:none; margin-top:6px; }
 .success { display:none; text-align:center; padding:20px 0; }
@@ -72,92 +123,118 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
   </div>
 
   <div class="page-inner">
-    <div class="left">
-      <div class="headline">Your files are<br>ready to be<br><span>uploaded.</span></div>
-      <div class="tagline">Drop your creatives into the portal.</div>
-      <div class="bag-scene">
-        <div class="hand-wrap">
-          <svg width="120" height="90" viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="60" cy="55" rx="48" ry="35" fill="#FEBC06"/>
-            <ellipse cx="28" cy="38" rx="14" ry="18" fill="#FEBC06"/>
-            <ellipse cx="46" cy="30" rx="14" ry="20" fill="#FEBC06"/>
-            <ellipse cx="65" cy="28" rx="14" ry="20" fill="#FEBC06"/>
-            <ellipse cx="84" cy="32" rx="13" ry="18" fill="#FEBC06"/>
-            <ellipse cx="98" cy="40" rx="12" ry="16" fill="#FEBC06"/>
-            <path d="M 30,35 Q 38,28 46,32" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-            <path d="M 48,27 Q 56,20 64,24" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-            <path d="M 66,25 Q 74,18 82,22" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-            <line x1="44" y1="75" x2="54" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-            <line x1="76" y1="75" x2="66" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="bag-wrap">
-          <svg width="200" height="210" viewBox="0 0 200 210" xmlns="http://www.w3.org/2000/svg">
-            <line x1="62" y1="0" x2="72" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-            <line x1="138" y1="0" x2="128" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-            <rect x="10" y="48" width="180" height="150" rx="12" fill="#3b82f6"/>
-            <rect x="10" y="48" width="180" height="20" rx="8" fill="#2563eb"/>
-            <text x="100" y="145" font-size="42" font-family="Poppins,sans-serif" font-weight="900" fill="#1d4ed8" text-anchor="middle">FILES</text>
-            <path d="M 85,100 L 100,82 L 115,100" stroke="#60a5fa" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="100" y1="82" x2="100" y2="115" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
-          </svg>
-        </div>
-      </div>
-    </div>
+  <!-- LEFT -->
+  <div class="left">
+    <div class="headline">Your files are<br>ready to be<br><span>uploaded.</span></div>
+    <div class="tagline">Drop your creatives into the portal.<br></div>
 
-    <div class="right">
-      <div class="form-card">
-        <div id="form-view">
-          <div class="form-title">Upload Creative</div>
-          <div class="form-sub">It goes straight to the client portal</div>
-          <div class="field">
-            <label>Client</label>
-            <select id="q-client">
-              <option value="">Select client...</option>
-              <option value="duqm">Jindal Steel Duqm</option>
-              <option value="youthleague">Jindal League</option>
-              <option value="steelcity">Jindal Steel</option>
-              <option value="jindal-youth">Jindal Youth League</option>
-              <option value="sohar-steel">Sohar Steel</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Creative Name</label>
-            <input type="text" id="q-name" placeholder="Creative name...">
-          </div>
-          <div class="field">
-            <label>Designer</label>
-            <select id="q-designer">
-              <option value="">Select designer</option>
-              <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-              <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-              <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
-              <option>Siddhesh</option><option>Ajay</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>File</label>
-            <div class="drop-zone" id="drop-zone">
-              <input type="file" id="q-file" accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
-              <div class="drop-icon" id="drop-icon">📎</div>
-              <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong></div>
-              <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px"></div>
-            </div>
-          </div>
-          <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-          <div class="err" id="err-msg"></div>
-          <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
-        </div>
-        <div class="success" id="success-view">
-          <div class="success-icon">✅</div>
-          <div class="success-title">Uploaded!</div>
-          <div class="success-sub" id="success-detail">File is live on the portal.</div>
-          <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
-        </div>
+    <!-- ANIMATED BAG -->
+    <div class="bag-scene">
+      <!-- Hand -->
+      <div class="hand-wrap">
+        <svg width="120" height="90" viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
+          <!-- Fist/hand holding strings -->
+          <ellipse cx="60" cy="55" rx="48" ry="35" fill="#FEBC06"/>
+          <!-- Fingers -->
+          <ellipse cx="28" cy="38" rx="14" ry="18" fill="#FEBC06"/>
+          <ellipse cx="46" cy="30" rx="14" ry="20" fill="#FEBC06"/>
+          <ellipse cx="65" cy="28" rx="14" ry="20" fill="#FEBC06"/>
+          <ellipse cx="84" cy="32" rx="13" ry="18" fill="#FEBC06"/>
+          <ellipse cx="98" cy="40" rx="12" ry="16" fill="#FEBC06"/>
+          <!-- Knuckle lines -->
+          <path d="M 30,35 Q 38,28 46,32" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M 48,27 Q 56,20 64,24" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M 66,25 Q 74,18 82,22" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <!-- Strings coming from fist -->
+          <line x1="44" y1="75" x2="54" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+          <line x1="76" y1="75" x2="66" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- Bag -->
+      <div class="bag-wrap">
+        <svg width="200" height="210" viewBox="0 0 200 210" xmlns="http://www.w3.org/2000/svg">
+          <!-- Strings -->
+          <line x1="62" y1="0" x2="72" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+          <line x1="138" y1="0" x2="128" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
+          <!-- Bag body -->
+          <rect x="10" y="48" width="180" height="150" rx="12" fill="#3b82f6"/>
+          <!-- Bag fold/top rim -->
+          <rect x="10" y="48" width="180" height="20" rx="8" fill="#2563eb"/>
+
+          <!-- YOS logo on bag -->
+          <text x="100" y="145" font-size="42" font-family="Poppins,sans-serif" font-weight="900" fill="#1d4ed8" text-anchor="middle">FILES</text>
+          <!-- Upload arrow on bag -->
+          <path d="M 85,100 L 100,82 L 115,100" stroke="#60a5fa" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="100" y1="82" x2="100" y2="115" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
+        </svg>
       </div>
     </div>
   </div>
 
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="form-card">
+      <div id="form-view">
+        <div class="form-title">Upload Creative</div>
+        <div class="form-sub">It goes straight to the client portal</div>
+
+        <div class="field">
+          <label>Client</label>
+          <select id="q-client">
+            <option value="">Select client...</option>
+            <option value="duqm">Jindal Steel Duqm</option>
+            <option value="youthleague">Jindal League</option>
+            <option value="steelcity">Jindal Steel</option>
+            <option value="jindal-youth">Jindal Youth League</option>
+            <option value="sohar-steel">Sohar Steel</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Creative Name</label>
+          <input type="text" id="q-name" placeholder="Creative name...">
+        </div>
+
+        <div class="field">
+          <label>Designer</label>
+          <select id="q-designer">
+            <option value="">Select designer</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Siddhesh</option><option>Ajay</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>File</label>
+          <div class="drop-zone" id="drop-zone">
+            <input type="file" id="q-file" accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
+            <div class="drop-icon" id="drop-icon">📎</div>
+            <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong></div>
+            <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px"></div>
+          </div>
+        </div>
+
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="err" id="err-msg"></div>
+
+        <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
+      </div>
+
+      <div class="success" id="success-view">
+        <div class="success-icon">✅</div>
+        <div class="success-title">Uploaded!</div>
+        <div class="success-sub" id="success-detail">File is live on the portal.</div>
+        <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
+      </div>
+    </div>
+  </div>
+
+  </div>
   <div class="footer">🪷 Radhe Shyam</div>
 </div>
 
@@ -165,13 +242,24 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://sheetdb.io/api/v1/k06y2a6x3op7c';
 const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
+
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#FEBC06';dz.style.background='#fffbf0';});
 dz.addEventListener('dragleave',()=>{dz.style.borderColor='#e0ddd8';dz.style.background='';});
 dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#e0ddd8';dz.style.background='';const f=e.dataTransfer.files[0];if(f){document.getElementById('q-file').files=e.dataTransfer.files;handleFile(null,f);}});
-function handleFile(input,file){const f=file||input.files[0];if(!f)return;document.getElementById('file-name').textContent='📄 '+f.name+' ('+(f.size/1024/1024).toFixed(1)+'MB)';document.getElementById('file-name').style.display='block';document.getElementById('drop-icon').textContent='✅';document.getElementById('drop-text').style.display='none';dz.style.borderColor='#FEBC06';}
+
+function handleFile(input,file){
+  const f=file||input.files[0];if(!f)return;
+  document.getElementById('file-name').textContent='📄 '+f.name+' ('+(f.size/1024/1024).toFixed(1)+'MB)';
+  document.getElementById('file-name').style.display='block';
+  document.getElementById('drop-icon').textContent='✅';
+  document.getElementById('drop-text').style.display='none';
+  dz.style.borderColor='#FEBC06';
+}
+
 function showErr(msg){const e=document.getElementById('err-msg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4000);}
 function setProgress(pct){document.getElementById('progress-bar').style.display='block';document.getElementById('progress-fill').style.width=pct+'%';}
+
 async function submitUpload(){
   const client=document.getElementById('q-client').value;
   const name=document.getElementById('q-name').value.trim();
@@ -187,27 +275,39 @@ async function submitUpload(){
     const formData=new FormData();
     const safeName=name.replace(/[^a-zA-Z0-9 _-]/g,'');
     const ext=file.name.split('.').pop();
+    const dropboxPath=`/Jindal/Creatives/${safeName} — ${designer}.${ext}`;
     formData.append('file',file,file.name);
-    formData.append('dropboxPath',`/Jindal/Creatives/${safeName} — ${designer}.${ext}`);
+    formData.append('dropboxPath',dropboxPath);
     setProgress(40);
     const uploadRes=await fetch(`${BACKEND}/api/dropbox-upload`,{method:'POST',body:formData});
     setProgress(70);
     const uploadData=await uploadRes.json();
     if(!uploadData.success)throw new Error(uploadData.error||'Upload failed');
+    const fileUrl=uploadData.url||uploadData.path;
     setProgress(85);
-    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[{Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':uploadData.url||uploadData.path,'ClickUp Link2':'',Type:'creative'}]})});
+    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':fileUrl,'ClickUp Link2':'',Type:'creative'};
+    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[row]})});
     setProgress(100);
     document.getElementById('success-detail').innerHTML=`<strong>${name}</strong><br>${CLIENT_NAMES[client]} · ${designer}<br><span style="color:#22c55e">Live on client portal ✓</span>`;
     document.getElementById('form-view').style.display='none';
     document.getElementById('success-view').style.display='block';
   }catch(e){showErr('Upload failed: '+e.message);btn.textContent='⚡ Upload to Portal';btn.disabled=false;document.getElementById('progress-bar').style.display='none';}
 }
+
 function resetForm(){
-  document.getElementById('q-name').value='';document.getElementById('q-designer').value='';document.getElementById('q-file').value='';
-  document.getElementById('file-name').style.display='none';document.getElementById('drop-icon').textContent='📎';document.getElementById('drop-text').style.display='block';
-  dz.style.borderColor='#e0ddd8';dz.style.background='';document.getElementById('submit-btn').textContent='⚡ Upload to Portal';document.getElementById('submit-btn').disabled=false;
-  document.getElementById('progress-bar').style.display='none';document.getElementById('progress-fill').style.width='0%';
-  document.getElementById('form-view').style.display='block';document.getElementById('success-view').style.display='none';
+  document.getElementById('q-name').value='';
+  document.getElementById('q-designer').value='';
+  document.getElementById('q-file').value='';
+  document.getElementById('file-name').style.display='none';
+  document.getElementById('drop-icon').textContent='📎';
+  document.getElementById('drop-text').style.display='block';
+  dz.style.borderColor='#e0ddd8';dz.style.background='';
+  document.getElementById('submit-btn').textContent='⚡ Upload to Portal';
+  document.getElementById('submit-btn').disabled=false;
+  document.getElementById('progress-bar').style.display='none';
+  document.getElementById('progress-fill').style.width='0%';
+  document.getElementById('form-view').style.display='block';
+  document.getElementById('success-view').style.display='none';
 }
 </script>
 </body>
