@@ -13,7 +13,7 @@
     --surface: #ffffff;
     --surface2: #f0eeea;
     --border: #e0ddd8;
-    --yellow: #c8961a;
+    --yellow: #FEBC06;
     --yellow-dim: #a87818;
     --text: #1a1a1a;
     --muted: #888;
@@ -392,7 +392,7 @@
         <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">Get in Touch</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:#1a1a1a">
           <span style="font-size:14px">✉️</span>
-          <a href="mailto:creative@yellowproductions.co.in" style="color:#c8961a;text-decoration:none;font-weight:500">creative@yellowproductions.co.in</a>
+          <a href="mailto:creative@yellowproductions.co.in" style="color:#FEBC06;text-decoration:none;font-weight:500">creative@yellowproductions.co.in</a>
         </div>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#1a1a1a;margin-bottom:8px">
           <span style="font-size:14px">📞</span>
@@ -400,7 +400,7 @@
         </div>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#1a1a1a">
           <span style="font-size:14px">🌐</span>
-          <a href="https://www.yellowproductions.co.in" target="_blank" style="color:#c8961a;text-decoration:none;font-weight:500">www.yellowproductions.co.in</a>
+          <a href="https://www.yellowproductions.co.in" target="_blank" style="color:#FEBC06;text-decoration:none;font-weight:500">www.yellowproductions.co.in</a>
         </div>
       </div>
 
@@ -456,6 +456,34 @@
 </div>
 
 <div class="main">
+
+<!-- REMINDER BELL -->
+<div id="reminder-bell" style="position:fixed;top:16px;right:24px;z-index:9000">
+  <div onclick="toggleReminders()" style="cursor:pointer;background:#fff;border:1px solid #e0ddd8;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.1);position:relative">
+    <span style="font-size:18px">🔔</span>
+    <span id="reminder-count" style="position:absolute;top:-4px;right:-4px;background:#FEBC06;color:#000;font-size:10px;font-weight:800;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;font-family:'Poppins',sans-serif">0</span>
+  </div>
+
+  <!-- Reminder dropdown -->
+  <div id="reminder-dropdown" style="display:none;position:absolute;top:50px;right:0;width:320px;background:#fff;border:1px solid #e0ddd8;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12);overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid #e0ddd8;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;font-weight:700;color:#1a1a1a">Reminders</div>
+      <div id="reminder-clear-all" onclick="clearAllReminders()" style="font-size:11px;color:#FEBC06;cursor:pointer;font-weight:600;display:none">Clear all</div>
+    </div>
+    <div id="reminder-list" style="max-height:400px;overflow-y:auto;padding:8px 0">
+      <div id="reminder-empty" style="padding:20px;text-align:center;color:#aaa;font-size:13px">No reminders yet.<br><span style="font-size:11px">Say "remind me to..." in any agent.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- REMINDER BANNER (top sticky) -->
+<div id="reminder-banner" style="display:none;position:fixed;top:0;left:220px;right:0;z-index:8999;background:#FEBC06;padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+  <div style="display:flex;align-items:center;gap:10px;flex:1;overflow:hidden">
+    <span style="font-size:16px">🔔</span>
+    <span id="banner-text" style="font-size:13px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+  </div>
+  <button onclick="dismissBanner()" style="background:#000;color:#FEBC06;border:none;border-radius:8px;padding:5px 14px;font-family:'Poppins',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Done ✓</button>
+</div>
 
   <!-- CEO PANEL -->
   <div class="panel active" id="panel-ceo">
@@ -1076,7 +1104,7 @@
 // ====== CONFIG ======
 const ANTHROPIC_KEY = ''; // Key handled by backend only
 const BACKEND_URL = 'https://yellowbackend.onrender.com/api/claude';
-const SHEETDB_URL = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
+const SHEETDB_URL = 'https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
 const EMAILJS_SERVICE = 'service_786h8bh';
 const EMAILJS_TEMPLATE = 'template_w1gbhz9';
 const EMAILJS_KEY = '_sfXlprhHHUbt55qV';
@@ -1187,6 +1215,19 @@ async function sendChat() {
 
   ceoHistory.push({ role: 'user', content: msg });
 
+  // Build live task context
+  const today = new Date().toISOString().split('T')[0];
+  const openTasks = allTasks.filter(t => t.Status !== 'Done' && (t.Type === 'task' || !t.Type || t.Type === ''));
+  const todayTasks = allTasks.filter(t => t.Date === today && (t.Type === 'task' || !t.Type || t.Type === ''));
+  const taskSummary = openTasks.length
+    ? `\n\nLIVE OPEN TASKS (${openTasks.length} total):\n` + openTasks.map(t => `- ${t.Assignee}: ${t.Task} [${t.Status || 'Pending'}] due ${t.Date}`).join('\n')
+    : '\n\nNo open tasks currently.';
+  const todaySummary = todayTasks.length
+    ? `\n\nTODAY'S TASKS (${today}):\n` + todayTasks.map(t => `- ${t.Assignee}: ${t.Task} [${t.Status || 'Pending'}]`).join('\n')
+    : `\n\nNo tasks assigned for today (${today}).`;
+
+  const enrichedPrompt = agentSystemPrompts[currentAgent] + taskSummary + todaySummary;
+
   try {
     const res = await fetch(BACKEND_URL, {
       method: 'POST',
@@ -1194,7 +1235,7 @@ async function sendChat() {
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 1000,
-        system: agentSystemPrompts[currentAgent],
+        system: enrichedPrompt,
         messages: ceoHistory
       })
     });
@@ -1202,6 +1243,10 @@ async function sendChat() {
     const reply = data.content?.[0]?.text || 'Could not reach agent.';
     ceoHistory.push({ role: 'assistant', content: reply });
     chat.innerHTML += `<div class="msg ai">${reply.replace(/\n/g,'<br>')}</div>`;
+
+    // Check if user message contains a reminder request
+    const reminderText = extractReminder(msg);
+    if(reminderText) { addReminder(reminderText); }
   } catch(e) {
     chat.innerHTML += `<div class="msg ai" style="color:var(--red)">Could not reach agent. Try again.</div>`;
   }
@@ -1210,12 +1255,130 @@ async function sendChat() {
   chat.scrollTop = chat.scrollHeight;
 }
 
-// ====== TASKS ======
+// ====== REMINDERS ======
+let reminders = JSON.parse(localStorage.getItem('yos-reminders') || '[]');
+let activeBannerIdx = -1;
+
+function saveReminders() { localStorage.setItem('yos-reminders', JSON.stringify(reminders)); }
+
+function renderReminders() {
+  const list = document.getElementById('reminder-list');
+  const empty = document.getElementById('reminder-empty');
+  const count = document.getElementById('reminder-count');
+  const clearAll = document.getElementById('reminder-clear-all');
+  count.textContent = reminders.length;
+  count.style.display = reminders.length ? 'flex' : 'none';
+  clearAll.style.display = reminders.length ? 'block' : 'none';
+  empty.style.display = reminders.length ? 'none' : 'block';
+
+  const existing = list.querySelectorAll('.reminder-item');
+  existing.forEach(e => e.remove());
+
+  reminders.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'reminder-item';
+    div.style = 'padding:12px 16px;border-bottom:1px solid #f0eeea;display:flex;align-items:flex-start;gap:10px;background:#fffbf0';
+    div.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a">${r.text}</div>
+        <div style="font-size:10px;color:#bbb;margin-top:2px">${r.time}</div>
+      </div>
+      <button onclick="doneReminder(${i})" style="background:#FEBC06;color:#000;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap">Done ✓</button>
+    `;
+    list.appendChild(div);
+  });
+
+  // Always show first reminder in banner
+  if(reminders.length > 0) {
+    showBanner(0);
+  } else {
+    hideBanner();
+  }
+}
+
+function showBanner(idx) {
+  activeBannerIdx = idx;
+  document.getElementById('banner-text').textContent = reminders[idx].text;
+  document.getElementById('reminder-banner').style.display = 'flex';
+  document.getElementById('main-app').style.paddingTop = '44px';
+}
+
+function hideBanner() {
+  activeBannerIdx = -1;
+  document.getElementById('reminder-banner').style.display = 'none';
+  document.getElementById('main-app').style.paddingTop = '0';
+}
+
+function dismissBanner() {
+  if(activeBannerIdx !== -1) doneReminder(activeBannerIdx);
+}
+
+function doneReminder(i) {
+  reminders.splice(i, 1);
+  saveReminders();
+  renderReminders();
+}
+
+function deleteReminder(i) {
+  reminders.splice(i, 1);
+  saveReminders();
+  renderReminders();
+}
+
+function clearAllReminders() {
+  if(!confirm('Clear all reminders?')) return;
+  reminders = [];
+  saveReminders();
+  renderReminders();
+}
+
+function toggleReminders() {
+  const dd = document.getElementById('reminder-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function addReminder(text) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' · ' + now.toLocaleDateString('en-IN');
+  reminders.unshift({ text, done: false, time });
+  saveReminders();
+  renderReminders();
+  // Flash bell
+  const bell = document.getElementById('reminder-bell');
+  bell.style.transform = 'scale(1.3)';
+  setTimeout(() => bell.style.transform = 'scale(1)', 300);
+}
+
+function extractReminder(text) {
+  const lower = text.toLowerCase();
+  const patterns = [
+    /remind(?:er)?(?:\s+me)?(?:\s+to)?\s+(.+?)(?:\.|$)/i,
+    /set\s+a?\s*reminder(?:\s+to)?\s+(.+?)(?:\.|$)/i,
+    /don[''`]?t\s+forget\s+(?:to\s+)?(.+?)(?:\.|$)/i,
+    /remember\s+to\s+(.+?)(?:\.|$)/i,
+  ];
+  for(const p of patterns) {
+    const m = text.match(p);
+    if(m && m[1] && m[1].trim().length > 3) return m[1].trim();
+  }
+  return null;
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  const bell = document.getElementById('reminder-bell');
+  if(bell && !bell.contains(e.target)) {
+    document.getElementById('reminder-dropdown').style.display = 'none';
+  }
+});
+
+// Init
+renderReminders();
 let allTasks = [];
 
 async function loadTasks() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const data = await res.json();
     allTasks = data.filter(r => r.Type === 'task' || r.Type === '' || !r.Type);
     renderTasks(allTasks);
@@ -1418,7 +1581,7 @@ async function loadHR() {
   const filterDate = document.getElementById('hr-date-filter')?.value || today;
 
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const data = await res.json();
 
     const attendance = data.filter(r => r.Type === 'attendance');
@@ -1529,6 +1692,8 @@ async function sendIgChat() {
     const reply = data.content?.[0]?.text || 'Could not get response.';
     igChatHistory.push({ role: 'assistant', content: reply });
     chat.innerHTML += `<div class="msg ai">${reply.replace(/\n/g,'<br>')}</div>`;
+    const igReminder = extractReminder(document.getElementById('ig-input')?.value || '');
+    if(igReminder) addReminder(igReminder);
   } catch(e) {
     chat.innerHTML += `<div class="msg ai" style="color:var(--red)">Error. Try again.</div>`;
   }
@@ -1738,7 +1903,7 @@ let allClientCreatives = [];
 
 async function loadClientCreatives() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const data = await res.json();
     allClientCreatives = data.filter(r => r.Type === 'creative');
     renderClientList();
@@ -1954,7 +2119,7 @@ async function loadPerformance() {
   document.getElementById('perf-month').textContent = new Date(month + '-01').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
 
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type:tasks');
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const data = await res.json();
     const ratings = data.filter(r => r.Type === 'rating' && r.Month === month);
 
