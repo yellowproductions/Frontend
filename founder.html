@@ -1445,10 +1445,10 @@ function renderTasks(tasks) {
 
 async function updateTaskStatus(task, assignee, date, newStatus) {
   try {
-    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'PATCH',
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { Status: newStatus } })
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: newStatus } })
     });
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) { t.Status = newStatus; renderTasks(allTasks); }
@@ -1458,10 +1458,10 @@ async function updateTaskStatus(task, assignee, date, newStatus) {
 async function updateTaskLink(task, assignee, date, link) {
   if(!link) return;
   try {
-    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'PATCH',
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { 'ClickUp Link': link } })
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'ClickUp Link': link } })
     });
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) t['ClickUp Link'] = link;
@@ -1471,9 +1471,10 @@ async function updateTaskLink(task, assignee, date, link) {
 async function deleteTask(task, assignee, date) {
   if(!confirm(`Delete task: "${task}" for ${assignee}?`)) return;
   try {
-    await fetch(`${SHEETDB_URL}/Task/${encodeURIComponent(task)}?sheet=Type:tasks`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task })
     });
     allTasks = allTasks.filter(t => !(t.Task === task && t.Assignee === assignee && t.Date === date));
     renderTasks(allTasks);
@@ -1645,7 +1646,7 @@ async function updateLeave(idx, status) {
   const leave = leaves[idx];
   if(!leave) return;
   try {
-    await fetch(`${SHEETDB_URL}/Assignee/${leave.Assignee}?sheet=Type:tasks`, {
+    await fetch(SHEETDB_URL, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: { Status: status } })
