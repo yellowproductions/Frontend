@@ -380,7 +380,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 </div>
 
 <script>
-const SHEETDB = 'https://sheetdb.io/api/v1/k06y2a6x3op7c';
+const SHEETDB = 'https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
 const EJS_SVC = 'service_786h8bh';
 const EJS_TPL = 'template_w1gbhz9';
 const EJS_KEY = '_sfXlprhHHUbt55qV';
@@ -574,12 +574,12 @@ async function submitAction(uid, folder, idx, action) {
 
   try {
     if (action === 'Rejected') {
-      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, {
+      await fetch(GAS_URL, {
         method: 'DELETE', headers: {'Content-Type':'application/json'}
       });
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
     } else {
-      await fetch(`${SHEETDB}/Task/${encodeURIComponent(item.Task)}?sheet=Type:tasks`, {
+      await fetch(GAS_URL, {
         method: 'PATCH', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ data: { Status: action, 'ClickUp Link2': comment } })
       });
