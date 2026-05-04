@@ -1521,7 +1521,7 @@ async function addTask() {
     await fetch(SHEETDB_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [row] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     allTasks.push(row);
     renderTasks(allTasks);
@@ -1962,7 +1962,7 @@ async function uploadCreative() {
     await fetch(SHEETDB_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [row] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     allClientCreatives.push(row);
     document.getElementById('cl-name').value = '';
@@ -2102,7 +2102,7 @@ async function addRating() {
     await fetch(SHEETDB_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [row] })
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     document.getElementById('perf-task').value = '';
     alert(`Rating saved for ${person}! Score: ${totalScore.toFixed(1)}/10`);
