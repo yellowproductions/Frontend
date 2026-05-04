@@ -380,7 +380,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 </div>
 
 <script>
-const SHEETDB = 'https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
+const SHEETDB = 'https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const EJS_SVC = 'service_786h8bh';
 const EJS_TPL = 'template_w1gbhz9';
 const EJS_KEY = '_sfXlprhHHUbt55qV';
@@ -427,11 +427,34 @@ function doLogout() {
   document.getElementById('login-overlay').style.display = 'flex';
 }
 
+
+function getCreativesFolder(folder) {
+  const map = {
+    steelcity: '/JINDAL/Creatives',
+    youthleague: '/Jindal League/Creatives',
+    'jindal-youth': '/Jindal Youth League/Creatives',
+    'sohar-steel': '/Sohar Steel/Creatives',
+    duqm: '/Jindal Steel Duqm/Creatives'
+  };
+  return map[folder] || '/JINDAL/Creatives';
+}
+
+function getPendingFolder(folder) {
+  const map = {
+    steelcity: '/JINDAL/Pending',
+    youthleague: '/Jindal League/Pending',
+    'jindal-youth': '/Jindal Youth League/Pending',
+    'sohar-steel': '/Sohar Steel/Pending',
+    duqm: '/Jindal Steel Duqm/Pending'
+  };
+  return map[folder] || '/JINDAL/Pending';
+}
+
 async function loadCreatives() {
   try {
     const res = await fetch(SHEETDB + '?sheet=Type:tasks');
     const data = await res.json();
-    allCreatives = Array.isArray(data) ? data.filter(r => r.Type === 'creative') : [];
+    allCreatives = Array.isArray(data) ? data.filter(r => (r.Status === 'Client Review' || r.Status === 'Approved') && r.Task && r.Task.includes('|')) : [];
   } catch(e) { allCreatives = []; }
   renderAll();
 }
@@ -474,7 +497,7 @@ function renderPendingCard(item, idx, folder) {
   const parts    = item.Task.split('|');
   const cName    = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : 'Yellow Productions';
-  const feedback = item['ClickUp Link2'] || '';
+  const feedback = item['Open File Link'] || '';
   const status   = item.Status || 'Pending Review';
   const uid      = `${folder}-${idx}`;
 
@@ -489,7 +512,7 @@ function renderPendingCard(item, idx, folder) {
 
     ${feedback ? `<div style="background:#fef5e7;border:1px solid #f0c070;border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:13px"><div style="font-size:11px;color:#e67e22;margin-bottom:4px;font-weight:600">LAST FEEDBACK</div>${feedback}</div>` : ''}
 
-    ${item['ClickUp Link'] ? `<a href="${item['ClickUp Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View Creative</a>` : '<span style="color:var(--muted);font-size:12px">Link coming soon</span>'}
+    ${item['Preview Link'] ? `<a href="${item['Preview Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View Creative</a>` : '<span style="color:var(--muted);font-size:12px">Link coming soon</span>'}
 
     <div class="action-row">
       <select class="action-select" id="action-select-${uid}" onchange="handleActionSelect('${uid}','${folder}',${idx})">
@@ -523,7 +546,7 @@ function renderApprovedCard(item) {
       </div>
       <span class="status-pill pill-approved">✅ Approved</span>
     </div>
-    ${item['ClickUp Link'] ? `<div style="margin-top:10px"><a href="${item['ClickUp Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View</a></div>` : ''}
+    ${item['Preview Link'] ? `<div style="margin-top:10px"><a href="${item['Preview Link']}" target="_blank" class="btn btn-outline btn-sm">🔗 View</a></div>` : ''}
   </div>`;
 }
 
@@ -570,7 +593,7 @@ async function submitAction(uid, folder, idx, action) {
   const cName        = parts[0].trim();
   const designerName = parts[1] ? parts[1].trim() : '';
   const designerEmail= DESIGNER_EMAILS[designerName];
-  const fileDropboxPath = item['ClickUp Link'] || null; // Dropbox path stored here if uploaded via Quick Upload
+  const fileDropboxPath = item['Preview Link'] || null; // Dropbox path stored here if uploaded via Quick Upload
 
   try {
     if (action === 'Rejected') {
@@ -581,10 +604,10 @@ async function submitAction(uid, folder, idx, action) {
     } else {
       await fetch(SHEETDB, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: action, 'ClickUp Link2': comment } })
+        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: action, 'Open File Link': comment } })
       });
       item.Status = action;
-      item['ClickUp Link2'] = comment;
+      item['Open File Link'] = comment;
 
       // On approval — move file in Dropbox to Creatives/Approved folder
       if (action === 'Approved' && fileDropboxPath) {
@@ -594,7 +617,7 @@ async function submitAction(uid, folder, idx, action) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               fromPath: fileDropboxPath,
-              toFolder: '/Jindal/Creatives/Approved'
+              toFolder: getCreativesFolder(folder)
             })
           });
         } catch(e) {
