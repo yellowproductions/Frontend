@@ -1389,7 +1389,8 @@ async function sendAllEmails() {
         to_email: TEAM[person], to_name: person,
         task_name: `Your tasks for ${date}`,
         task_list: taskList,
-        task_date: date
+        task_date: date,
+        email: 'creative@yellowproductions.co.in'
       });
       sent++;
     } catch(e) {
