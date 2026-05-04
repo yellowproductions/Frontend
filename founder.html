@@ -1368,7 +1368,6 @@ async function addTask() {
     const btn = document.querySelector('[onclick="addTask()"]');
     if(btn) { btn.textContent = '✅ Added!'; setTimeout(() => btn.textContent = 'Add Task', 2000); }
   } catch(e) { alert('Error saving task: ' + e.message); }
-  } catch(e) { alert('Error saving task.'); }
 }
 
 async function sendAllEmails() {
