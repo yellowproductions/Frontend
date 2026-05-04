@@ -579,9 +579,9 @@ async function submitAction(uid, folder, idx, action) {
       });
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
     } else {
-      await fetch(GAS_URL, {
-        method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ data: { Status: action, 'ClickUp Link2': comment } })
+      await fetch(SHEETDB, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: action, 'ClickUp Link2': comment } })
       });
       item.Status = action;
       item['ClickUp Link2'] = comment;
