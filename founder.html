@@ -1363,15 +1363,19 @@ async function addTask() {
     if(TEAM[assignee]) {
       const todayTasks = allTasks.filter(t => t.Assignee === assignee && t.Date === row.Date);
       const taskList = todayTasks.map((t,i) => `Task ${i+1}: ${t.Task}`).join('\n');
-      await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-        to_email: TEAM[assignee], to_name: assignee,
-        task_name: `New task assigned: ${task}`,
-        task_list: `New Task: ${task}\n\nAll tasks for ${row.Date}:\n${taskList}`,
-        task_date: row.Date
-      });
-      // Show subtle confirmation instead of alert
-      const btn = document.querySelector('[onclick="addTask()"]') || document.querySelector('[onclick*="addTask"]');
-      if(btn) { btn.textContent = '✅ Added & Emailed!'; setTimeout(() => btn.textContent = 'Add & Send', 2000); }
+      try {
+        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+          to_email: TEAM[assignee], to_name: assignee,
+          task_name: `New task assigned: ${task}`,
+          task_list: `New Task: ${task}\n\nAll tasks for ${row.Date}:\n${taskList}`,
+          task_date: row.Date
+        });
+        const btn = document.querySelector('[onclick="addTask()"]') || document.querySelector('[onclick*="addTask"]');
+        if(btn) { btn.textContent = '✅ Added & Emailed!'; setTimeout(() => btn.textContent = 'Add & Send ✉️', 2000); }
+      } catch(emailErr) {
+        console.error('Email error:', emailErr);
+        alert('Task saved but email failed: ' + (emailErr.text || emailErr.message || JSON.stringify(emailErr)));
+      }
     }
   } catch(e) { alert('Error saving task.'); }
 }
