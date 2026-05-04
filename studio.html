@@ -288,10 +288,21 @@ async function submitUpload(){
     const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':fileUrl,'ClickUp Link2':'',Type:'creative'};
     await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sheet:'Type:tasks', data:[row]})});
     setProgress(100);
-    document.getElementById('success-detail').innerHTML=`<strong>${name}</strong><br>${CLIENT_NAMES[client]} · ${designer}<br><span style="color:#22c55e">Live on client portal ✓</span>`;
-    document.getElementById('form-view').style.display='none';
-    document.getElementById('success-view').style.display='block';
-  }catch(e){showErr('Upload failed: '+e.message);btn.textContent='⚡ Upload to Portal';btn.disabled=false;document.getElementById('progress-bar').style.display='none';}
+    const btn2=document.getElementById('submit-btn');
+    btn2.textContent='✅ Uploaded! Live on portal';
+    btn2.style.background='#22c55e';
+    btn2.style.color='#fff';
+    btn2.disabled=false;
+    setTimeout(()=>{ resetForm(); },3000);
+  }catch(e){
+    showErr('Upload failed: '+e.message);
+    btn.textContent='❌ Upload Failed — Try Again';
+    btn.style.background='#c0392b';
+    btn.style.color='#fff';
+    btn.disabled=false;
+    document.getElementById('progress-bar').style.display='none';
+    setTimeout(()=>{ btn.textContent='⚡ Upload to Portal'; btn.style.background='#FEBC06'; btn.style.color='#000'; },4000);
+  }
 }
 
 function resetForm(){
