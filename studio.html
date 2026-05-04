@@ -286,7 +286,7 @@ async function submitUpload(){
     const fileUrl=uploadData.url||uploadData.path;
     setProgress(85);
     const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':fileUrl,'ClickUp Link2':'',Type:'creative'};
-    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:[row]})});
+    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sheet:'Type:tasks', data:[row]})});
     setProgress(100);
     document.getElementById('success-detail').innerHTML=`<strong>${name}</strong><br>${CLIENT_NAMES[client]} · ${designer}<br><span style="color:#22c55e">Live on client portal ✓</span>`;
     document.getElementById('form-view').style.display='none';
