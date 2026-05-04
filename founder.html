@@ -416,6 +416,7 @@
   </style>
 </div>
 
+<div id="main-app" style="display:none;width:100%;height:100vh;overflow:hidden">
 <div class="sidebar">
   <div class="logo">
     <div class="logo-title">Yellow OS</div>
@@ -1102,9 +1103,13 @@ const TEAM_LIST = Object.keys(TEAM);
 
 // ====== PASSWORD ======
 function checkPassword() {
-  const val = document.getElementById('pwd-input').value;
+  const val = document.getElementById('pwd-input').value.trim();
   if (val === 'Yellow@1234') {
     document.getElementById('pwd-screen').style.display = 'none';
+    document.getElementById('pwd-screen').style.visibility = 'hidden';
+    document.getElementById('main-app').style.display = 'flex';
+    loadTasks();
+    loadHR();
   } else {
     document.getElementById('pwd-error').style.display = 'block';
     document.getElementById('pwd-input').value = '';
@@ -2053,5 +2058,6 @@ document.getElementById('perf-month-filter').value = new Date().toISOString().su
 renderCalendar();
 
 </script>
+</div><!-- end main-app -->
 </body>
 </html>
