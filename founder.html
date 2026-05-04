@@ -1104,7 +1104,7 @@
 // ====== CONFIG ======
 const ANTHROPIC_KEY = ''; // Key handled by backend only
 const BACKEND_URL = 'https://yellowbackend.onrender.com/api/claude';
-const SHEETDB_URL = 'https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
+const SHEETDB_URL = 'https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const EMAILJS_SERVICE = 'service_786h8bh';
 const EMAILJS_TEMPLATE = 'template_w1gbhz9';
 const EMAILJS_KEY = '_sfXlprhHHUbt55qV';
@@ -1418,7 +1418,7 @@ function renderTasks(tasks) {
     grouped[date].forEach((t) => {
       const status = t.Status || 'Pending';
       const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
-      const link = t['ClickUp Link'] ? `<a href="${t['ClickUp Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
+      const link = t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
       html += `
       <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);font-size:12px;">
         <span style="font-size:13px;">${t.Task || '—'}
@@ -1431,7 +1431,7 @@ function renderTasks(tasks) {
           <option ${status==='Done'?'selected':''}>Done</option>
           <option ${status==='On Hold'?'selected':''}>On Hold</option>
         </select>
-        <input type="text" placeholder="Paste ClickUp link" value="${t['ClickUp Link']||''}"
+        <input type="text" placeholder="Paste ClickUp link" value="${t['Preview Link']||''}"
           onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
           style="font-size:11px;padding:4px 6px;">
         <span>${link}</span>
@@ -1447,12 +1447,13 @@ async function updateTaskStatus(task, assignee, date, newStatus) {
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: newStatus } })
     });
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) { t.Status = newStatus; renderTasks(allTasks); }
-  } catch(e) { alert('Error updating status.'); }
+  } catch(e) { alert('Error updating status: ' + e.message); }
 }
 
 async function updateTaskLink(task, assignee, date, link) {
@@ -1460,11 +1461,12 @@ async function updateTaskLink(task, assignee, date, link) {
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'ClickUp Link': link } })
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'Preview Link': link } })
     });
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
-    if(t) t['ClickUp Link'] = link;
+    if(t) t['Preview Link'] = link;
   } catch(e) { console.log('Error updating link'); }
 }
 
@@ -1473,7 +1475,8 @@ async function deleteTask(task, assignee, date) {
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
       body: JSON.stringify({ action: 'delete', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task })
     });
     allTasks = allTasks.filter(t => !(t.Task === task && t.Assignee === assignee && t.Date === date));
@@ -1491,13 +1494,13 @@ function filterTasks() {
   // Quick lookup — show ClickUp links prominently if search has 3+ chars
   const lookupEl = document.getElementById('quick-lookup-result');
   if(search.length >= 3) {
-    const withLinks = filtered.filter(t => t['ClickUp Link']);
+    const withLinks = filtered.filter(t => t['Preview Link']);
     if(withLinks.length) {
       lookupEl.style.display = 'block';
       lookupEl.innerHTML = `<div style="font-size:11px;color:var(--yellow);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">🔗 Quick Links</div>` +
         withLinks.map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
           <span><span style="color:var(--yellow);font-weight:700">${t.Assignee}</span> — ${t.Task} <span style="color:var(--muted);font-size:11px">(${t.Date})</span></span>
-          <a href="${t['ClickUp Link']}" target="_blank" class="btn btn-yellow btn-sm" style="text-decoration:none;font-size:11px">🔗 Open</a>
+          <a href="${t['Preview Link']}" target="_blank" class="btn btn-yellow btn-sm" style="text-decoration:none;font-size:11px">🔗 Open</a>
         </div>`).join('');
     } else {
       lookupEl.style.display = 'block';
@@ -1516,12 +1519,13 @@ async function addTask() {
   const assignee = document.getElementById('task-assignee').value;
   if(!task || !assignee) { alert('Please fill task and assignee.'); return; }
 
-  const row = { Date: date || new Date().toISOString().split('T')[0], Task: task, Assignee: assignee, Status: 'Pending', 'ClickUp Link': '', Type: 'task' };
+  const row = { Date: date || new Date().toISOString().split('T')[0], Task: task, Assignee: assignee, Status: 'Pending', 'Preview Link': '', Type: 'task' };
 
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     allTasks.push(row);
@@ -1652,7 +1656,7 @@ async function updateLeave(idx, status) {
       body: JSON.stringify({ data: { Status: status } })
     });
     loadHR();
-  } catch(e) { alert('Error updating leave.'); }
+  } catch(e) { alert('Error updating leave: ' + e.message); }
 }
 
 // ====== INSTAGRAM ======
@@ -1928,13 +1932,13 @@ function renderClientList() {
     const creativeName = taskParts[0].trim();
     const designerName = taskParts[1] ? taskParts[1].trim() : '—';
     const status = c.Status || 'Pending Review';
-    const feedback = c['ClickUp Link2'] || '';
+    const feedback = c['Open File Link'] || '';
     return `<div style="display:grid;grid-template-columns:140px 1fr 100px 100px 120px 1fr;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px">
       <span style="font-size:11px;color:var(--yellow);font-weight:700">${FOLDER_NAMES[c.Assignee] || c.Assignee}</span>
       <span style="font-weight:600">${creativeName}</span>
       <span style="color:var(--muted)">${designerName}</span>
       <span style="color:${statusColor[status]||'var(--yellow)'};font-weight:700;font-size:11px">${status}</span>
-      ${c['ClickUp Link'] ? `<a href="${c['ClickUp Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '<span style="color:var(--muted)">—</span>'}
+      ${c['Preview Link'] ? `<a href="${c['Preview Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '<span style="color:var(--muted)">—</span>'}
       <span style="font-size:11px;color:var(--muted);font-style:italic">${feedback || '—'}</span>
     </div>`;
   }).join('');
@@ -1955,14 +1959,15 @@ async function uploadCreative() {
     Task: taskName,
     Assignee: folder,
     Status: 'Pending Review',
-    'ClickUp Link': link,
+    'Preview Link': link,
     Type: 'creative'
   };
 
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     allClientCreatives.push(row);
@@ -2093,7 +2098,7 @@ async function addRating() {
 
   const row = {
     Date: today, Task: task, Assignee: person,
-    Status: 'Rated', 'ClickUp Link': '',
+    Status: 'Rated', 'Preview Link': '',
     Type: 'rating',
     Quality: quality, Ownership: ownership,
     Score: totalScore.toFixed(1), Month: month
@@ -2102,7 +2107,8 @@ async function addRating() {
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     document.getElementById('perf-task').value = '';
