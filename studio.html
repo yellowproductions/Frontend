@@ -240,7 +240,7 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 
 <script>
 const BACKEND='https://yellowbackend.onrender.com';
-const SHEETDB='https://script.google.com/macros/s/AKfycbzGfDveVb8P8w9IjpDNGaSNKP5z-SNEQU9USc5H6VeYie5Sn5OtdMl7pBqluYuEYfYa/exec';
+const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
 
 const dz=document.getElementById('drop-zone');
@@ -275,7 +275,7 @@ async function submitUpload(){
     const formData=new FormData();
     const safeName=name.replace(/[^a-zA-Z0-9 _-]/g,'');
     const ext=file.name.split('.').pop();
-    const dropboxPath=`/Jindal/Creatives/${safeName} — ${designer}.${ext}`;
+    const dropboxPath=`/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
     formData.append('file',file,file.name);
     formData.append('dropboxPath',dropboxPath);
     setProgress(40);
@@ -285,8 +285,8 @@ async function submitUpload(){
     if(!uploadData.success)throw new Error(uploadData.error||'Upload failed');
     const fileUrl=uploadData.url||uploadData.path;
     setProgress(85);
-    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','ClickUp Link':fileUrl,'ClickUp Link2':'',Type:'creative'};
-    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sheet:'Type:tasks', data:[row]})});
+    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','Preview Link':fileUrl,'Open File Link':'',Type:'creative'};
+    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet:'Type:tasks', data:[row]}),mode:'no-cors'});
     setProgress(100);
     const btn2=document.getElementById('submit-btn');
     btn2.textContent='✅ Uploaded! Live on portal';
