@@ -327,6 +327,7 @@ async function submitUpload(){
 }
 
 function resetForm(){
+  document.getElementById('q-client').value='';
   document.getElementById('q-name').value='';
   document.getElementById('q-designer').value='';
   document.getElementById('q-file').value='';
@@ -334,8 +335,11 @@ function resetForm(){
   document.getElementById('drop-icon').textContent='📎';
   document.getElementById('drop-text').style.display='block';
   dz.style.borderColor='#e0ddd8';dz.style.background='';
-  document.getElementById('submit-btn').textContent='⚡ Upload to Portal';
-  document.getElementById('submit-btn').disabled=false;
+  const sb=document.getElementById('submit-btn');
+  sb.textContent='⚡ Upload to Portal';
+  sb.style.background='#FEBC06';
+  sb.style.color='#000';
+  sb.disabled=false;
   document.getElementById('progress-bar').style.display='none';
   document.getElementById('progress-fill').style.width='0%';
   document.getElementById('form-view').style.display='block';
