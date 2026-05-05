@@ -200,7 +200,6 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 <div id="login-screen">
   <div class="m-nav">
     <div class="m-brand">YELLOWVERSE TEAM</div>
-    <div class="m-dot" id="ndot"></div>
   </div>
   <div class="m-header">
     <div class="m-title" id="m-wtxt">Welcome,</div>
@@ -703,6 +702,9 @@ async function loadReviews() {
     const badge = document.getElementById('review-badge');
     badge.textContent = reviewItems.length || '';
     badge.style.display = reviewItems.length ? 'inline' : 'none';
+    // Update bell notification
+    const bell = document.getElementById('review-bell-count');
+    if (bell) { bell.textContent = reviewItems.length || ''; bell.style.display = reviewItems.length ? 'flex' : 'none'; }
 
     renderReviews();
   } catch(e) {
@@ -722,6 +724,7 @@ function renderReviews() {
     const cName    = parts[0].trim();
     const designer = parts[1] ? parts[1].trim() : 'Unknown';
     const fileUrl  = item['Preview Link'] || '';
+  const filePath = item['Open File Link'] || '';
     const isImage  = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) || fileUrl.includes('dropbox');
     const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
 
@@ -813,6 +816,7 @@ async function submitReview(idx, action) {
   const client   = item.Assignee || '';
   const note     = document.getElementById(`viplav-note-${idx}`).value.trim();
   const fileUrl  = item['Preview Link'] || '';
+  const filePath = item['Open File Link'] || '';
 
   const DESIGNER_EMAILS = {
     Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
@@ -842,7 +846,7 @@ async function submitReview(idx, action) {
       try {
         await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ fromPath: fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
+          body: JSON.stringify({ fromPath: filePath || fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
         });
       } catch(e) { console.log('Move error:', e.message); }
     }
@@ -904,6 +908,10 @@ document.getElementById('leave-from').value = new Date().toISOString().split('T'
   .main{padding-bottom:70px !important;}
 }
 </style>
+
+
+<!-- Persistent yellow dot - always visible, always links home -->
+<a href="https://theyellowverse.com" target="_blank" style="position:fixed;top:16px;right:20px;z-index:99999;width:36px;height:36px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;" title="Go to Yellowverse"></a>
 
 </body>
 </html>
