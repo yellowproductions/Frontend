@@ -306,7 +306,8 @@ async function submitUpload(){
     if(!uploadData.success)throw new Error(uploadData.error||'Upload failed');
     const fileUrl=uploadData.url||uploadData.path;
     setProgress(85);
-    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','Preview Link':fileUrl,'Open File Link':'',Type:'creative'};
+    const dropPath=uploadData.path||'';
+    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','Preview Link':fileUrl,'Open File Link':dropPath,Type:'creative'};
     await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet:'Type:tasks', data:[row]}),mode:'no-cors'});
     setProgress(100);
     const btn2=document.getElementById('submit-btn');
@@ -342,5 +343,9 @@ function resetForm(){
   document.getElementById('success-view').style.display='none';
 }
 </script>
+
+<!-- Persistent yellow dot - always visible, always links home -->
+<a href="https://theyellowverse.com" target="_blank" style="position:fixed;top:16px;right:20px;z-index:99999;width:36px;height:36px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;" title="Go to Yellowverse"></a>
+
 </body>
 </html>
