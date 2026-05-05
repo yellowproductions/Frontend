@@ -322,44 +322,70 @@
     font-family: 'DM Mono', monospace;
   }
 
-/* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
-  .sidebar { display:none !important; }
-  .main { padding:16px !important; width:100% !important; }
-  body { overflow-y:auto !important; }
-  .panel-title { font-size:18px !important; }
-  .card { padding:14px !important; }
-  input, select, textarea { font-size:16px !important; }
-  .btn { padding:10px 14px !important; }
-  table { display:block; overflow-x:auto; }
-}
-@media (max-width: 768px) {
-  /* Login screens */
-  .login-hero-inner, .hero-inner, .page-inner { 
-    grid-template-columns:1fr !important; 
-    padding:80px 20px 20px !important;
-    gap:24px !important;
-  }
-  .headline, .login-headline, .m-title, .title {
-    font-size:clamp(36px,10vw,56px) !important;
-  }
-  .card, .login-card, .form-card, .hero-right {
-    width:100% !important;
-    max-width:100% !important;
-    padding:24px 20px !important;
-  }
-  /* Monster login */
-  .m-scene svg { max-width:100vw !important; }
-  .m-form { width:85vw !important; bottom:2vh !important; }
-  /* Studio */
-  .left { display:none !important; }
-  .right { width:100% !important; }
-}
-@media (max-width: 480px) {
-  .nav { padding:14px 20px !important; }
-  .nav-brand { font-size:11px !important; }
-}
 
+
+
+
+
+
+/* ===== MOBILE ===== */
+@media (max-width: 768px) {
+  #pwd-screen {
+    overflow-y: auto !important;
+    display: block !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    justify-content: flex-start !important;
+    padding-top: 56px !important;
+  }
+  #founder-inner {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  /* TOP — text + girl banner */
+  #founder-left {
+    width: 100% !important;
+    height: 280px !important;
+    overflow: hidden !important;
+    position: relative !important;
+  }
+  #founder-left > div:first-child {
+    font-size: 72px !important;
+    letter-spacing: -3px !important;
+    line-height: 0.85 !important;
+    position: absolute !important;
+    top: 10px !important;
+    left: 16px !important;
+    z-index: 0 !important;
+  }
+  #founder-left > div:last-child {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-48%, -52%) !important;
+    width: 200px !important;
+    height: auto !important;
+    z-index: 1 !important;
+  }
+  /* BOTTOM — login + contact */
+  #founder-inner > div:last-child {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    padding: 16px 20px 30px !important;
+  }
+  .login-card { padding: 24px 20px !important; }
+  /* Main app */
+  .sidebar { display: none !important; }
+  body { display: block !important; overflow-y: auto !important; }
+  .main { padding: 16px !important; width: 100% !important; }
+  input, select, textarea { font-size: 16px !important; }
+}
 </style>
 </head>
 <body>
@@ -374,10 +400,10 @@
   </div>
 
   <!-- Inner grid -->
-  <div style="display:grid;grid-template-columns:1fr 380px;align-items:center;gap:0;max-width:960px;width:100%;padding:0 32px">
+  <div id="founder-inner" style="display:grid;grid-template-columns:1fr 380px;align-items:center;gap:0;max-width:960px;width:100%;padding:0 32px">
 
     <!-- LEFT — big type + illustration -->
-    <div style="position:relative;height:360px">
+    <div id="founder-left" style="position:relative;height:360px">
       <!-- Big yellow text -->
       <div style="font-size:clamp(72px,11vw,124px);font-weight:900;color:#FEBC06;letter-spacing:-4px;line-height:0.88;text-transform:uppercase;position:absolute;top:0;left:0;z-index:0;user-select:none">ALWAYS<br>AVAIL<br>ABLE</div>
 
@@ -415,6 +441,7 @@
     </div>
 
     <!-- RIGHT — login + contact -->
+
     <div style="display:flex;flex-direction:column;gap:16px">
       <!-- Login card -->
       <div style="background:#fff;border:1px solid #e8e3db;border-radius:24px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.06)">
