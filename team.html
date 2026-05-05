@@ -347,6 +347,10 @@ const EJS_KEY  = '_sfXlprhHHUbt55qV';
 
 emailjs.init({ publicKey: EJS_KEY });
 
+// Warmup Render so dropbox-move on approve isn't waiting on a cold backend
+fetch('https://yellowbackend.onrender.com/health').catch(()=>{});
+setInterval(()=>fetch('https://yellowbackend.onrender.com/health').catch(()=>{}),10*60*1000);
+
 let currentUser = '';
 
 const JINDAL_GUIDELINES = `Jindal Shadeed Brand Guidelines Summary:
@@ -695,7 +699,7 @@ async function loadReviews() {
     const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks');
     const data = await res.json();
     reviewItems = Array.isArray(data) ? data.filter(r => 
-      (r.Status === 'Pending Review' || r.Status === 'Pending Viplav' || r.Status === 'Sent Back') &&
+      (r.Status === 'Pending Review' || r.Status === 'Pending Viplav') &&
       r.Task && r.Task.includes('|')
     ) : [];
 
@@ -836,49 +840,39 @@ async function submitReview(idx, action) {
   const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
   if (!confirm(action === 'approve' ? `Approve "${cName}" and send to client?` : `Send "${cName}" back to ${designer}?`)) return;
 
-  try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: newStatus } })
-    });
+  // Optimistic UI — remove the card immediately so it feels instant
+  reviewItems.splice(idx, 1);
+  renderReviews();
+  const badge = document.getElementById('review-badge');
+  badge.textContent = reviewItems.length || '';
+  badge.style.display = reviewItems.length ? 'inline' : 'none';
+  const bell = document.getElementById('review-bell-count');
+  if (bell) { bell.textContent = reviewItems.length || ''; bell.style.display = reviewItems.length ? 'flex' : 'none'; }
 
-    if (action === 'approve' && fileUrl) {
-      try {
-        await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ fromPath: filePath || fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
-        });
-      } catch(e) { console.log('Move error:', e.message); }
-    }
+  // Fire all network calls in parallel — no awaits, no blocking
+  // Status patch (no-cors fire-and-forget)
+  fetch(SHEETDB, {
+    method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: newStatus } })
+  });
 
-    if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
-      await emailjs.send(EJS_SVC, EJS_TPL, {
-        to_email: DESIGNER_EMAILS[designer], to_name: designer,
-        task_name: `🔄 Rework needed: ${cName}`,
-        task_list: `Viplav has reviewed and sent back.
+  // Approve: move file to client folder, no emails
+  if (action === 'approve' && fileUrl) {
+    fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ fromPath: filePath || fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
+    }).catch(e => console.log('Move error:', e.message));
+  }
 
-Feedback:
-${note}
-
-Please re-upload after changes.`,
-        task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
-      });
-    }
-
-    await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
-      task_name: `Viplav ${action === 'approve' ? 'Approved ✅' : 'Sent Back 🔄'}: ${cName}`,
-      task_list: `Creative: ${cName}
-Designer: ${designer}
-Client: ${client}
-Action: ${action === 'approve' ? 'Sent to client for review' : 'Sent back'}
-Notes: ${note || 'None'}`,
+  // Reject: email designer only (no founder email)
+  if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
+    emailjs.send(EJS_SVC, EJS_TPL, {
+      to_email: DESIGNER_EMAILS[designer], to_name: designer,
+      task_name: `🔄 Rework needed: ${cName}`,
+      task_list: `Viplav has reviewed and sent back.\n\nFeedback:\n${note}\n\nPlease re-upload after changes.`,
       task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
-    });
-
-    alert(action === 'approve' ? '✅ Sent to client for review!' : '🔄 Sent back to designer!');
-    loadReviews();
-  } catch(e) { alert('Error: ' + (e.message || JSON.stringify(e))); }
+    }).catch(e => console.log('Email error:', e.message));
+  }
 }
 
 // Set today's date defaults
