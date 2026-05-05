@@ -573,11 +573,10 @@ async function updateStatusFromDropdown(idx, encodedTask) {
   const newStatus = dd.value;
   if (!newStatus) return;
   try {
-    await fetch(GAS_URL, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: newStatus } })
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: newStatus } })
     });
-    loadTasks();
   } catch(e) { alert('Error updating status.'); }
 }
 
@@ -585,9 +584,9 @@ async function updateStatus(idx, encodedTask) {
   const task = decodeURIComponent(encodedTask);
   const status = document.getElementById(`status-${idx}`).value;
   try {
-    await fetch(GAS_URL, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: status } })
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status } })
     });
   } catch(e) {}
 }
@@ -597,9 +596,9 @@ async function saveTask(idx, encodedTask) {
   const status = document.getElementById(`status-${idx}`).value;
   const link = document.getElementById(`link-${idx}`).value.trim();
   try {
-    await fetch(GAS_URL, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { Status: status, 'Preview Link': link } })
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status, 'Preview Link': link } })
     });
     alert('✅ Saved!');
   } catch(e) { alert('Error saving.'); }
@@ -644,11 +643,16 @@ async function loadAttendance() {
 async function markAttendance() {
   const today = new Date().toISOString().split('T')[0];
   try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'Preview Link': '', Type: 'attendance' }] })
     });
-    loadAttendance();
+    // Optimistic UI — flip the message immediately
+    const msgEl = document.getElementById('attendance-status-msg');
+    const btnEl = document.getElementById('mark-btn');
+    if (msgEl) { msgEl.textContent = '✅ You have marked attendance for today.'; msgEl.style.color = 'var(--green)'; }
+    if (btnEl) btnEl.style.display = 'none';
+    setTimeout(loadAttendance, 1500);
   } catch(e) { alert('Error marking attendance.'); }
 }
 
@@ -680,14 +684,14 @@ async function applyLeave() {
   if (!from) { alert('Please select dates.'); return; }
 
   try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'Preview Link': '', Type: 'leave' }] })
     });
     alert('✅ Leave request submitted!');
     document.getElementById('leave-from').value = '';
     document.getElementById('leave-to').value = '';
-    loadLeave();
+    setTimeout(loadLeave, 1500);
   } catch(e) { alert('Error submitting leave.'); }
 }
 
@@ -802,10 +806,9 @@ async function saveFileLink(idx, encodedTask) {
   const link = document.getElementById(`paste-link-${idx}`)?.value.trim();
   if(!link) { alert('Please paste a Dropbox link.'); return; }
   try {
-    await fetch(GAS_URL, {
-      method: 'PATCH',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: { 'Preview Link': link } })
+    fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'Preview Link': link } })
     });
     alert('✅ Link saved! Refreshing...');
     loadReviews();
@@ -864,14 +867,25 @@ async function submitReview(idx, action) {
     }).catch(e => console.log('Move error:', e.message));
   }
 
-  // Reject: email designer only (no founder email)
-  if (action === 'sendback' && DESIGNER_EMAILS[designer]) {
-    emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: DESIGNER_EMAILS[designer], to_name: designer,
-      task_name: `🔄 Rework needed: ${cName}`,
-      task_list: `Viplav has reviewed and sent back.\n\nFeedback:\n${note}\n\nPlease re-upload after changes.`,
-      task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
-    }).catch(e => console.log('Email error:', e.message));
+  // Reject: email designer + move file out of /REVIEW/ to /REJECTED/ with date prefix
+  if (action === 'sendback') {
+    if (filePath || fileUrl) {
+      const sourcePath = filePath || fileUrl;
+      const sourceName = sourcePath.split('/').pop();
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ fromPath: sourcePath, toFolder: '/REJECTED', toFilename: `${today}_${sourceName}` })
+      }).catch(e => console.log('Reject move error:', e.message));
+    }
+    if (DESIGNER_EMAILS[designer]) {
+      emailjs.send(EJS_SVC, EJS_TPL, {
+        to_email: DESIGNER_EMAILS[designer], to_name: designer,
+        task_name: `🔄 Rework needed: ${cName}`,
+        task_list: `Viplav has reviewed and sent back.\n\nFeedback:\n${note}\n\nPlease re-upload after changes.`,
+        task_date: new Date().toLocaleDateString('en-IN'), email: 'creative@yellowproductions.co.in'
+      }).catch(e => console.log('Email error:', e.message));
+    }
   }
 }
 
