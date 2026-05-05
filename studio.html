@@ -263,6 +263,11 @@ const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
 
+// Warmup Render on page load so backend is hot by the time user clicks upload
+fetch(BACKEND+'/health').catch(()=>{});
+// Keep it warm while the studio tab stays open (Render sleeps after 15 min idle)
+setInterval(()=>fetch(BACKEND+'/health').catch(()=>{}),10*60*1000);
+
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#FEBC06';dz.style.background='#fffbf0';});
 dz.addEventListener('dragleave',()=>{dz.style.borderColor='#e0ddd8';dz.style.background='';});
@@ -307,14 +312,15 @@ async function submitUpload(){
     setProgress(85);
     const dropPath=uploadData.path||'';
     const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','Preview Link':fileUrl,'Open File Link':dropPath,Type:'creative'};
-    await fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet:'Type:tasks', data:[row]}),mode:'no-cors'});
+    // Fire-and-forget — no-cors means we can't read the response anyway, so awaiting is pure wasted time
+    fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet:'Type:tasks', data:[row]}),mode:'no-cors'});
     setProgress(100);
     const btn2=document.getElementById('submit-btn');
     btn2.textContent='✅ Uploaded! Live on portal';
     btn2.style.background='#22c55e';
     btn2.style.color='#fff';
     btn2.disabled=false;
-    setTimeout(()=>{ resetForm(); },3000);
+    setTimeout(()=>{ resetForm(); },1200);
   }catch(e){
     showErr('Upload failed: '+e.message);
     btn.textContent='❌ Upload Failed — Try Again';
