@@ -114,44 +114,26 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 .progress-fill { height:100%; background:#FEBC06; border-radius:100px; transition:width 0.3s; width:0%; }
 .footer { position:absolute; bottom:12px; right:24px; font-size:11px; color:#1a1a1a; }
 
-/* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
-  .sidebar { display:none !important; }
-  .main { padding:16px !important; width:100% !important; }
-  body { overflow-y:auto !important; }
-  .panel-title { font-size:18px !important; }
-  .card { padding:14px !important; }
-  input, select, textarea { font-size:16px !important; }
-  .btn { padding:10px 14px !important; }
-  table { display:block; overflow-x:auto; }
-}
-@media (max-width: 768px) {
-  /* Login screens */
-  .login-hero-inner, .hero-inner, .page-inner { 
-    grid-template-columns:1fr !important; 
-    padding:80px 20px 20px !important;
-    gap:24px !important;
-  }
-  .headline, .login-headline, .m-title, .title {
-    font-size:clamp(36px,10vw,56px) !important;
-  }
-  .card, .login-card, .form-card, .hero-right {
-    width:100% !important;
-    max-width:100% !important;
-    padding:24px 20px !important;
-  }
-  /* Monster login */
-  .m-scene svg { max-width:100vw !important; }
-  .m-form { width:85vw !important; bottom:2vh !important; }
-  /* Studio */
-  .left { display:none !important; }
-  .right { width:100% !important; }
-}
-@media (max-width: 480px) {
-  .nav { padding:14px 20px !important; }
-  .nav-brand { font-size:11px !important; }
-}
 
+/* ===== MOBILE ===== */
+@media (max-width: 768px) {
+  .page { overflow-y: auto !important; align-items: flex-start !important; }
+  .page-inner {
+    grid-template-columns: 1fr !important;
+    padding: 80px 20px 20px !important;
+    gap: 20px !important;
+    max-width: 100% !important;
+  }
+  /* Show bag but smaller */
+  .left { align-items: center !important; }
+  .headline { font-size: 32px !important; letter-spacing: -1px !important; text-align: center !important; }
+  .tagline { text-align: center !important; }
+  .bag-scene { width: 180px !important; height: 180px !important; }
+  /* Form full width */
+  .form-card { max-width: 100% !important; padding: 20px !important; }
+  input, select { font-size: 16px !important; }
+  .nav { padding: 16px 20px !important; }
+}
 </style>
 </head>
 <body>
