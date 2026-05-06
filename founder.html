@@ -510,9 +510,6 @@
   <div class="nav-item" onclick="showPanel('finance')">
     <span class="nav-icon">💰</span> Finance
   </div>
-  <div class="nav-item" onclick="showPanel('agents')">
-    <span class="nav-icon">🤖</span> Agents
-  </div>
   <div class="nav-item" onclick="showPanel('performance')">
     <span class="nav-icon">🏆</span> Performance
   </div>
@@ -543,53 +540,65 @@
 </div>
 
 <!-- REMINDER BANNER (top sticky) -->
-<div id="reminder-banner" style="display:none;position:fixed;top:0;left:220px;right:0;z-index:8999;background:#FEBC06;padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
-  <div style="display:flex;align-items:center;gap:10px;flex:1;overflow:hidden">
-    <span style="font-size:16px">🔔</span>
-    <span id="banner-text" style="font-size:13px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+<div id="reminder-banner" style="display:none;position:fixed;top:0;left:220px;right:0;z-index:8999;background:#fdfaf3;border-bottom:1px solid #f0e6d2;padding:7px 20px;display:none;align-items:center;justify-content:space-between;gap:12px">
+  <div style="display:flex;align-items:center;gap:8px;flex:1;overflow:hidden">
+    <span style="font-size:13px;color:#a07a1f">·</span>
+    <span id="banner-text" style="font-size:12px;font-weight:500;color:#6b5113;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
   </div>
-  <button onclick="dismissBanner()" style="background:#000;color:#FEBC06;border:none;border-radius:8px;padding:5px 14px;font-family:'Poppins',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Done ✓</button>
+  <button onclick="dismissBanner()" style="background:transparent;color:#a07a1f;border:1px solid #e8dcb8;border-radius:6px;padding:3px 10px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap">Done</button>
 </div>
 
   <!-- CEO PANEL -->
   <div class="panel active" id="panel-ceo">
     <div class="panel-title">Good morning, Suriti ☀️</div>
 
+    <!-- Agent cards — horizontal grid, click any to start a NEW chat thread -->
     <div class="agent-grid">
-      <div class="agent-card selected" onclick="selectAgent(this,'ceo')">
+      <div class="agent-card" onclick="startNewChat('ceo')">
         <div class="agent-name">⚡ CEO Agent</div>
         <div class="agent-desc">Strategy, decisions, priorities</div>
       </div>
-      <div class="agent-card" onclick="selectAgent(this,'client')">
+      <div class="agent-card" onclick="startNewChat('client')">
         <div class="agent-name">🤝 Client Agent</div>
         <div class="agent-desc">Proposals, follow-ups, briefs</div>
       </div>
-      <div class="agent-card" onclick="selectAgent(this,'content')">
+      <div class="agent-card" onclick="startNewChat('content')">
         <div class="agent-name">✍️ Content Agent</div>
         <div class="agent-desc">Scripts, captions, copy</div>
       </div>
-      <div class="agent-card" onclick="selectAgent(this,'social')">
+      <div class="agent-card" onclick="startNewChat('social')">
         <div class="agent-name">📱 Social Agent</div>
         <div class="agent-desc">Instagram & LinkedIn strategy</div>
       </div>
-      <div class="agent-card" onclick="selectAgent(this,'ops')">
+      <div class="agent-card" onclick="startNewChat('ops')">
         <div class="agent-name">⚙️ Ops Agent</div>
         <div class="agent-desc">Process, timelines, blockers</div>
       </div>
-      <div class="agent-card" onclick="selectAgent(this,'finance')">
+      <div class="agent-card" onclick="startNewChat('finance')">
         <div class="agent-name">💰 Finance Agent</div>
         <div class="agent-desc">Quotes, estimates, invoices</div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="chat-container" id="ceo-chat">
-        <div class="msg ai">Hi Suriti 👋 I'm your CEO Agent. I know your full team, all active projects, and both brands. What's on your mind today?</div>
+    <!-- Recents sidebar (left) + chat (right) -->
+    <div style="display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start;margin-top:18px">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;position:sticky;top:0;max-height:70vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px 10px">
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700">Recents</span>
+          <span id="active-agent-tag" style="font-size:10px;color:#a07a1f;font-family:'DM Mono',monospace"></span>
+        </div>
+        <div id="recents-list"></div>
       </div>
-      <div id="loading">Agent is thinking...</div>
-      <div class="chat-input-row">
-        <input type="text" id="ceo-input" placeholder="Ask anything about your business..." onkeydown="if(event.key==='Enter') sendChat()">
-        <button class="btn btn-yellow" onclick="sendChat()">Send</button>
+
+      <div class="card" style="margin:0">
+        <div class="chat-container" id="ceo-chat">
+          <div class="msg ai">Pick an agent above to start a conversation. Recent chats appear on the left.</div>
+        </div>
+        <div id="loading">Agent is thinking...</div>
+        <div class="chat-input-row">
+          <input type="text" id="ceo-input" placeholder="Ask anything about your business..." onkeydown="if(event.key==='Enter') sendChat()">
+          <button class="btn btn-yellow" onclick="sendChat()">Send</button>
+        </div>
       </div>
     </div>
   </div>
@@ -600,14 +609,18 @@
 
     <div class="card">
       <div class="card-title">Add Task</div>
-      <div class="form-row form-row-4">
+      <div class="form-row" style="display:grid;grid-template-columns:130px 200px 1fr 150px 100px;gap:10px">
         <div>
           <label>Date</label>
           <input type="date" id="task-date">
         </div>
         <div>
-          <label>Task</label>
-          <input type="text" id="task-name" placeholder="Task description">
+          <label>Title (short)</label>
+          <input type="text" id="task-title" placeholder="Steel City Poster">
+        </div>
+        <div>
+          <label>Description (optional)</label>
+          <input type="text" id="task-name" placeholder="Full brief — context, refs, anything important">
         </div>
         <div>
           <label>Assignee</label>
@@ -904,34 +917,11 @@
   <!-- REVIEW PANEL -->
   <div class="panel" id="panel-review">
     <div class="panel-title">Creative Review Queue</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">All creatives go: Designer → Viplav → You → Client</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Creatives sent by Viplav. Designer → Viplav → Client. Statuses pull live from the sheet.</p>
 
     <div class="card">
-      <div class="card-title">Add to Review Queue</div>
-      <div class="form-row form-row-4" style="align-items:flex-end">
-        <div>
-          <label>Creative Name</label>
-          <input type="text" id="rev-name" placeholder="e.g. Jindal Rebar Poster">
-        </div>
-        <div>
-          <label>Designer</label>
-          <select id="rev-designer">
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option>
-          </select>
-        </div>
-        <div>
-          <label>Client/Brand</label>
-          <input type="text" id="rev-client" placeholder="e.g. Jindal">
-        </div>
-        <button class="btn btn-yellow btn-sm" onclick="addReview()" style="margin-top:18px">Add</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Queue</div>
-      <div id="review-list"><div class="empty-state">No creatives in queue.</div></div>
+      <div class="card-title">All Creatives</div>
+      <div id="review-list"><div class="empty-state">Loading...</div></div>
     </div>
   </div>
 
@@ -961,39 +951,6 @@
     <div class="card">
       <div class="card-title">Estimates & Invoice Tracker</div>
       <div id="finance-list"><div class="empty-state">No estimates yet.</div></div>
-    </div>
-  </div>
-
-  <!-- AGENTS PANEL -->
-  <div class="panel" id="panel-agents">
-    <div class="panel-title">All Agents</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Switch between agents below or use the CEO panel for quick access.</p>
-
-    <div class="agent-grid">
-      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('ceo')">
-        <div class="agent-name">⚡ CEO Agent</div>
-        <div class="agent-desc">Morning briefing, decisions, prioritisation</div>
-      </div>
-      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('client')">
-        <div class="agent-name">🤝 Client Agent</div>
-        <div class="agent-desc">Proposals, follow-ups, briefs, client comms</div>
-      </div>
-      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('content')">
-        <div class="agent-name">✍️ Content Agent</div>
-        <div class="agent-desc">Scripts, captions, decks, copy</div>
-      </div>
-      <div class="agent-card" onclick="showPanel('instagram');switchIgTab('chat',null)">
-        <div class="agent-name">📱 Social Agent</div>
-        <div class="agent-desc">Instagram, LinkedIn, personal brand</div>
-      </div>
-      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('ops')">
-        <div class="agent-name">⚙️ Ops Agent</div>
-        <div class="agent-desc">Process, timelines, team blockers</div>
-      </div>
-      <div class="agent-card" onclick="showPanel('ceo');selectAgentByName('finance')">
-        <div class="agent-name">💰 Finance Agent</div>
-        <div class="agent-desc">Quotes, estimates, invoice reminders</div>
-      </div>
     </div>
   </div>
 
@@ -1094,7 +1051,7 @@
             <div style="font-size:16px;font-weight:800;margin-bottom:4px">🏗️ Jindal Portal</div>
             <div style="font-size:12px;color:var(--muted)">Steel City · Youth League · Oman Build · Product Boards</div>
           </div>
-          <a href="client.html" target="_blank" class="btn btn-yellow btn-sm">Open Portal ↗</a>
+          <a href="client.html?founder=1" target="_blank" class="btn btn-yellow btn-sm">Open Portal ↗</a>
         </div>
       </div>
       <div class="card" style="border-style:dashed">
@@ -1115,12 +1072,10 @@
         <div>
           <label>Project Folder</label>
           <select id="cl-folder">
-            <option value="guidelines">Brand Guidelines</option>
-            <option value="imagebank">Image Bank</option>
-            <option value="steelcity">Steel City</option>
-            <option value="youthleague">Youth League</option>
-            <option value="omanbuild">Oman Build</option>
-            <option value="productboards">Product Boards</option>
+            <option value="steelcity">Jindal Steel City</option>
+            <option value="youthleague">Jindal League</option>
+            <option value="jindal-youth">Jindal Youth League</option>
+            <option value="duqm">Jindal Steel Duqm</option>
           </select>
         </div>
         <div>
@@ -1150,14 +1105,12 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="card-title" style="margin:0">All Creatives on Jindal Portal</div>
-        <select id="cl-filter-folder" onchange="loadClientCreatives()" style="width:180px">
+        <select id="cl-filter-folder" onchange="loadClientCreatives()" style="width:200px">
           <option value="">All Folders</option>
-          <option value="guidelines">Brand Guidelines</option>
-          <option value="imagebank">Image Bank</option>
-          <option value="steelcity">Steel City</option>
-          <option value="youthleague">Youth League</option>
-          <option value="omanbuild">Oman Build</option>
-          <option value="productboards">Product Boards</option>
+          <option value="steelcity">Jindal Steel City</option>
+          <option value="youthleague">Jindal League</option>
+          <option value="jindal-youth">Jindal Youth League</option>
+          <option value="duqm">Jindal Steel Duqm</option>
         </select>
       </div>
       <div id="cl-list"><div class="empty-state">No creatives uploaded yet.</div></div>
@@ -1204,6 +1157,8 @@ function checkPassword() {
     document.getElementById('main-app').style.display = 'flex';
     loadTasks();
     loadHR();
+    renderChat();
+    renderRecents();
   } else {
     document.getElementById('pwd-error').style.display = 'block';
     document.getElementById('pwd-input').value = '';
@@ -1238,15 +1193,15 @@ const agentSystemPrompts = {
 };
 
 function selectAgent(el, agent) {
-  document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
   currentAgent = agent;
-  const chatBox = document.getElementById('ceo-chat');
-  chatBox.innerHTML = `<div class="msg ai">Switched to ${agent.toUpperCase()} Agent. How can I help?</div>`;
+  renderChat(agent);
+  renderAgentSidebar();
 }
 
 function selectAgentByName(agent) {
   currentAgent = agent;
+  renderChat(agent);
+  renderAgentSidebar();
 }
 
 // ====== CHAT ======
@@ -1265,21 +1220,214 @@ async function callAI(systemPrompt, userMessage) {
   return data.content?.[0]?.text || 'Could not get response.';
 }
 
-let ceoHistory = [];
+// Chat sessions — Claude-style. Each is a unique conversation thread.
+// { id, agent, title, history[], display[], updatedAt }
+let chatSessions = [];
+let currentSessionId = null;
+try { chatSessions = JSON.parse(localStorage.getItem('yos-chat-sessions') || '[]'); } catch(e) {}
+try { currentSessionId = localStorage.getItem('yos-current-session') || null; } catch(e) {}
+
+// One-time migration from old per-agent format
+(function migrateOldChats() {
+  if (chatSessions.length > 0) return;
+  let oldChats = {};
+  try { oldChats = JSON.parse(localStorage.getItem('yos-agent-chats') || '{}'); } catch(e) {}
+  for (const [agent, data] of Object.entries(oldChats)) {
+    if (data && data.display && data.display.length) {
+      const firstUser = data.display.find(m => m.role === 'user');
+      const title = firstUser ? firstUser.text.substring(0, 40) : `${agent} chat`;
+      chatSessions.push({
+        id: 's_mig_' + agent,
+        agent,
+        title,
+        history: data.history || [],
+        display: data.display || [],
+        updatedAt: data.lastUsed || Date.now()
+      });
+    }
+  }
+  saveSessions();
+})();
+
+function saveSessions() {
+  try { localStorage.setItem('yos-chat-sessions', JSON.stringify(chatSessions)); } catch(e) {}
+  try { if (currentSessionId) localStorage.setItem('yos-current-session', currentSessionId); } catch(e) {}
+}
+
+function currentSession() {
+  return chatSessions.find(s => s.id === currentSessionId);
+}
+
+function startNewChat(agent) {
+  const id = 's_' + Date.now();
+  const session = {
+    id, agent,
+    title: 'New ' + AGENT_LABELS[agent].name + ' chat',
+    history: [],
+    display: [],
+    updatedAt: Date.now()
+  };
+  chatSessions.unshift(session);
+  currentSessionId = id;
+  currentAgent = agent;
+  saveSessions();
+  renderChat();
+  renderRecents();
+}
+
+function loadSession(sessionId) {
+  const s = chatSessions.find(x => x.id === sessionId);
+  if (!s) return;
+  currentSessionId = sessionId;
+  currentAgent = s.agent;
+  saveSessions();
+  renderChat();
+  renderRecents();
+}
+
+function deleteSession(sessionId, ev) {
+  if (ev) ev.stopPropagation();
+  if (!confirm('Delete this chat thread?')) return;
+  chatSessions = chatSessions.filter(s => s.id !== sessionId);
+  if (currentSessionId === sessionId) currentSessionId = chatSessions[0]?.id || null;
+  saveSessions();
+  renderChat();
+  renderRecents();
+}
+
+const AGENT_LABELS = {
+  ceo:     { icon: '⚡', name: 'CEO Agent',     desc: 'Strategy & priorities' },
+  client:  { icon: '🤝', name: 'Client Agent',  desc: 'Proposals & follow-ups' },
+  content: { icon: '✍️', name: 'Content Agent', desc: 'Scripts & captions' },
+  social:  { icon: '📱', name: 'Social Agent',  desc: 'IG & LinkedIn' },
+  ops:     { icon: '⚙️', name: 'Ops Agent',     desc: 'Timelines & blockers' },
+  finance: { icon: '💰', name: 'Finance Agent', desc: 'Quotes & invoices' }
+};
+
+function timeAgo(ts) {
+  if (!ts) return 'New';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function renderAgentSidebar() {
+  const list = document.getElementById('agent-list');
+  if (!list) return;
+  const order = Object.keys(AGENT_LABELS).sort((a, b) => {
+    const aT = (agentChats[a]?.lastUsed) || 0;
+    const bT = (agentChats[b]?.lastUsed) || 0;
+    return bT - aT;
+  });
+  list.innerHTML = order.map(a => {
+    const isActive = a === currentAgent;
+    const lastUsed = agentChats[a]?.lastUsed || 0;
+    const meta = AGENT_LABELS[a];
+    const bg = isActive ? '#FEBC06' : 'transparent';
+    const fg = isActive ? '#000' : 'var(--text)';
+    const sub = isActive ? '#7a5500' : 'var(--muted)';
+    return `<div onclick="selectAgentByName('${a}')" style="padding:10px 12px;border-radius:8px;cursor:pointer;background:${bg};margin-bottom:2px;transition:background 0.15s">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-size:13px;font-weight:${isActive?700:600};color:${fg}">${meta.icon} ${meta.name}</div>
+        <div style="font-size:10px;color:${sub};font-family:'DM Mono',monospace;white-space:nowrap">${lastUsed ? timeAgo(lastUsed) : ''}</div>
+      </div>
+      <div style="font-size:11px;color:${sub};margin-top:1px">${meta.desc}</div>
+    </div>`;
+  }).join('');
+}
+function renderChat() {
+  const chat = document.getElementById('ceo-chat');
+  if (!chat) return;
+  const s = currentSession();
+  const tag = document.getElementById('active-agent-tag');
+  if (tag) tag.textContent = s ? AGENT_LABELS[s.agent].name : '';
+  if (!s || !s.display.length) {
+    if (s) {
+      // Empty session — show welcome for that agent
+      const welcomes = {
+        ceo: 'Hi Suriti 👋 I\'m your CEO Agent. What\'s on your mind today?',
+        client: 'Client Agent ready. Need a proposal, follow-up, or brief?',
+        content: 'Content Agent ready. Reels, captions, decks — what are we writing?',
+        social: 'Social Agent ready. @yellowproductions_ or @suriti?',
+        ops: 'Ops Agent ready. Timelines, blockers, processes — what needs untangling?',
+        finance: 'Finance Agent ready. Quotes, estimates, invoices — what do you need?'
+      };
+      chat.innerHTML = `<div class="msg ai">${welcomes[s.agent] || 'How can I help?'}</div>`;
+    } else {
+      chat.innerHTML = `<div class="msg ai">Pick an agent above to start a conversation. Recent chats appear on the left.</div>`;
+    }
+  } else {
+    chat.innerHTML = s.display.map(m => {
+      const style = m.role === 'error' ? 'color:var(--red)' : '';
+      const cls = m.role === 'user' ? 'msg user' : 'msg ai';
+      return `<div class="${cls}" style="${style}">${m.text.replace(/\n/g,'<br>')}</div>`;
+    }).join('');
+  }
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function renderRecents() {
+  const list = document.getElementById('recents-list');
+  if (!list) return;
+  if (!chatSessions.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:14px 8px;text-align:center;line-height:1.5">No chats yet. Pick an agent to start.</div>';
+    return;
+  }
+  const sorted = [...chatSessions].sort((a, b) => b.updatedAt - a.updatedAt);
+  list.innerHTML = sorted.map(s => {
+    const isActive = s.id === currentSessionId;
+    const meta = AGENT_LABELS[s.agent] || { icon: '·', name: s.agent };
+    const bg = isActive ? '#FEBC06' : 'transparent';
+    const fg = isActive ? '#000' : 'var(--text)';
+    const sub = isActive ? '#7a5500' : 'var(--muted)';
+    const titleClean = (s.title || 'New chat').substring(0, 38);
+    return `<div onclick="loadSession('${s.id}')" style="padding:9px 10px;border-radius:8px;cursor:pointer;background:${bg};margin-bottom:2px;position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:${isActive?700:500};color:${fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${titleClean}</div>
+        <div style="font-size:10px;color:${sub};margin-top:2px;font-family:'DM Mono',monospace">${meta.icon} ${meta.name} · ${timeAgo(s.updatedAt)}</div>
+      </div>
+      <span onclick="deleteSession('${s.id}', event)" style="font-size:11px;color:${sub};opacity:0.5;cursor:pointer;padding:2px 4px" title="Delete">✕</span>
+    </div>`;
+  }).join('');
+}
+
+// Legacy compat — selectAgent/selectAgentByName now delegate to startNewChat
+function selectAgent(el, agent) { startNewChat(agent); }
+function selectAgentByName(agent) { startNewChat(agent); }
+// Also legacy — old sidebar function still called from somewhere on init
+function renderAgentSidebar() { renderRecents(); }
 
 async function sendChat() {
   const input = document.getElementById('ceo-input');
   const msg = input.value.trim();
   if(!msg) return;
+
+  // If no current session, can't send (user needs to pick an agent first)
+  let s = currentSession();
+  if (!s) {
+    alert('Pick an agent above to start a chat.');
+    return;
+  }
   input.value = '';
 
-  const chat = document.getElementById('ceo-chat');
-  chat.innerHTML += `<div class="msg user">${msg}</div>`;
-  chat.scrollTop = chat.scrollHeight;
+  // Stamp the session title from the first user message (truncated)
+  if (!s.display.some(m => m.role === 'user')) {
+    s.title = msg.substring(0, 50);
+  }
+
+  s.display.push({ role: 'user', text: msg });
+  s.history.push({ role: 'user', content: msg });
+  s.updatedAt = Date.now();
+  renderChat();
+  renderRecents();
+  saveSessions();
 
   document.getElementById('loading').style.display = 'block';
-
-  ceoHistory.push({ role: 'user', content: msg });
 
   // Build live task context
   const today = new Date().toISOString().split('T')[0];
@@ -1291,8 +1439,7 @@ async function sendChat() {
   const todaySummary = todayTasks.length
     ? `\n\nTODAY'S TASKS (${today}):\n` + todayTasks.map(t => `- ${t.Assignee}: ${t.Task} [${t.Status || 'Pending'}]`).join('\n')
     : `\n\nNo tasks assigned for today (${today}).`;
-
-  const enrichedPrompt = agentSystemPrompts[currentAgent] + taskSummary + todaySummary;
+  const enrichedPrompt = agentSystemPrompts[s.agent] + taskSummary + todaySummary;
 
   try {
     const res = await fetch(BACKEND_URL, {
@@ -1302,23 +1449,25 @@ async function sendChat() {
         model: 'claude-sonnet-4-5',
         max_tokens: 1000,
         system: enrichedPrompt,
-        messages: ceoHistory
+        messages: s.history
       })
     });
     const data = await res.json();
     const reply = data.content?.[0]?.text || 'Could not reach agent.';
-    ceoHistory.push({ role: 'assistant', content: reply });
-    chat.innerHTML += `<div class="msg ai">${reply.replace(/\n/g,'<br>')}</div>`;
-
-    // Check if user message contains a reminder request
+    s.history.push({ role: 'assistant', content: reply });
+    s.display.push({ role: 'ai', text: reply });
+    s.updatedAt = Date.now();
+    renderChat();
+    renderRecents();
     const reminderText = extractReminder(msg);
     if(reminderText) { addReminder(reminderText); }
   } catch(e) {
-    chat.innerHTML += `<div class="msg ai" style="color:var(--red)">Could not reach agent. Try again.</div>`;
+    s.display.push({ role: 'error', text: 'Could not reach agent. Try again.' });
+    renderChat();
   }
 
   document.getElementById('loading').style.display = 'none';
-  chat.scrollTop = chat.scrollHeight;
+  saveSessions();
 }
 
 // ====== REMINDERS ======
@@ -1442,11 +1591,29 @@ document.addEventListener('click', e => {
 renderReminders();
 let allTasks = [];
 
+// Sheets stringifies Date columns as "Tue May 06 2026 00:00:00 GMT+0530 (India Standard Time)".
+// Normalize everything to YYYY-MM-DD so filters compare cleanly.
+function normalizeDate(d) {
+  if (!d) return '';
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth()+1).padStart(2,'0');
+    const day = String(parsed.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  return s;
+}
+
 async function loadTasks() {
   try {
     const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const data = await res.json();
-    allTasks = data.filter(r => r.Type === 'task' || r.Type === '' || !r.Type);
+    allTasks = data
+      .filter(r => r.Type === 'task' || r.Type === '' || !r.Type)
+      .map(t => ({ ...t, Date: normalizeDate(t.Date) }));
     renderTasks(allTasks);
   } catch(e) {
     document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
@@ -1474,6 +1641,38 @@ function renderTasks(tasks) {
 
   const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
   let html = '';
+
+  // Active Today: any open task created today OR with an update timestamped today
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayMonthDay = todayStr.substring(5); // "MM-DD"
+  const activeToday = tasks.filter(t => {
+    if (t.Status === 'Done') return false;
+    if (t.Date === todayStr) return true;
+    if ((t.Update || '').includes(`[${todayMonthDay}]`)) return true;
+    return false;
+  });
+  if (activeToday.length) {
+    html += `<div style="background:linear-gradient(135deg,#fff8e1,#fef3c7);border:1px solid #f0d080;border-radius:12px;padding:14px 18px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:800;color:#92640a;letter-spacing:0.05em;text-transform:uppercase">🔥 Active Today (${activeToday.length})</span>
+        <span style="font-size:10px;color:#92640a;font-weight:400;font-family:'DM Mono',monospace">created or updated today</span>
+      </div>
+      ${activeToday.map(t => {
+        const isNew = t.Date === todayStr;
+        const lastUpdate = (t.Update || '').trim().split('\n').filter(l => l.trim()).pop() || '';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;gap:10px">
+          <div style="flex:1;min-width:0">
+            <span style="font-weight:600">${t.Title || t.Task || '—'}</span>
+            <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
+            ${isNew ? '<span style="background:#FEBC06;color:#000;font-size:9px;font-weight:800;padding:1px 7px;border-radius:20px;margin-left:6px">NEW</span>' : ''}
+            ${lastUpdate ? `<div style="font-size:11px;color:#444;font-family:'DM Mono',monospace;margin-top:3px">📝 ${lastUpdate}</div>` : ''}
+          </div>
+          <span style="font-size:10px;color:#666;font-family:'DM Mono',monospace;white-space:nowrap">${t.Status || 'Pending'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   dates.forEach(date => {
     const total = grouped[date].length;
     const done  = grouped[date].filter(t => t.Status === 'Done').length;
@@ -1485,11 +1684,30 @@ function renderTasks(tasks) {
       const status = t.Status || 'Pending';
       const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
       const link = t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
+      const title = t.Title || '';
+      const desc = t.Task || '';
+      const showDesc = title && desc && desc !== title;
+      const taskKey = encodeURIComponent(t.Task || '');
+      // Parse Update field — newline-separated entries like "[05-06] note"
+      const updatesText = (t.Update || '').trim();
+      const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
+      const updatesHtml = updateLines.length
+        ? `<div style="margin-top:6px;padding-left:0;border-left:2px solid #f0d080;padding-left:8px">
+            ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace">📝 ${l}</div>`).join('')}
+          </div>` : '';
       html += `
-      <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);font-size:12px;">
-        <span style="font-size:13px;">${t.Task || '—'}
-          <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
-        </span>
+      <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
+        <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:center;font-size:12px;">
+          <div style="font-size:13px;">
+            <div>${title || desc || '—'}
+              <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
+            </div>
+            ${showDesc ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">${desc}</div>` : ''}
+            ${updatesHtml}
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+              <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
+            </div>
+          </div>
         <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
           style="font-size:11px;padding:4px 6px;width:100%;border-radius:20px;${selectStyle}">
           <option ${status==='Pending'?'selected':''}>Pending</option>
@@ -1503,10 +1721,34 @@ function renderTasks(tasks) {
         <span>${link}</span>
         <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
           class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px">✕</button>
+        </div>
       </div>`;
     });
   });
   el.innerHTML = html;
+}
+
+async function addUpdate(encodedTask, inputEl) {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  const taskKey = decodeURIComponent(encodedTask);
+  const t = allTasks.find(x => x.Task === taskKey);
+  if (!t) return;
+  const today = new Date().toISOString().split('T')[0].substring(5); // MM-DD
+  const existing = (t.Update || '').trim();
+  const appended = (existing ? existing + '\n' : '') + `[${today}] ${text}`;
+
+  // Optimistic UI — show update immediately
+  t.Update = appended;
+  inputEl.value = '';
+  renderTasks(allTasks);
+
+  try {
+    fetch(SHEETDB_URL, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: taskKey, data: { Update: appended } })
+    });
+  } catch(e) { console.log('Update save error:', e.message); }
 }
 
 async function updateTaskStatus(task, assignee, date, newStatus) {
@@ -1581,11 +1823,15 @@ function filterTasks() {
 
 async function addTask() {
   const date = document.getElementById('task-date').value;
+  const title = document.getElementById('task-title').value.trim();
   const task = document.getElementById('task-name').value.trim();
   const assignee = document.getElementById('task-assignee').value;
-  if(!task || !assignee) { alert('Please fill task and assignee.'); return; }
+  if(!title || !assignee) { alert('Please fill title and assignee.'); return; }
 
-  const row = { Date: date || new Date().toISOString().split('T')[0], Task: task, Assignee: assignee, Status: 'Pending', 'Preview Link': '', Type: 'task' };
+  // Title is the short label (shown in dropdowns, lists). Task is the full description (optional).
+  // If only Title is filled, Task = Title so existing matching keeps working.
+  const taskText = task || title;
+  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Status: 'Pending', 'Preview Link': '', Type: 'task' };
 
   try {
     await fetch(SHEETDB_URL, {
@@ -1596,38 +1842,56 @@ async function addTask() {
     });
     allTasks.push(row);
     renderTasks(allTasks);
+    document.getElementById('task-title').value = '';
     document.getElementById('task-name').value = '';
 
-    // Task saved — no auto email
     const btn = document.querySelector('[onclick="addTask()"]');
     if(btn) { btn.textContent = '✅ Added!'; setTimeout(() => btn.textContent = 'Add Task', 2000); }
   } catch(e) { alert('Error saving task: ' + e.message); }
 }
 
 async function sendAllEmails() {
-  const date = document.getElementById('task-filter-date').value || new Date().toISOString().split('T')[0];
-  const dayTasks = allTasks.filter(t => t.Date === date && (t.Type === 'task' || !t.Type || t.Type === ''));
-  if(!dayTasks.length) { alert('No tasks for selected date.'); return; }
+  // Email each designer their CURRENT OPEN tasks — not filtered by Date.
+  // Includes title, description, status, and the most recent update for each task.
+  const openTasks = allTasks.filter(t =>
+    t.Status !== 'Done' &&
+    (t.Type === 'task' || !t.Type || t.Type === '') &&
+    t.Assignee
+  );
+  if(!openTasks.length) { alert('No open tasks to email.'); return; }
 
   const byPerson = {};
-  dayTasks.forEach(t => {
+  openTasks.forEach(t => {
     if(!byPerson[t.Assignee]) byPerson[t.Assignee] = [];
-    byPerson[t.Assignee].push(t.Task);
+    byPerson[t.Assignee].push(t);
   });
 
   const btn = document.querySelector('[onclick="sendAllEmails()"]');
   if(btn) { btn.textContent = '⏳ Sending...'; btn.disabled = true; }
 
+  const today = new Date().toISOString().split('T')[0];
   let sent = 0, failed = [];
   for(const [person, tasks] of Object.entries(byPerson)) {
     if(!TEAM[person]) { failed.push(`${person} (no email)`); continue; }
-    const taskList = tasks.map((t,i) => `Task ${i+1}: ${t}`).join('\n');
+    const taskList = tasks.map((t, i) => {
+      const title = t.Title || t.Task || '(untitled)';
+      const desc = (t.Title && t.Task && t.Task !== t.Title) ? `\n   ${t.Task}` : '';
+      const status = t.Status || 'Pending';
+      const updates = (t.Update || '').trim();
+      let updateBlock = '';
+      if (updates) {
+        const lines = updates.split('\n').filter(l => l.trim()).slice(-3).reverse();
+        updateBlock = '\n   Recent direction (newest first):\n' + lines.map(l => `   • ${l}`).join('\n');
+      }
+      return `${i+1}. ${title}  [${status}]${desc}${updateBlock}`;
+    }).join('\n\n');
+
     try {
       await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
         to_email: TEAM[person], to_name: person,
-        task_name: `Your tasks for ${date}`,
+        task_name: `Your open tasks (${tasks.length})`,
         task_list: taskList,
-        task_date: date,
+        task_date: today,
         email: 'creative@yellowproductions.co.in'
       });
       sent++;
@@ -1638,11 +1902,10 @@ async function sendAllEmails() {
   }
 
   if(btn) { btn.textContent = '📧 Email All'; btn.disabled = false; }
-
   if(failed.length) {
     alert(`✅ Sent to ${sent} people.\n❌ Failed: ${failed.join(', ')}`);
   } else {
-    alert(`✅ Emails sent to ${sent} people for ${date}!`);
+    alert(`✅ Open task lists sent to ${sent} team members!`);
   }
 }
 
@@ -1653,14 +1916,16 @@ async function loadHR() {
 
   try {
     const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const data = await res.json();
+    const raw = await res.json();
+    const data = raw.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
 
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');
 
     // Today attendance
     const todayAtt = attendance.filter(r => r.Date === today);
-    const presentNames = todayAtt.map(r => r.Assignee);
+    // Dedupe — same person marking attendance multiple times still shows once
+    const presentNames = [...new Set(todayAtt.map(r => r.Assignee))];
     const absentNames = TEAM_LIST.filter(n => !presentNames.includes(n));
 
     let attHtml = '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--green);margin-bottom:6px">PRESENT</div><div class="present-list">';
@@ -1692,8 +1957,14 @@ async function loadHR() {
     }
     document.getElementById('leave-requests').innerHTML = leaveHtml;
 
-    // Attendance log for filter date
-    const logData = attendance.filter(r => r.Date === filterDate);
+    // Attendance log for filter date — dedupe by Assignee
+    const logRaw = attendance.filter(r => r.Date === filterDate);
+    const seen = new Set();
+    const logData = logRaw.filter(r => {
+      if (seen.has(r.Assignee)) return false;
+      seen.add(r.Assignee);
+      return true;
+    });
     if(logData.length) {
       document.getElementById('attendance-log').innerHTML = logData.map(r =>
         `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
@@ -1716,12 +1987,18 @@ async function updateLeave(idx, status) {
   const leave = leaves[idx];
   if(!leave) return;
   try {
-    await fetch(SHEETDB_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { Status: status } })
+    fetch(SHEETDB_URL, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch',
+        sheet: 'Type:tasks',
+        matchColumn: 'Task',
+        matchValue: leave.Task,
+        data: { Status: status }
+      })
     });
-    loadHR();
+    // Optimistic UI
+    setTimeout(loadHR, 800);
   } catch(e) { alert('Error updating leave: ' + e.message); }
 }
 
@@ -1877,46 +2154,71 @@ Be specific, creative, and non-generic.`;
   }
 }
 
-// ====== REVIEW ======
-let reviews = JSON.parse(localStorage.getItem('yp_reviews') || '[]');
+// ====== REVIEW (pulls live from sheet) ======
+const CLIENT_LABELS = {
+  steelcity: 'Jindal Steel City',
+  youthleague: 'Jindal League',
+  'jindal-youth': 'Jindal Youth League',
+  'sohar-steel': 'Sohar Steel',
+  duqm: 'Jindal Steel Duqm'
+};
 
-function addReview() {
-  const name = document.getElementById('rev-name').value.trim();
-  const designer = document.getElementById('rev-designer').value;
-  const client = document.getElementById('rev-client').value.trim();
-  if(!name) return;
+const STATUS_PILLS = {
+  'Pending Review': { label: 'With Viplav', bg: '#fff3cd', color: '#92640a', border: '#f0d080' },
+  'Pending Viplav': { label: 'With Viplav', bg: '#fff3cd', color: '#92640a', border: '#f0d080' },
+  'Client Review':  { label: '✅ Sent to Client', bg: '#dcfce7', color: '#166534', border: '#86efac' },
+  'Sent Back':      { label: '🔄 Sent Back', bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
+  'Approved':       { label: '🌟 Client Approved', bg: '#fef9c3', color: '#854d0e', border: '#fde047' },
+  'Rejected':       { label: '❌ Client Rejected', bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' }
+};
 
-  reviews.push({ id: Date.now(), name, designer, client, stage: 'Designer', date: new Date().toLocaleDateString('en-IN') });
-  localStorage.setItem('yp_reviews', JSON.stringify(reviews));
-  document.getElementById('rev-name').value = '';
-  document.getElementById('rev-client').value = '';
-  renderReview();
-}
-
-function advanceReview(id) {
-  const stages = ['Designer', 'Viplav', 'Suriti', 'Client'];
-  const r = reviews.find(r => r.id === id);
-  if(!r) return;
-  const idx = stages.indexOf(r.stage);
-  if(idx < stages.length - 1) r.stage = stages[idx + 1];
-  else r.stage = 'Done';
-  localStorage.setItem('yp_reviews', JSON.stringify(reviews));
-  renderReview();
-}
-
-function renderReview() {
+async function renderReview() {
   const el = document.getElementById('review-list');
-  if(!reviews.length) { el.innerHTML = '<div class="empty-state">No creatives in queue.</div>'; return; }
-  const stageColor = { Designer: 'status-pending', Viplav: 'status-progress', Suriti: 'status-progress', Client: 'status-progress', Done: 'status-done' };
-  el.innerHTML = reviews.map(r => `
-    <div style="display:grid;grid-template-columns:1fr 100px 100px 80px 80px 80px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
-      <span>${r.name}</span>
-      <span style="color:var(--muted);font-size:12px">${r.designer}</span>
-      <span style="color:var(--muted);font-size:12px">${r.client}</span>
-      <span class="status-badge ${stageColor[r.stage] || 'status-pending'}">${r.stage}</span>
-      <span style="color:var(--muted);font-size:11px">${r.date}</span>
-      <button class="btn btn-outline btn-sm" onclick="advanceReview(${r.id})">${r.stage === 'Done' ? '✓' : 'Next →'}</button>
-    </div>`).join('');
+  el.innerHTML = '<div class="empty-state">Loading...</div>';
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
+    const raw = await res.json();
+    const creatives = raw
+      .filter(r => r.Type === 'creative' && r.Task && r.Task.includes('|'))
+      .map(r => ({ ...r, Date: normalizeDate(r.Date) }))
+      .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+
+    if (!creatives.length) {
+      el.innerHTML = '<div class="empty-state">No creatives yet. Once Viplav reviews uploads, they\'ll appear here.</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 150px 90px 70px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
+        <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span>
+      </div>
+      ${creatives.map(c => {
+        const parts = c.Task.split('|');
+        const fallbackName = (parts[0] || '').trim();
+        const designer = (parts[1] || '').trim();
+        const name = c.Title || fallbackName;
+        const clientLabel = CLIENT_LABELS[c.Assignee] || c.Assignee || '—';
+        const pill = STATUS_PILLS[c.Status] || { label: c.Status || 'Unknown', bg: '#f5f5f4', color: '#666', border: '#ddd' };
+        const notes = (c.Notes || '').trim();
+        const linkBtn = c['Preview Link']
+          ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
+          : '<span style="color:var(--muted);font-size:11px">—</span>';
+        return `
+          <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 150px 90px 70px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <div>
+              <div style="font-weight:600">${name}</div>
+              ${notes ? `<div style="font-size:11px;color:#991b1b;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
+            </div>
+            <span style="color:var(--muted);font-size:12px">${designer}</span>
+            <span style="font-size:12px">${clientLabel}</span>
+            <span style="background:${pill.bg};color:${pill.color};border:1px solid ${pill.border};padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-align:center">${pill.label}</span>
+            <span style="color:var(--muted);font-size:11px">${c.Date || '—'}</span>
+            ${linkBtn}
+          </div>`;
+      }).join('')}`;
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">Could not load creatives.</div>';
+  }
 }
 
 // ====== FINANCE ======
