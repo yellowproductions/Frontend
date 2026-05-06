@@ -437,6 +437,19 @@ emailjs.init(EJS_KEY);
 let currentUser = '';
 let allCreatives = [];
 
+// Auto-login when opened from Founder OS via ?founder=1
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get('founder') === '1') {
+      currentUser = 'Suriti';
+      document.getElementById('header-name').textContent = 'Suriti';
+      document.getElementById('login-overlay').style.display = 'none';
+      loadCreatives();
+    }
+  } catch(e) {}
+});
+
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
