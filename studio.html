@@ -197,7 +197,30 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
     <div class="form-card">
       <div id="form-view">
         <div class="form-title">Upload Creative</div>
-        <div class="form-sub">It goes straight to the client portal</div>
+        <div class="form-sub">Pick a task, drop the file, done</div>
+
+        <div class="field">
+          <label>Designer</label>
+          <select id="q-designer" onchange="onDesignerChange()">
+            <option value="">Select your name</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Siddhesh</option><option>Ajay</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Task</label>
+          <select id="q-task" onchange="onTaskChange()" disabled>
+            <option value="">Select your name first...</option>
+          </select>
+        </div>
+
+        <div class="field" id="creative-name-field" style="display:none">
+          <label>Creative Name</label>
+          <input type="text" id="q-name" placeholder="What are you uploading?">
+        </div>
 
         <div class="field">
           <label>Client</label>
@@ -208,22 +231,6 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
             <option value="steelcity">Jindal Steel</option>
             <option value="jindal-youth">Jindal Youth League</option>
             <option value="sohar-steel">Sohar Steel</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Creative Name</label>
-          <input type="text" id="q-name" placeholder="Creative name...">
-        </div>
-
-        <div class="field">
-          <label>Designer</label>
-          <select id="q-designer">
-            <option value="">Select designer</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
-            <option>Siddhesh</option><option>Ajay</option>
           </select>
         </div>
 
@@ -285,63 +292,178 @@ function handleFile(input,file){
 function showErr(msg){const e=document.getElementById('err-msg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4000);}
 function setProgress(pct){document.getElementById('progress-bar').style.display='block';document.getElementById('progress-fill').style.width=pct+'%';}
 
+// Designer's open tasks + rejected creatives (for rework)
+let myTasks = [];
+
+async function onDesignerChange() {
+  const designer = document.getElementById('q-designer').value;
+  const taskSelect = document.getElementById('q-task');
+  document.getElementById('creative-name-field').style.display = 'none';
+  myTasks = [];
+
+  if (!designer) {
+    taskSelect.innerHTML = '<option value="">Select your name first...</option>';
+    taskSelect.disabled = true;
+    return;
+  }
+
+  taskSelect.innerHTML = '<option value="">Loading your tasks...</option>';
+  taskSelect.disabled = true;
+
+  try {
+    const res = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+    const data = await res.json();
+
+    // Tasks marked Done/Approved/Rejected stay visible for 7 days in case client requests changes,
+    // then drop off so the dropdown stays clean.
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const isWithinWindow = (dateStr) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return !isNaN(d.getTime()) && d.getTime() >= cutoff;
+    };
+
+    myTasks = data.filter(r => {
+      // Open tasks assigned to this designer
+      if ((r.Type === 'task' || !r.Type || r.Type === '') && r.Assignee === designer) {
+        if (r.Status !== 'Done') return true; // active task — always show
+        return isWithinWindow(r.Date); // recently done — keep for a week
+      }
+      // Creatives by this designer
+      if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
+        if (r.Status === 'Sent Back') return true; // rework — always show
+        if (['Approved', 'Rejected', 'Done'].includes(r.Status)) return isWithinWindow(r.Date);
+      }
+      return false;
+    });
+
+    const opts = ['<option value="">Select task...</option>'];
+    myTasks.forEach((t, i) => {
+      const isRework = t.Type === 'creative' && t.Status === 'Sent Back';
+      const isClosed = t.Status === 'Done' || t.Status === 'Approved' || t.Status === 'Rejected';
+      // Display: prefer Title; otherwise truncated Task description
+      const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
+      const displayName = rawName.length > 50 ? rawName.substring(0, 50) + '…' : rawName;
+      const prefix = isRework ? '🔄 Rework: ' : (isClosed ? `✓ ` : '');
+      const suffix = isClosed ? ` [${t.Status}]` : (t.Status && t.Status !== 'Pending' && !isRework ? ` [${t.Status}]` : '');
+      opts.push(`<option value="${i}">${prefix}${displayName}${suffix}</option>`);
+    });
+    opts.push('<option value="adhoc">+ Ad-hoc / Not in my task list</option>');
+
+    taskSelect.innerHTML = opts.join('');
+    taskSelect.disabled = false;
+  } catch(e) {
+    taskSelect.innerHTML = '<option value="">Could not load tasks</option><option value="adhoc">+ Ad-hoc / Not in my task list</option>';
+    taskSelect.disabled = false;
+  }
+}
+
+function onTaskChange() {
+  const val = document.getElementById('q-task').value;
+  document.getElementById('creative-name-field').style.display = val === 'adhoc' ? 'block' : 'none';
+}
+
 async function submitUpload(){
-  const client=document.getElementById('q-client').value;
-  const name=document.getElementById('q-name').value.trim();
-  const designer=document.getElementById('q-designer').value;
-  const file=document.getElementById('q-file').files[0];
-  if(!client){showErr('Please select a client.');return;}
-  if(!name){showErr('Please enter a creative name.');return;}
-  if(!designer){showErr('Please select a designer.');return;}
-  if(!file){showErr('Please select a file.');return;}
-  const btn=document.getElementById('submit-btn');
-  btn.textContent='Uploading...';btn.disabled=true;setProgress(20);
-  try{
-    const formData=new FormData();
-    const safeName=name.replace(/[^a-zA-Z0-9 _-]/g,'');
-    const ext=file.name.split('.').pop();
-    const dropboxPath=`/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
-    formData.append('file',file,file.name);
-    formData.append('dropboxPath',dropboxPath);
+  const designer = document.getElementById('q-designer').value;
+  const taskVal = document.getElementById('q-task').value;
+  const client = document.getElementById('q-client').value;
+  const file = document.getElementById('q-file').files[0];
+  const isAdhoc = taskVal === 'adhoc';
+  const adhocName = document.getElementById('q-name').value.trim();
+
+  if (!designer) { showErr('Please select your name.'); return; }
+  if (!taskVal) { showErr('Please select a task.'); return; }
+  if (isAdhoc && !adhocName) { showErr('Please enter a creative name.'); return; }
+  if (!client) { showErr('Please select a client.'); return; }
+  if (!file) { showErr('Please select a file.'); return; }
+
+  // Figure out the creative name + the row to patch (if any)
+  let creativeName, originalTaskText = null, isRework = false;
+  if (isAdhoc) {
+    creativeName = adhocName;
+  } else {
+    const item = myTasks[parseInt(taskVal)];
+    if (!item) { showErr('Task not found. Try refreshing.'); return; }
+    isRework = item.Type === 'creative';
+    if (isRework) {
+      // Existing creative being reworked — keep the same name
+      creativeName = (item.Task || '').split('|')[0].trim();
+    } else {
+      // First upload of a task — prefer Title, fall back to truncated Task text
+      creativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
+    }
+    originalTaskText = item.Task;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.textContent='Uploading...'; btn.disabled=true; setProgress(20);
+
+  try {
+    const formData = new FormData();
+    const safeName = creativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
+    const ext = file.name.split('.').pop();
+    const dropboxPath = `/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
+    formData.append('file', file, file.name);
+    formData.append('dropboxPath', dropboxPath);
     setProgress(40);
-    const uploadRes=await fetch(`${BACKEND}/api/dropbox-upload`,{method:'POST',body:formData});
-    setProgress(70);
-    const uploadData=await uploadRes.json();
-    if(!uploadData.success)throw new Error(uploadData.error||'Upload failed');
-    const fileUrl=uploadData.url||uploadData.path;
-    setProgress(85);
-    const dropPath=uploadData.path||'';
-    const row={Date:new Date().toISOString().split('T')[0],Task:`${name} | ${designer}`,Assignee:client,Status:'Pending Review','Preview Link':fileUrl,'Open File Link':dropPath,Type:'creative'};
-    // Fire-and-forget — no-cors means we can't read the response anyway, so awaiting is pure wasted time
-    fetch(SHEETDB,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({sheet:'Type:tasks', data:[row]}),mode:'no-cors'});
+
+    const uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
+    setProgress(80);
+    const uploadData = await uploadRes.json();
+    if(!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+    const fileUrl = uploadData.url || uploadData.path;
+    const dropPath = uploadData.path || '';
+
+    if (originalTaskText) {
+      // PATCH existing row — no new row created
+      const patchData = isRework
+        ? { Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Notes: '' }
+        : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type: 'creative' };
+      fetch(SHEETDB, {
+        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+        body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
+      });
+    } else {
+      // Ad-hoc → CREATE new row (only path that creates rows now)
+      const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type:'creative' };
+      fetch(SHEETDB, {
+        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+        body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+      });
+    }
+
     setProgress(100);
-    const btn2=document.getElementById('submit-btn');
-    btn2.textContent='✅ Uploaded! Live on portal';
-    btn2.style.background='#22c55e';
-    btn2.style.color='#fff';
-    btn2.disabled=false;
-    setTimeout(()=>{ resetForm(); },1200);
-  }catch(e){
-    showErr('Upload failed: '+e.message);
-    btn.textContent='❌ Upload Failed — Try Again';
-    btn.style.background='#c0392b';
-    btn.style.color='#fff';
-    btn.disabled=false;
-    document.getElementById('progress-bar').style.display='none';
-    setTimeout(()=>{ btn.textContent='⚡ Upload to Portal'; btn.style.background='#FEBC06'; btn.style.color='#000'; },4000);
+    const btn2 = document.getElementById('submit-btn');
+    btn2.textContent = '✅ Uploaded! With Viplav for review';
+    btn2.style.background = '#22c55e';
+    btn2.style.color = '#fff';
+    btn2.disabled = false;
+    setTimeout(() => { resetForm(); }, 1200);
+  } catch(e) {
+    showErr('Upload failed: ' + e.message);
+    btn.textContent = '❌ Upload Failed — Try Again';
+    btn.style.background = '#c0392b';
+    btn.style.color = '#fff';
+    btn.disabled = false;
+    document.getElementById('progress-bar').style.display = 'none';
+    setTimeout(() => { btn.textContent='⚡ Upload to Portal'; btn.style.background='#FEBC06'; btn.style.color='#000'; }, 4000);
   }
 }
 
 function resetForm(){
-  document.getElementById('q-client').value='';
-  document.getElementById('q-name').value='';
-  document.getElementById('q-designer').value='';
-  document.getElementById('q-file').value='';
-  document.getElementById('file-name').style.display='none';
-  document.getElementById('drop-icon').textContent='📎';
-  document.getElementById('drop-text').style.display='block';
-  dz.style.borderColor='#e0ddd8';dz.style.background='';
-  const sb=document.getElementById('submit-btn');
+  document.getElementById('q-designer').value = '';
+  const taskSel = document.getElementById('q-task');
+  taskSel.innerHTML = '<option value="">Select your name first...</option>';
+  taskSel.disabled = true;
+  document.getElementById('q-client').value = '';
+  document.getElementById('q-name').value = '';
+  document.getElementById('creative-name-field').style.display = 'none';
+  document.getElementById('q-file').value = '';
+  document.getElementById('file-name').style.display = 'none';
+  document.getElementById('drop-icon').textContent = '📎';
+  document.getElementById('drop-text').style.display = 'block';
+  dz.style.borderColor = '#e0ddd8'; dz.style.background = '';
+  const sb = document.getElementById('submit-btn');
   sb.textContent='⚡ Upload to Portal';
   sb.style.background='#FEBC06';
   sb.style.color='#000';
