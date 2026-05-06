@@ -423,28 +423,42 @@ function doLogin() {
   errEl.style.display = 'none';
   moodAuto = false; setMood(MOODS[2]);
   setTimeout(() => {
-    currentUser = name;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('sidebar-name').textContent = name;
-    const roles = {
-      Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
-      Faizan:'Graphic Designer', Sandesh:'Graphic Designer', Gayatri:'Graphic Designer',
-      Prathamesh:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
-      Sonal:'Graphic Designer', Vishwanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
-    };
-    document.getElementById('sidebar-role').textContent = roles[name] || 'Team Member';
-    loadTasks();
-    loadAttendance();
-    if(name === 'Viplav') {
-      document.getElementById('review-nav').style.display = 'flex';
-      loadReviews();
-    }
+    try { localStorage.setItem('yv_user', name); } catch(e) {}
+    proceedToApp(name);
   }, 600);
 }
+
+function proceedToApp(name) {
+  currentUser = name;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('sidebar-name').textContent = name;
+  const roles = {
+    Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
+    Faizan:'Graphic Designer', Sandesh:'Graphic Designer', Gayatri:'Graphic Designer',
+    Prathamesh:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
+    Sonal:'Graphic Designer', Vishwanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
+  };
+  document.getElementById('sidebar-role').textContent = roles[name] || 'Team Member';
+  loadTasks();
+  loadAttendance();
+  if(name === 'Viplav') {
+    document.getElementById('review-nav').style.display = 'flex';
+    loadReviews();
+  }
+}
+
+// Auto-restore session on page load if user previously logged in
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const saved = localStorage.getItem('yv_user');
+    if (saved) proceedToApp(saved);
+  } catch(e) {}
+});
 
 
 
 function doLogout() {
+  try { localStorage.removeItem('yv_user'); } catch(e) {}
   currentUser = '';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-select').value = '';
@@ -460,16 +474,16 @@ function showPanel(name) {
 }
 
 // ====== TASKS ======
+const STATUS_SELECT = {
+  'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
+  'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
+  'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+  'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+};
+
 function renderTaskRows(tasks, startIdx) {
   if (!tasks.length) return '<div class="empty-state">No tasks here.</div>';
   const today = new Date().toISOString().split('T')[0];
-
-  const STATUS_SELECT = {
-    'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-    'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-    'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-    'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
-  };
 
   return `
     <div style="display:grid;grid-template-columns:30px 1fr 150px 1fr 80px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
@@ -572,6 +586,9 @@ async function updateStatusFromDropdown(idx, encodedTask) {
   const dd = document.getElementById(`status-dropdown-${idx}`);
   const newStatus = dd.value;
   if (!newStatus) return;
+  // Repaint dropdown colour immediately so the user sees the change without refresh
+  const newStyle = STATUS_SELECT[newStatus] || STATUS_SELECT['Pending'];
+  dd.style.cssText = `font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${newStyle}`;
   try {
     fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
