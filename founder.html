@@ -521,7 +521,7 @@
 <div class="main">
 
 <!-- REMINDER BELL -->
-<div id="reminder-bell" style="position:fixed;top:16px;right:24px;z-index:9000">
+<div id="reminder-bell" style="position:fixed;top:60px;right:24px;z-index:9000">
   <div onclick="toggleReminders()" style="cursor:pointer;background:#fff;border:1px solid #e0ddd8;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.1);position:relative">
     <span style="font-size:18px">🔔</span>
     <span id="reminder-count" style="position:absolute;top:-4px;right:-4px;background:#FEBC06;color:#000;font-size:10px;font-weight:800;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;font-family:'Poppins',sans-serif">0</span>
@@ -628,7 +628,7 @@
             <option value="">Select person</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
           </select>
         </div>
@@ -709,7 +709,7 @@
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 21 May</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:13px;font-weight:700">Vishwanath</div>
+            <div style="font-size:13px;font-weight:700">Vishvanath</div>
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 10 June</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
@@ -983,7 +983,7 @@
             <option value="">Select</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
           </select>
         </div>
@@ -1088,7 +1088,7 @@
             <option value="">Select designer</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Ajay</option>
           </select>
         </div>
@@ -1138,7 +1138,7 @@ const TEAM = {
   Archana: 'archana@yellowproductions.co.in',
   Gauri: 'gauri@perkyowl.com',
   Sonal: 'sonal.j@perkyowl.com',
-  Vishwanath: 'vishvanath@perkyowl.com',
+  Vishvanath: 'vishvanath@perkyowl.com',
   Viplav: 'viplav@yellowproductions.co.in',
   Siddhesh: 'siddhesh@yellowproductions.co.in',
   Kritya: 'kritya@yellowproductions.co.in',
@@ -1184,7 +1184,7 @@ function showPanel(name) {
 // ====== AGENT SYSTEM ======
 let currentAgent = 'ceo';
 const agentSystemPrompts = {
-  ceo: `You are the CEO Agent for Yellow Productions, a production, content and photography agency based in Mumbai. Founder: Suriti Arora. Team: Sandesh (hard working, concepts), Gayatri (precision, slow), Faizan (AI creatives, new age), Prathamesh (AI, depends on Faizan), Archana (real estate, football league), Gauri (versatile), Sonal (moody, good at posters/social when pushed), Vishwanath (adapt jobs, old), Viplav (copywriter, underused, good ideas), Siddhesh (strategy, decks), Kritya (strategy, decks, on leave for bereavement), Ajay (video editor). Also Oman team: Sam (BD). Suriti also runs Perky Owl Designs (Delhi), Yellow Designs SPC (Muscat, Oman - clients Jindal Shadeed, Sohar Steel), Chor Sipahi, and is building The Raas (kirtan spiritual community). Be sharp, strategic, direct. Help Suriti prioritise and make smart decisions.`,
+  ceo: `You are the CEO Agent for Yellow Productions, a production, content and photography agency based in Mumbai. Founder: Suriti Arora. Team: Sandesh (hard working, concepts), Gayatri (precision, slow), Faizan (AI creatives, new age), Prathamesh (AI, depends on Faizan), Archana (real estate, football league), Gauri (versatile), Sonal (moody, good at posters/social when pushed), Vishvanath (adapt jobs, old), Viplav (copywriter, underused, good ideas), Siddhesh (strategy, decks), Kritya (strategy, decks, on leave for bereavement), Ajay (video editor). Also Oman team: Sam (BD). Suriti also runs Perky Owl Designs (Delhi), Yellow Designs SPC (Muscat, Oman - clients Jindal Shadeed, Sohar Steel), Chor Sipahi, and is building The Raas (kirtan spiritual community). Be sharp, strategic, direct. Help Suriti prioritise and make smart decisions.`,
   client: `You are the Client Agent for Yellow Productions. Help draft proposals, follow-up emails, briefs, and client communication. Clients include Jindal Shadeed, Sohar Steel, and other corporate clients in India and Oman. Be professional, warm, and sharp.`,
   content: `You are the Content Agent for Yellow Productions. Write reel scripts, captions, copy, decks, and briefs. Understand the brand: production agency, Mumbai-based, works across India and Middle East. Tone: sharp, creative, confident.`,
   social: `You are the Social Media Agent for Yellow Productions and Suriti Arora's personal brand. @yellowproductions_ is a production/content agency. @suriti is Suriti's personal brand (entrepreneur, design thinker, spiritual, Radha Krishna devotee, building The Raas kirtan community). Give sharp, specific Instagram and LinkedIn strategies. No generic advice.`,
@@ -1620,9 +1620,92 @@ async function loadTasks() {
       .filter(r => r.Type === 'task' || r.Type === '' || !r.Type)
       .map(t => ({ ...t, Date: normalizeDate(t.Date) }));
     renderTasks(allTasks);
+    checkTeamNotifications(allTasks);
   } catch(e) {
     document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
   }
+}
+
+// ========== TEAM NOTIFICATIONS ==========
+// Surfaces (1) ad-hoc tasks added by team members and (2) when a designer clears their queue.
+function checkTeamNotifications(tasks) {
+  const FOUNDER = 'Suriti';
+  let knownSet = [];
+  let lastCounts = {};
+  try { knownSet = JSON.parse(localStorage.getItem('yos-known-team-tasks') || '[]'); } catch(e) {}
+  try { lastCounts = JSON.parse(localStorage.getItem('yos-last-open-counts') || '{}'); } catch(e) {}
+
+  // Notification 1: NEW ad-hoc tasks (added by anyone other than Suriti)
+  const teamTasks = tasks.filter(t => t.Assignee && t.Assignee !== FOUNDER);
+  const knownIds = new Set(knownSet);
+  const newOnes = teamTasks.filter(t => !knownIds.has(taskId(t)));
+
+  // Notification 2: Designers who cleared their queue
+  const openCounts = {};
+  TEAM_LIST.forEach(name => {
+    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done').length;
+  });
+  const cleared = [];
+  TEAM_LIST.forEach(name => {
+    const before = lastCounts[name];
+    const now = openCounts[name];
+    if (typeof before === 'number' && before > 0 && now === 0) {
+      cleared.push({ name, count: before });
+    }
+  });
+
+  // First-ever load — silently capture state, don't alarm the user
+  if (knownSet.length === 0 && Object.keys(lastCounts).length === 0) {
+    localStorage.setItem('yos-known-team-tasks', JSON.stringify(teamTasks.map(taskId)));
+    localStorage.setItem('yos-last-open-counts', JSON.stringify(openCounts));
+    return;
+  }
+
+  if (newOnes.length === 0 && cleared.length === 0) return;
+
+  showTeamNotificationBanner(newOnes, cleared, () => {
+    localStorage.setItem('yos-known-team-tasks', JSON.stringify(teamTasks.map(taskId)));
+    localStorage.setItem('yos-last-open-counts', JSON.stringify(openCounts));
+  });
+}
+
+function taskId(t) {
+  return `${t.Date || ''}|${t.Assignee || ''}|${t.Task || ''}`;
+}
+
+function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
+  // Remove any prior banner
+  const old = document.getElementById('team-notif-banner');
+  if (old) old.remove();
+
+  const items = [];
+
+  if (newOnes.length) {
+    const byPerson = {};
+    newOnes.forEach(t => { byPerson[t.Assignee] = (byPerson[t.Assignee] || 0) + 1; });
+    const summary = Object.entries(byPerson)
+      .map(([n, c]) => `${n} (${c})`).join(', ');
+    items.push(`<div style="font-size:13px;color:#6b5113;line-height:1.5"><strong style="color:#000">📌 ${newOnes.length} new task${newOnes.length>1?'s':''} added by team:</strong> ${summary}</div>`);
+  }
+
+  cleared.forEach(c => {
+    items.push(`<div style="font-size:13px;color:#15803d;line-height:1.5"><strong>🎉 ${c.name} cleared all ${c.count} task${c.count>1?'s':''} — fully done.</strong></div>`);
+  });
+
+  const banner = document.createElement('div');
+  banner.id = 'team-notif-banner';
+  banner.style.cssText = 'background:#fff8e1;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;animation:slideIn 0.3s ease';
+  banner.innerHTML = `
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px">${items.join('')}</div>
+    <button id="dismiss-team-notif" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap">Got it ✓</button>
+  `;
+  // Inject at top of Tasks panel
+  const panel = document.getElementById('panel-tasks');
+  if (panel) panel.insertBefore(banner, panel.firstChild);
+  document.getElementById('dismiss-team-notif').onclick = () => {
+    banner.remove();
+    if (onDismiss) onDismiss();
+  };
 }
 
 function renderTasks(tasks) {
@@ -1678,10 +1761,11 @@ function renderTasks(tasks) {
     </div>`;
   }
 
-  dates.forEach(date => {
+  // Helper that renders the contents of a single date group (header + its tasks)
+  const renderDateGroup = (date) => {
     const total = grouped[date].length;
     const done  = grouped[date].filter(t => t.Status === 'Done').length;
-    html += `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
+    let out = `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>${date}</span>
       <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} done</span>
     </div>`;
@@ -1693,21 +1777,20 @@ function renderTasks(tasks) {
       const desc = t.Task || '';
       const showDesc = title && desc && desc !== title;
       const taskKey = encodeURIComponent(t.Task || '');
-      // Parse Update field — newline-separated entries like "[05-06] note"
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
       const updatesHtml = updateLines.length
         ? `<div style="margin-top:6px;padding-left:0;border-left:2px solid #f0d080;padding-left:8px">
             ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace">📝 ${l}</div>`).join('')}
           </div>` : '';
-      html += `
+      out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:center;font-size:12px;">
-          <div style="font-size:13px;">
+        <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
+          <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div>${title || desc || '—'}
               <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
             </div>
-            ${showDesc ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">${desc}</div>` : ''}
+            ${showDesc ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow-wrap:anywhere;word-break:break-word">${desc}</div>` : ''}
             ${updatesHtml}
             <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
               <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
@@ -1720,17 +1803,72 @@ function renderTasks(tasks) {
           <option ${status==='Done'?'selected':''}>Done</option>
           <option ${status==='On Hold'?'selected':''}>On Hold</option>
         </select>
-        <input type="text" placeholder="Paste ClickUp link" value="${t['Preview Link']||''}"
+        <input type="text" placeholder="Paste link" value="${t['Preview Link']||''}"
           onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-          style="font-size:11px;padding:4px 6px;">
+          style="font-size:11px;padding:4px 6px;min-width:0;width:100%;text-overflow:ellipsis">
         <span>${link}</span>
         <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
           class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px">✕</button>
         </div>
       </div>`;
     });
+    return out;
+  };
+
+  // Group dates by month
+  const monthGroups = {};
+  dates.forEach(d => {
+    const m = (d || 'No date').substring(0, 7);
+    if (!monthGroups[m]) monthGroups[m] = [];
+    monthGroups[m].push(d);
+  });
+  const months = Object.keys(monthGroups).sort((a,b) => b.localeCompare(a));
+  const currentMonthKey = new Date().toISOString().substring(0, 7);
+
+  months.forEach(m => {
+    const isCurrent = m === currentMonthKey;
+    const monthDates = monthGroups[m];
+    const totalTasks = monthDates.reduce((s,d) => s + grouped[d].length, 0);
+    const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Done').length, 0);
+    let monthLabel;
+    try {
+      monthLabel = new Date(m + '-01').toLocaleDateString('en-IN', {month: 'long', year: 'numeric'});
+    } catch(e) { monthLabel = m; }
+
+    if (isCurrent) {
+      html += `<div style="font-size:13px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:0.05em;margin:18px 0 10px;padding:8px 0;border-bottom:2px solid #FEBC06;display:flex;justify-content:space-between;align-items:center">
+        <span>📂 ${monthLabel} — Active</span>
+        <span style="font-size:11px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${totalDone}/${totalTasks} done</span>
+      </div>`;
+      monthDates.forEach(d => { html += renderDateGroup(d); });
+    } else {
+      html += `<div onclick="toggleMonth('${m}')" style="cursor:pointer;background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fef9ef'">
+        <div>
+          <span style="font-size:18px;margin-right:8px">📁</span>
+          <strong style="font-size:14px">${monthLabel}</strong>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:'DM Mono',monospace">${totalTasks} task${totalTasks!==1?'s':''} · ${totalDone} done</span>
+        </div>
+        <span id="month-arrow-${m}" style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">▼ expand</span>
+      </div>
+      <div id="month-content-${m}" style="display:none;padding:0 4px 14px">
+        ${monthDates.map(d => renderDateGroup(d)).join('')}
+      </div>`;
+    }
   });
   el.innerHTML = html;
+}
+
+function toggleMonth(monthKey) {
+  const content = document.getElementById('month-content-' + monthKey);
+  const arrow = document.getElementById('month-arrow-' + monthKey);
+  if (!content) return;
+  if (content.style.display === 'none' || !content.style.display) {
+    content.style.display = 'block';
+    if (arrow) arrow.textContent = '▲ collapse';
+  } else {
+    content.style.display = 'none';
+    if (arrow) arrow.textContent = '▼ expand';
+  }
 }
 
 async function addUpdate(encodedTask, inputEl) {
@@ -2380,7 +2518,7 @@ const HOLIDAYS_2026 = [
   { date: '2026-05-01', name: 'Maharashtra Day', type: 'fixed' },
   { date: '2026-05-07', name: '🎂 Sandesh', type: 'sol' },
   { date: '2026-05-21', name: '🎂 Archana', type: 'sol' },
-  { date: '2026-06-10', name: '🎂 Vishwanath', type: 'sol' },
+  { date: '2026-06-10', name: '🎂 Vishvanath', type: 'sol' },
   { date: '2026-07-08', name: '🎂 Ajay', type: 'sol' },
   { date: '2026-08-09', name: 'Rakhi', type: 'optional' },
   { date: '2026-08-15', name: 'Independence Day', type: 'fixed' },
@@ -2460,7 +2598,7 @@ function renderCalendar() {
 const SALARIES = {
   Gauri: 140000, Sandesh: 100000, Archana: 140000,
   Prathamesh: 40000, Siddhesh: 60000, Kritya: 100000,
-  Gayatri: 80000, Vishwanath: 70000, Sonal: 60000,
+  Gayatri: 80000, Vishvanath: 70000, Sonal: 60000,
   Viplav: 112201, Faizan: 75000, Ajay: 80000
 };
 
