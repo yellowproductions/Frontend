@@ -1259,16 +1259,9 @@ function currentSession() {
 }
 
 function startNewChat(agent) {
-  const id = 's_' + Date.now();
-  const session = {
-    id, agent,
-    title: 'New ' + AGENT_LABELS[agent].name + ' chat',
-    history: [],
-    display: [],
-    updatedAt: Date.now()
-  };
-  chatSessions.unshift(session);
-  currentSessionId = id;
+  // Don't create a session yet — wait until first message is sent.
+  // This keeps Recents clean and shows a fresh chat space when reopening an agent.
+  currentSessionId = null;
   currentAgent = agent;
   saveSessions();
   renderChat();
@@ -1407,15 +1400,27 @@ async function sendChat() {
   const msg = input.value.trim();
   if(!msg) return;
 
-  // If no current session, can't send (user needs to pick an agent first)
+  // If no current session — create one NOW (lazy creation on first send)
   let s = currentSession();
   if (!s) {
-    alert('Pick an agent above to start a chat.');
-    return;
+    if (!currentAgent) {
+      alert('Pick an agent above to start a chat.');
+      return;
+    }
+    const id = 's_' + Date.now();
+    s = {
+      id, agent: currentAgent,
+      title: msg.substring(0, 50),
+      history: [],
+      display: [],
+      updatedAt: Date.now()
+    };
+    chatSessions.unshift(s);
+    currentSessionId = id;
   }
   input.value = '';
 
-  // Stamp the session title from the first user message (truncated)
+  // Update title from first user message if not set yet
   if (!s.display.some(m => m.role === 'user')) {
     s.title = msg.substring(0, 50);
   }
@@ -2189,8 +2194,8 @@ async function renderReview() {
     }
 
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 150px 90px 70px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
-        <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span>
+      <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
+        <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span><span></span>
       </div>
       ${creatives.map(c => {
         const parts = c.Task.split('|');
@@ -2203,8 +2208,9 @@ async function renderReview() {
         const linkBtn = c['Preview Link']
           ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
           : '<span style="color:var(--muted);font-size:11px">—</span>';
+        const safeTask = encodeURIComponent(c.Task);
         return `
-          <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 150px 90px 70px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
             <div>
               <div style="font-weight:600">${name}</div>
               ${notes ? `<div style="font-size:11px;color:#991b1b;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
@@ -2214,10 +2220,26 @@ async function renderReview() {
             <span style="background:${pill.bg};color:${pill.color};border:1px solid ${pill.border};padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-align:center">${pill.label}</span>
             <span style="color:var(--muted);font-size:11px">${c.Date || '—'}</span>
             ${linkBtn}
+            <button onclick="deleteReview('${safeTask}', '${(name || '').replace(/'/g, "\\'")}')" title="Delete from sheet" style="background:transparent;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:4px" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">🗑️</button>
           </div>`;
       }).join('')}`;
   } catch(e) {
     el.innerHTML = '<div class="empty-state">Could not load creatives.</div>';
+  }
+}
+
+async function deleteReview(encodedTask, name) {
+  const task = decodeURIComponent(encodedTask);
+  if (!confirm(`Delete "${name}" from the review pipeline? This removes the row from the sheet.`)) return;
+  try {
+    fetch(SHEETDB_URL, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action: 'delete', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task })
+    });
+    // Optimistic UI — remove from view immediately
+    setTimeout(renderReview, 600);
+  } catch(e) {
+    alert('Could not delete. Try again.');
   }
 }
 
@@ -2600,7 +2622,7 @@ renderCalendar();
 </div><!-- end main-app -->
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;top:16px;right:20px;z-index:999999;pointer-events:all;width:36px;height:36px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;" title="Go to Yellowverse"></a>
+<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Yellowverse home">⌂</a>
 
 </body>
 </html>
