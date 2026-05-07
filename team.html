@@ -266,6 +266,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
+  <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
   <div class="nav-item" id="review-nav" style="display:none" onclick="showPanel('review')"><span>🎨</span> Review <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px" id="review-badge"></span></div>
   <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)">
     <button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%">Logout</button>
@@ -331,6 +332,21 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="card">
       <div class="card-title">My Leave History</div>
       <div id="leave-history"><div class="empty-state">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR — team-wide visibility -->
+  <div class="panel" id="panel-calendar">
+    <div class="panel-title">📅 Team Calendar</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">All public holidays, optional offs, and team birthdays. Your own approved leaves shown in blue (private — only you see these).</p>
+
+    <div id="calendar-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px"></div>
+
+    <div style="margin-top:18px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;flex-wrap:wrap;gap:18px;font-size:11px">
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;background:var(--yellow);border-radius:3px;display:inline-block"></span> Fixed holiday</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;background:#dcfce7;border-radius:3px;display:inline-block"></span> Optional</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;background:#fce7f3;border-radius:3px;display:inline-block"></span> Birthday</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;background:#dbeafe;border-radius:3px;display:inline-block"></span> Your leave</span>
     </div>
   </div>
 
@@ -476,6 +492,125 @@ function showPanel(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
+  if (name === 'calendar') renderCalendar();
+}
+
+// ====== CALENDAR ======
+const HOLIDAYS_2026 = [
+  { date: '2026-01-01', name: "New Year's Day", type: 'fixed' },
+  { date: '2026-01-26', name: 'Republic Day', type: 'fixed' },
+  { date: '2026-02-01', name: '🎂 Sam', type: 'sol' },
+  { date: '2026-03-03', name: 'Holi', type: 'fixed' },
+  { date: '2026-03-19', name: 'Gudi Padwa', type: 'optional' },
+  { date: '2026-03-31', name: 'Eid ul-Fitr', type: 'optional' },
+  { date: '2026-04-03', name: 'Good Friday', type: 'fixed' },
+  { date: '2026-04-21', name: '🎂 Faizan', type: 'sol' },
+  { date: '2026-05-01', name: 'Maharashtra Day', type: 'fixed' },
+  { date: '2026-05-07', name: '🎂 Sandesh', type: 'sol' },
+  { date: '2026-05-21', name: '🎂 Archana', type: 'sol' },
+  { date: '2026-06-10', name: '🎂 Vishwanath', type: 'sol' },
+  { date: '2026-07-08', name: '🎂 Ajay', type: 'sol' },
+  { date: '2026-08-09', name: 'Rakhi', type: 'optional' },
+  { date: '2026-08-15', name: 'Independence Day', type: 'fixed' },
+  { date: '2026-08-16', name: 'Janmashtami 🙏', type: 'fixed' },
+  { date: '2026-08-19', name: 'Ganesh Chaturthi', type: 'fixed' },
+  { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
+  { date: '2026-09-09', name: '🎂 Viplav', type: 'sol' },
+  { date: '2026-09-27', name: '🎂 Prathamesh', type: 'sol' },
+  { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
+  { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
+  { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
+  { date: '2026-10-20', name: 'Diwali ✨', type: 'fixed' },
+  { date: '2026-10-22', name: 'Bhai Dooj', type: 'optional' },
+  { date: '2026-11-21', name: '🎂 Siddhesh', type: 'sol' },
+  { date: '2026-12-14', name: '🎂 Sonal', type: 'sol' },
+  { date: '2026-12-25', name: 'Christmas', type: 'fixed' },
+];
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let _leavesCache = null;
+async function fetchLeaves() {
+  try {
+    const res = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+    const raw = await res.json();
+    const data = Array.isArray(raw) ? raw.map(r => ({ ...r, Date: normalizeDate(r.Date) })) : [];
+    // Approved leaves for the CURRENT user only — leaves are private
+    return data.filter(r =>
+      r.Type === 'leave' &&
+      r.Assignee === currentUser &&
+      (r.Status === 'Approved' || r.Status === 'approved')
+    );
+  } catch(e) { return []; }
+}
+
+async function renderCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  if (!grid) return;
+  if (!_leavesCache) _leavesCache = await fetchLeaves();
+  const leaves = _leavesCache;
+
+  // Map leaves by date string -> Set of names (Set dedupes if sheet has duplicate rows)
+  const leaveMap = {};
+  leaves.forEach(l => {
+    const leaveDate = normalizeDate(l.Title) || normalizeDate(l.Date);
+    if (!leaveDate) return;
+    if (!leaveMap[leaveDate]) leaveMap[leaveDate] = new Set();
+    leaveMap[leaveDate].add(l.Assignee || '?');
+  });
+  // Convert Sets back to arrays for rendering
+  Object.keys(leaveMap).forEach(d => { leaveMap[d] = [...leaveMap[d]]; });
+
+  let html = '';
+  for (let m = 0; m < 12; m++) {
+    const monthHolidays = HOLIDAYS_2026.filter(h => new Date(h.date).getMonth() === m);
+    const firstDay = new Date(2026, m, 1).getDay();
+    const daysInMonth = new Date(2026, m+1, 0).getDate();
+
+    const dayMap = {};
+    monthHolidays.forEach(h => { dayMap[new Date(h.date).getDate()] = h; });
+
+    html += `<div style="background:var(--surface,#fff);border:1px solid var(--border);border-radius:8px;padding:14px">
+      <div style="font-size:13px;font-weight:800;color:var(--yellow,#FEBC06);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">${MONTH_NAMES[m]}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">
+        ${['S','M','T','W','T','F','S'].map(d => `<div style="font-size:9px;color:var(--muted);text-align:center;font-weight:700">${d}</div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+        ${Array(firstDay).fill('<div></div>').join('')}
+        ${Array.from({length: daysInMonth}, (_,i) => {
+          const day = i+1;
+          const dayStr = `2026-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const holiday = dayMap[day];
+          const onLeave = leaveMap[dayStr];
+          const today = new Date();
+          const isToday = today.getFullYear() === 2026 && today.getMonth() === m && today.getDate() === day;
+          let bg = 'transparent';
+          let color = 'var(--muted)';
+          let title = '';
+          if (onLeave) {
+            bg = '#dbeafe'; color = '#1e40af';
+            title = `title="You're on leave this day"`;
+          }
+          if (holiday) {
+            bg = holiday.type === 'fixed' ? 'var(--yellow,#FEBC06)' : holiday.type === 'optional' ? '#dcfce7' : '#fce7f3';
+            color = holiday.type === 'fixed' ? '#000' : holiday.type === 'optional' ? '#15803d' : '#be185d';
+            title = `title="${holiday.type === 'optional' ? 'O — ' : holiday.type === 'sol' ? 'SOL — ' : ''}${holiday.name}${onLeave?` · You're on leave`:''}"`;
+          }
+          if (isToday && !holiday && !onLeave) { bg = '#f5f5f4'; color = 'var(--text)'; }
+          return `<div ${title} style="font-size:10px;text-align:center;padding:3px 1px;border-radius:3px;background:${bg};color:${color};font-weight:${holiday||onLeave?'700':'400'};cursor:${holiday||onLeave?'pointer':'default'};border:${isToday?'1px solid var(--yellow,#FEBC06)':'none'}">${day}</div>`;
+        }).join('')}
+      </div>
+      ${monthHolidays.length || Object.keys(leaveMap).filter(d => d.startsWith(`2026-${String(m+1).padStart(2,'0')}`)).length ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">
+        ${monthHolidays.map(h => `<div style="font-size:10px;color:${h.type==='fixed'?'#a07a1f':h.type==='optional'?'#15803d':'#be185d'};margin-bottom:2px">
+          ${h.type==='optional'?'O — ':h.type==='sol'?'SOL — ':''}${h.name}
+        </div>`).join('')}
+        ${Object.entries(leaveMap).filter(([d]) => d.startsWith(`2026-${String(m+1).padStart(2,'0')}`)).map(([d, names]) => `
+          <div style="font-size:10px;color:#1e40af;margin-bottom:2px">📍 ${d.substring(8)}: You're on leave</div>
+        `).join('')}
+      </div>` : ''}
+    </div>`;
+  }
+  grid.innerHTML = html;
 }
 
 // ====== TASKS ======
@@ -1020,7 +1155,7 @@ document.getElementById('leave-from').value = new Date().toISOString().split('T'
 
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;top:16px;right:20px;z-index:999999;pointer-events:all;width:36px;height:36px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;" title="Go to Yellowverse"></a>
+<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Yellowverse"></a>
 
 </body>
 </html>
