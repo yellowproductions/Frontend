@@ -242,7 +242,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <option value="">Select your name...</option>
       <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
       <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-      <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+      <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
       <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
     </select>
     <input type="password" id="login-password" placeholder="Password..." onkeydown="if(event.key==='Enter')doLogin()">
@@ -286,10 +286,33 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <!-- PENDING / IN PROGRESS — always visible -->
+    <!-- ADD QUICK TASK — for ad-hoc client requests or self-assigned tasks -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin:0">➕ Add a Task</div>
+        <span style="font-size:11px;color:var(--muted)">For ad-hoc / direct client requests</span>
+      </div>
+      <div style="display:grid;grid-template-columns:120px 1fr 1.5fr 90px;gap:8px;align-items:end">
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Date</label>
+          <input type="date" id="quick-task-date" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Title</label>
+          <input type="text" id="quick-task-title" placeholder="Short title" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Description</label>
+          <input type="text" id="quick-task-desc" placeholder="What's the brief? (optional)" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="addQuickTask()" id="quick-task-btn" style="height:34px">Add</button>
+      </div>
+    </div>
+
     <div class="card" id="card-open-tasks">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="card-title" style="margin:0;color:var(--yellow)">⚠️ Open Tasks</div>
-        <span style="font-size:11px;color:var(--muted)">Pending &amp; In Progress across all dates</span>
+        <div class="card-title" style="margin:0;color:var(--yellow)">⚠️ This month</div>
+        <span style="font-size:11px;color:var(--muted)">Open tasks · past months in archive below</span>
       </div>
       <div id="tasks-open"><div class="empty-state">Loading...</div></div>
     </div>
@@ -424,10 +447,10 @@ function onMonsterName() {
 }
 
 const TEAM_PASSWORDS = {
-  Faizan: 'Faizan2104', Sandesh: 'Sandesh0705', Archana: 'Archana2105',
-  Vishwanath: 'Vishvanath1006', Ajay: 'Ajay0807', Kritya: 'Kritya2008',
-  Viplav: 'Viplav0909', Prathamesh: 'Prathamesh2709', Gauri: 'Gauri1710',
-  Siddhesh: 'Siddhesh2111', Sonal: 'Sonal1412', Gayatri: 'Gayatri0410', Sam: 'Sam0102'
+  Faizan: 'faizan47', Sandesh: 'sandesh82', Archana: 'archana19',
+  Vishvanath: 'vishvanath63', Ajay: 'ajay25', Kritya: 'kritya71',
+  Viplav: 'viplav58', Prathamesh: 'prathamesh34', Gauri: 'gauri96',
+  Siddhesh: 'siddhesh12', Sonal: 'sonal88', Gayatri: 'gayatri51', Sam: 'sam77'
 };
 
 function doLogin() {
@@ -457,9 +480,12 @@ function proceedToApp(name) {
     Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
     Faizan:'Graphic Designer', Sandesh:'Graphic Designer', Gayatri:'Graphic Designer',
     Prathamesh:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
-    Sonal:'Graphic Designer', Vishwanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
+    Sonal:'Graphic Designer', Vishvanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
   };
   document.getElementById('sidebar-role').textContent = roles[name] || 'Team Member';
+  // Default the quick-add task date to today
+  const qd = document.getElementById('quick-task-date');
+  if (qd) qd.value = new Date().toISOString().split('T')[0];
   loadTasks();
   loadAttendance();
   if(name === 'Viplav') {
@@ -508,7 +534,7 @@ const HOLIDAYS_2026 = [
   { date: '2026-05-01', name: 'Maharashtra Day', type: 'fixed' },
   { date: '2026-05-07', name: '🎂 Sandesh', type: 'sol' },
   { date: '2026-05-21', name: '🎂 Archana', type: 'sol' },
-  { date: '2026-06-10', name: '🎂 Vishwanath', type: 'sol' },
+  { date: '2026-06-10', name: '🎂 Vishvanath', type: 'sol' },
   { date: '2026-07-08', name: '🎂 Ajay', type: 'sol' },
   { date: '2026-08-09', name: 'Rakhi', type: 'optional' },
   { date: '2026-08-15', name: 'Independence Day', type: 'fixed' },
@@ -613,6 +639,45 @@ async function renderCalendar() {
   grid.innerHTML = html;
 }
 
+// ====== QUICK TASK (designer self-add) ======
+async function addQuickTask() {
+  const dateEl = document.getElementById('quick-task-date');
+  const titleEl = document.getElementById('quick-task-title');
+  const descEl = document.getElementById('quick-task-desc');
+  const btn = document.getElementById('quick-task-btn');
+  const date = dateEl.value;
+  const title = titleEl.value.trim();
+  const desc = descEl.value.trim();
+
+  if (!date) { alert('Pick a date.'); return; }
+  if (!title) { alert('Add a title.'); return; }
+
+  btn.textContent = '...'; btn.disabled = true;
+  try {
+    const row = {
+      Date: date,
+      Title: title,
+      Task: desc || title,
+      Assignee: currentUser,
+      Status: 'Pending',
+      Type: 'task'
+    };
+    fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+    });
+    btn.textContent = '✓ Added'; btn.style.background = '#22c55e'; btn.style.color = '#fff';
+    titleEl.value = ''; descEl.value = '';
+    setTimeout(() => {
+      btn.textContent = 'Add'; btn.disabled = false; btn.style.background = ''; btn.style.color = '';
+      loadTasks();
+    }, 900);
+  } catch(e) {
+    btn.textContent = '✕ Error'; btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Add'; }, 2000);
+  }
+}
+
 // ====== TASKS ======
 const STATUS_SELECT = {
   'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
@@ -647,16 +712,16 @@ function renderTaskRows(tasks, startIdx) {
       return `
       <div style="display:grid;grid-template-columns:30px 1fr 130px 1fr 1fr 70px;gap:8px;align-items:start;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;">
         <span style="color:var(--muted);font-size:12px;padding-top:2px">${idx+1}</span>
-        <div>
+        <div style="min-width:0;overflow-wrap:anywhere">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
             <span style="font-weight:500">${titleText}</span>${dateBadge}
           </div>
-          ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5">${descText}</div>` : ''}
+          ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
           ${updateLines.length ? `<div style="margin-top:6px;border-left:2px solid #f0d080;padding-left:8px">
-            ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace">📝 ${l}</div>`).join('')}
+            ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace;overflow-wrap:anywhere">📝 ${l}</div>`).join('')}
           </div>` : ''}
         </div>
-        <div>
+        <div style="min-width:0">
           <select id="status-dropdown-${idx}" style="font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
@@ -664,8 +729,8 @@ function renderTaskRows(tasks, startIdx) {
             <option ${status==='On Hold'?'selected':''}>On Hold</option>
           </select>
         </div>
-        <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Final / Dropbox / Drive" style="font-size:12px;padding:5px 8px">
-        <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Source file link (PSD/AI/Figma)" style="font-size:12px;padding:5px 8px">
+        <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:12px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
+        <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:12px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
         <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')">Save</button>
       </div>`;
     }).join('')}`;
@@ -695,23 +760,67 @@ async function loadTasks() {
       t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
     );
 
-    // Open tasks = Pending or In Progress or On Hold, any date
     const today = new Date().toISOString().split('T')[0];
-    const open = all.filter(t => {
-      const s = t.Status || 'Pending';
-      return s === 'Pending' || s === 'In Progress' || s === 'On Hold';
-    }).sort((a, b) => {
-      // Today first, then most recent, then older
-      const aToday = a.Date === today ? 0 : 1;
-      const bToday = b.Date === today ? 0 : 1;
-      if (aToday !== bToday) return aToday - bToday;
+    const currentMonth = today.substring(0, 7); // YYYY-MM
+
+    // Sort all tasks: today first, then most recent date
+    const sorted = [...all].sort((a, b) => {
+      const aT = a.Date === today ? 0 : 1;
+      const bT = b.Date === today ? 0 : 1;
+      if (aT !== bT) return aT - bT;
       return new Date(b.Date) - new Date(a.Date);
     });
 
-    document.getElementById('tasks-open').innerHTML = open.length
-      ? renderTaskRows(open, 0)
-      : '<div class="empty-state" style="color:var(--green)">✅ All caught up! No open tasks.</div>';
+    // Split: current-month OPEN tasks shown at top, everything else grouped into month folders (incl. done)
+    const currentOpen = sorted.filter(t => {
+      const s = t.Status || 'Pending';
+      const m = (t.Date || '').substring(0, 7);
+      return m === currentMonth && (s === 'Pending' || s === 'In Progress' || s === 'On Hold');
+    });
+    const archived = sorted.filter(t => !currentOpen.includes(t));
 
+    // Group archived tasks by month (YYYY-MM)
+    const byMonth = {};
+    archived.forEach(t => {
+      const m = (t.Date || 'No date').substring(0, 7) || 'No date';
+      if (!byMonth[m]) byMonth[m] = [];
+      byMonth[m].push(t);
+    });
+    const archivedMonths = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
+
+    let html = '';
+    // Current month open tasks
+    if (currentOpen.length) {
+      html += renderTaskRows(currentOpen, 0);
+    } else {
+      html += '<div class="empty-state" style="color:var(--green)">✅ All caught up! No open tasks for this month.</div>';
+    }
+
+    // Archive folders below
+    if (archivedMonths.length) {
+      html += `<div style="margin-top:24px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:10px">📁 Archive</div>`;
+      archivedMonths.forEach(m => {
+        const monthTasks = byMonth[m];
+        let monthLabel;
+        try {
+          monthLabel = m === 'No date' ? 'No date' : new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+        } catch(e) { monthLabel = m; }
+        const doneCount = monthTasks.filter(t => (t.Status === 'Done' || t.Status === 'done')).length;
+        html += `<details style="background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">
+          <summary style="cursor:pointer;padding:12px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <span><span style="font-size:16px;margin-right:8px">📁</span><strong>${monthLabel}</strong>
+              <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:'DM Mono',monospace">${monthTasks.length} task${monthTasks.length!==1?'s':''} · ${doneCount} done</span>
+            </span>
+            <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">▼</span>
+          </summary>
+          <div style="padding:0 14px 14px;background:#fff">${renderTaskRows(monthTasks, 1000 + archivedMonths.indexOf(m) * 100)}</div>
+        </details>`;
+      });
+      html += '</div>';
+    }
+
+    document.getElementById('tasks-open').innerHTML = html;
     loadChanges();
   } catch(e) {
     document.getElementById('tasks-open').innerHTML = '<div class="empty-state">Error loading tasks.</div>';
@@ -1064,7 +1173,7 @@ async function submitReview(idx, action) {
     Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
     Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
     Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
-    Sonal:'sonal.j@perkyowl.com', Vishwanath:'vishvanath@perkyowl.com',
+    Sonal:'sonal.j@perkyowl.com', Vishvanath:'vishvanath@perkyowl.com',
     Siddhesh:'siddhesh@yellowproductions.co.in', Ajay:'ajay@yellowproductions.co.in'
   };
 
