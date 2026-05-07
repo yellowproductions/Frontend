@@ -699,58 +699,81 @@ async function submitAction(uid, folder, idx, action) {
   const fileDropboxPath = item['Preview Link'] || null; // Dropbox path stored here if uploaded via Quick Upload
 
   try {
-    if (action === 'Rejected') {
-      await fetch(GAS_URL, {
-        method: 'DELETE', headers: {'Content-Type':'application/json'}
-      });
-      allCreatives = allCreatives.filter(c => c.Task !== item.Task);
-    } else {
-      await fetch(SHEETDB, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: action, 'Open File Link': comment } })
-      });
-      item.Status = action;
-      item['Open File Link'] = comment;
+    // Map client action → sheet status
+    // Approve → Status: Approved (file moves to client's permanent folder)
+    // Reject  → Status: Sent Back (designer sees in Changes tab + feedback in Notes)
+    // Comment → Status stays Client Review, feedback added to Notes
+    const statusMap = {
+      'Approved': 'Approved',
+      'Rejected': 'Sent Back',
+      'Comment':  'Client Review'
+    };
+    const newStatus = statusMap[action] || action;
+    const patchData = action === 'Comment' || action === 'Rejected'
+      ? { Status: newStatus, Notes: comment }
+      : { Status: newStatus };
 
-      // On approval — move file in Dropbox to Creatives/Approved folder
-      if (action === 'Approved' && fileDropboxPath) {
-        try {
-          await fetch(`${BACKEND}/api/dropbox-move`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fromPath: fileDropboxPath,
-              toFolder: getCreativesFolder(folder)
-            })
-          });
-        } catch(e) {
-          console.log('Dropbox move failed (non-critical):', e.message);
-        }
+    // Use text/plain + no-cors so Apps Script accepts the POST without CORS preflight
+    fetch(SHEETDB, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain'},
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: patchData })
+    });
+
+    // Optimistic local state update
+    item.Status = newStatus;
+    if (patchData.Notes) item.Notes = patchData.Notes;
+    if (action === 'Rejected') {
+      // Remove from the client's view immediately
+      allCreatives = allCreatives.filter(c => c.Task !== item.Task);
+    }
+
+    // On approval — move file in Dropbox to client's permanent Creatives folder
+    if (action === 'Approved' && fileDropboxPath) {
+      try {
+        fetch(`${BACKEND}/api/dropbox-move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fromPath: fileDropboxPath,
+            toFolder: getCreativesFolder(folder)
+          })
+        });
+      } catch(e) {
+        console.log('Dropbox move skipped (non-critical):', e.message);
       }
     }
 
     // Email designer for Comment and Rejected
     if (designerEmail && (action === 'Comment' || action === 'Rejected')) {
-      await emailjs.send(EJS_SVC, EJS_TPL, {
-        to_email: designerEmail, to_name: designerName,
-        task_name: `${action === 'Rejected' ? '❌ Rejected' : '💬 Feedback'}: ${cName}`,
-        task_list: `Action: ${action}\nFeedback: ${comment || 'No comments.'}\nBy: ${currentUser} (Jindal)\nDate: ${new Date().toLocaleDateString('en-IN')}`,
-        task_date: new Date().toLocaleDateString('en-IN')
-      });
+      try {
+        await emailjs.send(EJS_SVC, EJS_TPL, {
+          to_email: designerEmail, to_name: designerName,
+          task_name: `${action === 'Rejected' ? '❌ Rejected' : '💬 Feedback'}: ${cName}`,
+          task_list: `Action: ${action}\nFeedback: ${comment || 'No comments.'}\nBy: ${currentUser} (Jindal)\nDate: ${new Date().toLocaleDateString('en-IN')}`,
+          task_date: new Date().toLocaleDateString('en-IN')
+        });
+      } catch(e) { console.log('Designer email skipped:', e.message); }
     }
 
     // Always notify Suriti
-    await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
-      task_name: `Jindal ${action}: ${cName}`,
-      task_list: `Action: ${action}\nFeedback: ${comment||'None'}\nBy: ${currentUser}\nDesigner: ${designerName}`,
-      task_date: new Date().toLocaleDateString('en-IN')
-    });
+    try {
+      await emailjs.send(EJS_SVC, EJS_TPL, {
+        to_email: 'creative@yellowproductions.co.in', to_name: 'Suriti',
+        task_name: `Jindal ${action}: ${cName}`,
+        task_list: `Action: ${action}\nFeedback: ${comment||'None'}\nBy: ${currentUser}\nDesigner: ${designerName}`,
+        task_date: new Date().toLocaleDateString('en-IN')
+      });
+    } catch(e) { console.log('Suriti email skipped:', e.message); }
 
-    const msgs = { Approved:'✅ Approved and moved to Creatives folder!', Comment:'💬 Feedback sent to designer!', Rejected:'❌ Rejected and removed.' };
+    const msgs = { Approved:'✅ Approved and moved to Creatives folder!', Comment:'💬 Feedback sent to designer!', Rejected:'❌ Sent back to designer with feedback.' };
     toast(msgs[action]);
     renderFolder(folder);
-  } catch(e) { alert('Error. Please try again.'); }
+  } catch(e) {
+    console.error('Submit action error:', e);
+    alert('Could not save. Please try again.');
+  }
 }
 
 function switchTab(tabId, btn) {
