@@ -237,9 +237,9 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
         <div class="field">
           <label>File</label>
           <div class="drop-zone" id="drop-zone">
-            <input type="file" id="q-file" accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
+            <input type="file" id="q-file" multiple accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
             <div class="drop-icon" id="drop-icon">📎</div>
-            <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong></div>
+            <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">Pick one file or several at once</span></div>
             <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px"></div>
           </div>
         </div>
@@ -278,13 +278,22 @@ setInterval(()=>fetch(BACKEND+'/health').catch(()=>{}),10*60*1000);
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#FEBC06';dz.style.background='#fffbf0';});
 dz.addEventListener('dragleave',()=>{dz.style.borderColor='#e0ddd8';dz.style.background='';});
-dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#e0ddd8';dz.style.background='';const f=e.dataTransfer.files[0];if(f){document.getElementById('q-file').files=e.dataTransfer.files;handleFile(null,f);}});
+dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#e0ddd8';dz.style.background='';const fs=e.dataTransfer.files;if(fs && fs.length){document.getElementById('q-file').files=fs;handleFile(document.getElementById('q-file'));}});
 
 function handleFile(input,file){
-  const f=file||input.files[0];if(!f)return;
-  document.getElementById('file-name').textContent='📄 '+f.name+' ('+(f.size/1024/1024).toFixed(1)+'MB)';
-  document.getElementById('file-name').style.display='block';
-  document.getElementById('drop-icon').textContent='✅';
+  const files = input ? input.files : (file ? [file] : []);
+  if(!files.length)return;
+  const totalSize = Array.from(files).reduce((s,f)=>s+f.size,0);
+  const sizeMB = (totalSize/1024/1024).toFixed(1);
+  const nameEl = document.getElementById('file-name');
+  if (files.length === 1) {
+    nameEl.innerHTML = '📄 '+files[0].name+' ('+sizeMB+'MB)';
+  } else {
+    const list = Array.from(files).map(f => `• ${f.name}`).join('<br>');
+    nameEl.innerHTML = `<strong>📄 ${files.length} files (${sizeMB}MB total)</strong><div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;text-align:left">${list}</div>`;
+  }
+  nameEl.style.display='block';
+  document.getElementById('drop-icon').textContent=files.length===1?'✅':'📚';
   document.getElementById('drop-text').style.display='none';
   dz.style.borderColor='#FEBC06';
 }
@@ -367,7 +376,8 @@ async function submitUpload(){
   const designer = document.getElementById('q-designer').value;
   const taskVal = document.getElementById('q-task').value;
   const client = document.getElementById('q-client').value;
-  const file = document.getElementById('q-file').files[0];
+  const filesEl = document.getElementById('q-file');
+  const files = filesEl.files;
   const isAdhoc = taskVal === 'adhoc';
   const adhocName = document.getElementById('q-name').value.trim();
 
@@ -375,77 +385,98 @@ async function submitUpload(){
   if (!taskVal) { showErr('Please select a task.'); return; }
   if (isAdhoc && !adhocName) { showErr('Please enter a creative name.'); return; }
   if (!client) { showErr('Please select a client.'); return; }
-  if (!file) { showErr('Please select a file.'); return; }
+  if (!files || !files.length) { showErr('Please select at least one file.'); return; }
 
-  // Figure out the creative name + the row to patch (if any)
-  let creativeName, originalTaskText = null, isRework = false;
+  // Determine base creative name + whether we'll patch an existing task row
+  let baseCreativeName, originalTaskText = null, isRework = false;
   if (isAdhoc) {
-    creativeName = adhocName;
+    baseCreativeName = adhocName;
   } else {
     const item = myTasks[parseInt(taskVal)];
     if (!item) { showErr('Task not found. Try refreshing.'); return; }
     isRework = item.Type === 'creative';
     if (isRework) {
-      // Existing creative being reworked — keep the same name
-      creativeName = (item.Task || '').split('|')[0].trim();
+      baseCreativeName = (item.Task || '').split('|')[0].trim();
     } else {
-      // First upload of a task — prefer Title, fall back to truncated Task text
-      creativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
+      baseCreativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
     }
     originalTaskText = item.Task;
   }
 
   const btn = document.getElementById('submit-btn');
-  btn.textContent='Uploading...'; btn.disabled=true; setProgress(20);
+  btn.disabled = true;
+  setProgress(5);
 
-  try {
-    const formData = new FormData();
-    const safeName = creativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-    const ext = file.name.split('.').pop();
-    const dropboxPath = `/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
-    formData.append('file', file, file.name);
-    formData.append('dropboxPath', dropboxPath);
-    setProgress(40);
+  const total = files.length;
+  let successCount = 0;
+  const errors = [];
 
-    const uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
-    setProgress(80);
-    const uploadData = await uploadRes.json();
-    if(!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
-    const fileUrl = uploadData.url || uploadData.path;
-    const dropPath = uploadData.path || '';
+  for (let i = 0; i < total; i++) {
+    const file = files[i];
+    btn.textContent = `Uploading ${i+1} of ${total}...`;
+    setProgress(Math.round((i / total) * 90) + 5);
 
-    if (originalTaskText) {
-      // PATCH existing row — no new row created
-      const patchData = isRework
-        ? { Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Notes: '' }
-        : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type: 'creative' };
-      fetch(SHEETDB, {
-        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-        body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
-      });
-    } else {
-      // Ad-hoc → CREATE new row (only path that creates rows now)
-      const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type:'creative' };
-      fetch(SHEETDB, {
-        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-        body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-      });
+    // Build creative name — if multiple files, append filename without extension to disambiguate
+    const fileBase = file.name.replace(/\.[^.]+$/, '');
+    const creativeName = total > 1 ? `${baseCreativeName} — ${fileBase}` : baseCreativeName;
+
+    try {
+      const formData = new FormData();
+      const safeName = creativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
+      const ext = file.name.split('.').pop();
+      const dropboxPath = `/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
+      formData.append('file', file, file.name);
+      formData.append('dropboxPath', dropboxPath);
+
+      const uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
+      const uploadData = await uploadRes.json();
+      if(!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+      const fileUrl = uploadData.url || uploadData.path;
+      const dropPath = uploadData.path || '';
+
+      // First file: patch the existing task/creative row (if any)
+      // Subsequent files: always create new rows
+      if (i === 0 && originalTaskText) {
+        const patchData = isRework
+          ? { Task: `${creativeName} | ${designer}`, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Notes: '' }
+          : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type: 'creative' };
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
+        });
+      } else {
+        const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type:'creative' };
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+        });
+      }
+      successCount++;
+    } catch(e) {
+      errors.push(`${file.name}: ${e.message}`);
     }
+  }
 
-    setProgress(100);
-    const btn2 = document.getElementById('submit-btn');
-    btn2.textContent = '✅ Uploaded! With Viplav for review';
-    btn2.style.background = '#22c55e';
-    btn2.style.color = '#fff';
-    btn2.disabled = false;
-    setTimeout(() => { resetForm(); }, 1200);
-  } catch(e) {
-    showErr('Upload failed: ' + e.message);
-    btn.textContent = '❌ Upload Failed — Try Again';
+  setProgress(100);
+  if (successCount === total) {
+    btn.textContent = total > 1 ? `✅ Uploaded ${total} files! With Viplav for review` : '✅ Uploaded! With Viplav for review';
+    btn.style.background = '#22c55e';
+    btn.style.color = '#fff';
+    btn.disabled = false;
+    setTimeout(() => { resetForm(); }, 1600);
+  } else if (successCount > 0) {
+    btn.textContent = `⚠️ ${successCount}/${total} uploaded — ${errors.length} failed`;
+    btn.style.background = '#f59e0b';
+    btn.style.color = '#000';
+    btn.disabled = false;
+    showErr(`Some uploads failed:\n${errors.join('\n')}`);
+  } else {
+    btn.textContent = '❌ All uploads failed — Try Again';
     btn.style.background = '#c0392b';
     btn.style.color = '#fff';
     btn.disabled = false;
     document.getElementById('progress-bar').style.display = 'none';
+    showErr(errors[0] || 'Upload failed');
     setTimeout(() => { btn.textContent='⚡ Upload to Portal'; btn.style.background='#FEBC06'; btn.style.color='#000'; }, 4000);
   }
 }
