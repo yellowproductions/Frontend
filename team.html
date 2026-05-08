@@ -269,6 +269,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
   <div class="nav-item" id="review-nav" style="display:none" onclick="showPanel('review')"><span>🎨</span> Review <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px" id="review-badge"></span></div>
+  <div class="nav-item" id="pitches-nav" style="display:none" onclick="openPitchesPortal()"><span>💡</span> Pitches & Ideas</div>
 
   <!-- Standalone Chat dock — sits above Logout, separate from nav -->
   <div style="margin-top:auto;padding:14px 20px 0">
@@ -601,6 +602,13 @@ function proceedToApp(name) {
     const hint = document.getElementById('quick-task-hint');
     if (row) row.style.display = 'block';
     if (hint) hint.textContent = 'Brief came in? Assign it to a designer.';
+  }
+
+  // Pitches & Ideas portal — direct access for Viplav, Siddhesh, Kritya
+  const PITCHES_USERS = ['Viplav', 'Siddhesh', 'Kritya'];
+  if (PITCHES_USERS.includes(name)) {
+    const pn = document.getElementById('pitches-nav');
+    if (pn) pn.style.display = 'flex';
   }
   showNotifCluster();    // show floating bell + sound toggle
   showChatFab();         // show team chat bubble
@@ -1326,6 +1334,12 @@ function showPanel(name) {
   event.currentTarget.classList.add('active');
   if (name === 'calendar') renderCalendar();
   if (name === 'agent' && agentHistory.length === 0) restoreAgentHistory();
+}
+
+// Open the Pitches & Ideas portal in a new tab — auto-logs in based on URL params
+function openPitchesPortal() {
+  const url = `client.html?portal=pitches&user=${encodeURIComponent(currentUser)}`;
+  window.open(url, '_blank');
 }
 
 
