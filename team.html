@@ -263,6 +263,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="user-name" id="sidebar-name">—</div>
     <div class="user-role" id="sidebar-role">—</div>
   </div>
+  <!-- IST clock — subtle, greyed out -->
+  <div style="margin:0 20px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div id="ist-clock-side" style="font-family:'DM Mono',monospace;font-size:11px;color:#aaa;letter-spacing:0.04em">--:--:--</div>
+    <div id="att-status-pill" style="font-size:9px;font-weight:600;color:#bbb;letter-spacing:0.06em">—</div>
+  </div>
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
@@ -466,11 +471,25 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 
   <div class="panel" id="panel-attendance">
     <div class="panel-title">Attendance</div>
-    <div class="card">
-      <div class="card-title">Mark Today's Attendance</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="attendance-status-msg">Loading...</p>
-      <button class="btn btn-yellow" id="mark-btn" onclick="markAttendance()" style="display:none">✅ Mark Present</button>
+
+    <!-- Today's status card with live IST clock -->
+    <div class="card" style="margin-bottom:14px;background:#fefbf2;border:1px solid #f0d080">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:4px">Today</div>
+          <div id="att-today-status" style="font-size:18px;font-weight:700;color:#1a1a1a;line-height:1.3">Loading...</div>
+          <div id="att-schedule-info" style="font-size:11px;color:#888;margin-top:6px"></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:4px">IST clock</div>
+          <div id="ist-clock-att" style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:#854f0b;line-height:1">--:--:--</div>
+          <div id="ist-date-att" style="font-size:11px;color:#888;margin-top:4px"></div>
+        </div>
+      </div>
+      <button class="btn btn-yellow" id="mark-btn" onclick="markAttendance()" style="display:none;margin-top:14px">✅ Mark Attendance</button>
+      <p id="attendance-status-msg" style="display:none"></p>
     </div>
+
     <div class="card">
       <div class="card-title">My Attendance History</div>
       <div id="attendance-history"><div class="empty-state">Loading...</div></div>
@@ -638,12 +657,15 @@ function proceedToApp(name) {
     const pn = document.getElementById('pitches-nav');
     if (pn) pn.style.display = 'flex';
   }
+
+  // Start the live IST clock — visible in sidebar across all panels
+  startISTClock();
   showNotifCluster();    // show floating bell + sound toggle
   showChatFab();         // show team chat bubble
   startAutoRefresh();    // every 15 min, re-fetch tasks + changes
+  startChatPolling();    // every 8 sec, poll chat for new messages + update badge
   loadTasks();
   loadReminders();
-  loadChat();            // initial chat load to compute unread badge
   loadAttendance();
   if(name === 'Viplav') {
     document.getElementById('review-nav').style.display = 'flex';
@@ -1096,6 +1118,14 @@ function showChatFab() {
   try { lastSeenChatTimestamp = parseInt(localStorage.getItem('yv-chat-lastseen-' + currentUser) || '0'); } catch(e) {}
 }
 
+// Start chat polling on login — runs continuously regardless of panel state.
+// This way the unread badge stays in sync and notifications fire even when chat is closed.
+function startChatPolling() {
+  if (chatPollInterval) clearInterval(chatPollInterval);
+  loadChat(); // immediate first load
+  chatPollInterval = setInterval(loadChat, 8 * 1000); // 8s — snappy notifications
+}
+
 function toggleChat() {
   const panel = document.getElementById('chat-panel');
   const isOpen = panel.style.right === '0px';
@@ -1104,15 +1134,14 @@ function toggleChat() {
   if (isOpen) {
     panel.style.right = '-420px';
     if (homeDot) homeDot.style.display = '';
-    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+    // Polling keeps running — we want notifications even while chat is closed
   } else {
     panel.style.right = '0px';
     if (homeDot) homeDot.style.display = 'none';   // prevent overlap with send button
-    loadChat();
+    loadChat(); // immediate fresh fetch on open
     lastSeenChatTimestamp = Date.now();
     try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
     updateChatUnread();
-    chatPollInterval = setInterval(loadChat, 20 * 1000);
     setTimeout(() => document.getElementById('chat-input')?.focus(), 300);
   }
 }
@@ -1149,6 +1178,14 @@ async function loadChat() {
     chatFirstLoad = false;
     chatMessages = fetched;
     renderChat();
+
+    // If chat panel is currently open, the user IS reading — keep marking seen on every poll
+    // so the unread badge stays at 0. Without this, it would tick up while they're actively chatting.
+    const panel = document.getElementById('chat-panel');
+    if (panel && panel.style.right === '0px') {
+      lastSeenChatTimestamp = Date.now();
+      try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
+    }
     updateChatUnread();
   } catch(e) {}
 }
@@ -2009,8 +2046,79 @@ async function saveTask(idx, encodedTask) {
 }
 
 // ====== ATTENDANCE ======
+
+// =========== ATTENDANCE: SCHEDULE & SCHEDULE-AWARE STATUS ===========
+// Office team — come in 10:30 AM. WFH everyone else — start 9:30 AM.
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Prathamesh'];
+
+// Returns the schedule rules for the current user
+function getSchedule(name) {
+  const isOffice = OFFICE_TEAM.includes(name);
+  return isOffice
+    ? { type: 'OFFICE', start: '10:30 AM', onTimeBy: 10*60 + 45, lateBy: 12*60 + 30 } // grace 15 min, half-day after 12:30
+    : { type: 'WFH',    start: '9:30 AM',  onTimeBy:  9*60 + 45, lateBy: 11*60 + 30 }; // grace 15 min, half-day after 11:30
+}
+
+// Compute attendance status from minutes-of-day (in IST)
+function computeAttendanceStatus(name, totalMin) {
+  const s = getSchedule(name);
+  if (totalMin <= s.onTimeBy)  return 'Present';
+  if (totalMin <= s.lateBy)    return 'Late';
+  return 'Half Day';
+}
+
+// Returns IST date+time pieces — works regardless of viewer's actual timezone
+function getISTNow() {
+  const fmt = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  const parts = fmt.formatToParts(new Date()).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,        // YYYY-MM-DD
+    time: `${parts.hour}:${parts.minute}:${parts.second}`,    // HH:MM:SS
+    hhmm: `${parts.hour}:${parts.minute}`,                    // HH:MM
+    hour: parseInt(parts.hour, 10),
+    min: parseInt(parts.minute, 10),
+    totalMin: parseInt(parts.hour, 10) * 60 + parseInt(parts.minute, 10),
+    pretty: `${parts.day}/${parts.month}/${parts.year}`
+  };
+}
+
+// Tick the live clock every second + update sidebar status pill colors
+function startISTClock() {
+  const tick = () => {
+    const t = getISTNow();
+    const sideEl = document.getElementById('ist-clock-side');
+    const attEl = document.getElementById('ist-clock-att');
+    const dateEl = document.getElementById('ist-date-att');
+    if (sideEl) sideEl.textContent = t.time;
+    if (attEl) attEl.textContent = t.time;
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', timeZone:'Asia/Kolkata' });
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+// Color the sidebar attendance pill based on today's status — subtle text only
+function setAttendancePill(status) {
+  const pill = document.getElementById('att-status-pill');
+  if (!pill) return;
+  const palette = {
+    'Present':    '#86b59c',
+    'Late':       '#c9a26b',
+    'Half Day':   '#c89572',
+    'Absent':     '#c98787',
+    'Not marked': '#bbb'
+  };
+  pill.style.color = palette[status] || palette['Not marked'];
+  pill.textContent = status.toUpperCase();
+}
+
 async function loadAttendance() {
-  const today = new Date().toISOString().split('T')[0];
+  const ist = getISTNow();
+  const today = ist.date;
   try {
     const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks');
     const raw  = await res.json();
@@ -2019,44 +2127,88 @@ async function loadAttendance() {
       r.Type === 'attendance' && r.Assignee === currentUser && r.Date === today
     );
 
-    const msgEl = document.getElementById('attendance-status-msg');
+    const statusEl = document.getElementById('att-today-status');
+    const scheduleEl = document.getElementById('att-schedule-info');
     const btnEl = document.getElementById('mark-btn');
+    const schedule = getSchedule(currentUser);
+
+    if (scheduleEl) {
+      scheduleEl.innerHTML = `<strong>${schedule.type}</strong> · starts ${schedule.start} IST · 15 min grace`;
+    }
 
     if (todayAtt.length) {
-      msgEl.textContent = '✅ You have marked attendance for today.';
-      msgEl.style.color = 'var(--green)';
-      btnEl.style.display = 'none';
+      // Already marked — show their status
+      const status = todayAtt[0].Status || 'Present';
+      const time = todayAtt[0].Title || '';
+      const palette = {
+        'Present':  { color:'#15803d', icon:'✓', label:'Present' },
+        'Late':     { color:'#a07419', icon:'⚠',  label:'Late'    },
+        'Half Day': { color:'#9a3412', icon:'🟡', label:'Half day'}
+      };
+      const p = palette[status] || palette['Present'];
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} ${p.label}</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
+      if (btnEl) btnEl.style.display = 'none';
+      setAttendancePill(status);
     } else {
-      msgEl.textContent = "You haven't marked attendance yet today.";
-      msgEl.style.color = 'var(--muted)';
-      btnEl.style.display = 'inline-block';
+      // Not marked yet — preview what they'd be IF they marked now
+      const projectedStatus = computeAttendanceStatus(currentUser, ist.totalMin);
+      const palette = {
+        'Present':  '#15803d',
+        'Late':     '#a07419',
+        'Half Day': '#9a3412'
+      };
+      if (statusEl) statusEl.innerHTML = `<span style="color:#888;font-weight:500;font-size:14px">Not marked yet</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">Marking now will be logged as <span style="color:${palette[projectedStatus]};font-weight:700">${projectedStatus}</span></span>`;
+      if (btnEl) {
+        btnEl.style.display = 'inline-block';
+        btnEl.textContent = `✅ Mark Attendance (${projectedStatus})`;
+      }
+      setAttendancePill('Not marked');
     }
 
     // History
     const history = data.filter(r =>
       r.Type === 'attendance' && r.Assignee === currentUser
-    ).sort((a,b) => new Date(b.Date) - new Date(a.Date)).slice(0, 10);
+    ).sort((a,b) => new Date(b.Date) - new Date(a.Date)).slice(0, 14);
 
     document.getElementById('attendance-history').innerHTML = history.length
-      ? history.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span>${r.Date}</span><span class="status-badge status-done">${r.Status}</span>
-        </div>`).join('')
+      ? history.map(r => {
+          const status = r.Status || 'Present';
+          const palette = {
+            'Present':  { bg:'#dcfce7', color:'#15803d' },
+            'Late':     { bg:'#fef9ee', color:'#a07419' },
+            'Half Day': { bg:'#fed7aa', color:'#9a3412' }
+          };
+          const p = palette[status] || palette['Present'];
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-weight:500">${r.Date}</span>
+              ${r.Title ? `<span style="font-size:11px;color:#888;font-family:'DM Mono',monospace">${r.Title}</span>` : ''}
+            </div>
+            <span style="background:${p.bg};color:${p.color};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">${status}</span>
+          </div>`;
+        }).join('')
       : '<div class="empty-state">No history yet.</div>';
   } catch(e) {}
 }
 
 async function markAttendance() {
-  const today = new Date().toISOString().split('T')[0];
+  const ist = getISTNow();
+  const status = computeAttendanceStatus(currentUser, ist.totalMin);
   try {
     fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: today, Task: '', Assignee: currentUser, Status: 'Present', 'Preview Link': '', Type: 'attendance' }] })
+      body: JSON.stringify({
+        sheet: 'Type:tasks',
+        data: [{
+          Date: ist.date,
+          Title: ist.hhmm,           // login time stored in Title (HH:MM IST)
+          Task: getSchedule(currentUser).type,
+          Assignee: currentUser,
+          Status: status,            // Present / Late / Half Day
+          Type: 'attendance'
+        }]
+      })
     });
-    // Optimistic UI — flip the message immediately
-    const msgEl = document.getElementById('attendance-status-msg');
-    const btnEl = document.getElementById('mark-btn');
-    if (msgEl) { msgEl.textContent = '✅ You have marked attendance for today.'; msgEl.style.color = 'var(--green)'; }
-    if (btnEl) btnEl.style.display = 'none';
     setTimeout(loadAttendance, 1500);
   } catch(e) { alert('Error marking attendance.'); }
 }
