@@ -275,6 +275,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
       <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">🏦 Kotak</button>
       <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">📁 Adhoc</button>
+      <button class="tab-btn" data-portal="pitches" onclick="switchTab('pitches',this)">💡 Pitches & Ideas</button>
       <button class="tab-btn" onclick="switchTab('assets',this)">📋 Assets</button>
     </div>
 
@@ -456,6 +457,25 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div id="approved-adhoc"><div class="empty-state">No approved creatives yet.</div></div>
     </div>
 
+    <!-- PITCHES & IDEAS TAB — internal pitches, mockups, concepts (no client) -->
+    <div id="tab-pitches" class="tab-content" data-portal="pitches">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">Internal pitches and idea mockups</strong> — design concepts and explorations not tied to any active client. Visible only to Suriti, Viplav, Kritya, Siddhesh.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">💡</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">All Pitches</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Mockups, concepts, internal explorations</div>
+          <a href="https://www.dropbox.com/scl/fo/zhntfef04ksozwyxir89e/AMWCmHD3uN3mgrTExiSuHCo?rlkey=otdny4kb13w18cuiyl86seqic&st=bpnucov1&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-pitches" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-pitches"><div class="empty-state">No mockups pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-pitches"><div class="empty-state">No approved mockups yet.</div></div>
+    </div>
+
 
     <!-- ASSETS TAB -->
     <div id="tab-assets" class="tab-content">
@@ -502,6 +522,11 @@ const CLIENT_PORTALS = {
     password: 'Adhoc2026',
     brand: 'Adhoc',
     folders: ['adhoc']
+  },
+  pitches: {
+    password: 'Pitches2026',
+    brand: 'Pitches & Ideas',
+    folders: ['pitches']
   }
 };
 let activePortal = null;
@@ -605,7 +630,8 @@ function getCreativesFolder(folder) {
     'sohar-steel': '/Sohar Steel/Creatives',
     duqm: '/Jindal Steel Duqm/Creatives',
     kotak: '/KOTAK/Creatives',
-    adhoc: '/ADHOC/Creatives'
+    adhoc: '/ADHOC/Creatives',
+    pitches: '/PITCHES/Creatives'
   };
   return map[folder] || '/JINDAL/Creatives';
 }
@@ -618,7 +644,8 @@ function getPendingFolder(folder) {
     'sohar-steel': '/Sohar Steel/Pending',
     duqm: '/Jindal Steel Duqm/Pending',
     kotak: '/KOTAK/Pending',
-    adhoc: '/ADHOC/Pending'
+    adhoc: '/ADHOC/Pending',
+    pitches: '/PITCHES/Pending'
   };
   return map[folder] || '/JINDAL/Pending';
 }
@@ -651,7 +678,7 @@ function renderAssets() {
   const CLIENT_NAMES = {
     steelcity: 'Jindal Steel', youthleague: 'Jindal League',
     'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel',
-    duqm: 'Jindal Steel Duqm', kotak: 'Kotak', adhoc: 'Adhoc'
+    duqm: 'Jindal Steel Duqm', kotak: 'Kotak', adhoc: 'Adhoc', pitches: 'Pitches & Ideas'
   };
 
   wrap.innerHTML = `
