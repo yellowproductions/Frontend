@@ -601,30 +601,51 @@ function onMonsterName() {
   if(n){ document.getElementById('m-wtxt').textContent='Hey '+n+','; moodAuto=false; setMood(MOODS[0]); }
 }
 
-const TEAM_PASSWORDS = {
-  Faizan: 'faizan47', Sandesh: 'sandesh82', Archana: 'archana19',
-  Vishvanath: 'vishvanath63', Ajay: 'ajay25', Kritya: 'kritya71',
-  Viplav: 'viplav58', Prathamesh: 'prathamesh34', Gauri: 'gauri96',
-  Siddhesh: 'siddhesh12', Sonal: 'sonal88', Gayatri: 'gayatri51', Sam: 'sam77'
-};
+// Team passwords are no longer stored client-side. Auth is handled by the backend.
+// Local cache stores: { user, token, expires } valid for 7 days from last successful login.
+const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 
-function doLogin() {
+async function doLogin() {
   const name = document.getElementById('login-select').value;
   const pwd  = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
   if (!name) { alert('Please select your name.'); return; }
-  if (pwd !== TEAM_PASSWORDS[name]) {
+  if (!pwd)  { errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('m-gobtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+  try {
+    const res = await fetch(BACKEND_AUTH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'team', username: name, password: pwd })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      errEl.style.display = 'block';
+      document.getElementById('login-password').value = '';
+      moodAuto = false; setMood(MOODS[1]);
+      if (btn) { btn.disabled = false; btn.textContent = 'go →'; }
+      return;
+    }
+    errEl.style.display = 'none';
+    moodAuto = false; setMood(MOODS[2]);
+    // Save the auth state — 7-day session
+    try {
+      localStorage.setItem('yv-auth', JSON.stringify({
+        user: data.user,
+        token: data.token,
+        role: 'team',
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000
+      }));
+    } catch(e) {}
+    setTimeout(() => proceedToApp(data.user), 600);
+  } catch(e) {
     errEl.style.display = 'block';
-    document.getElementById('login-password').value = '';
-    moodAuto = false; setMood(MOODS[1]);
-    return;
+    errEl.textContent = 'Login service unavailable — try again.';
+    if (btn) { btn.disabled = false; btn.textContent = 'go →'; }
   }
-  errEl.style.display = 'none';
-  moodAuto = false; setMood(MOODS[2]);
-  setTimeout(() => {
-    try { localStorage.setItem('yv_user', name); } catch(e) {}
-    proceedToApp(name);
-  }, 600);
 }
 
 function proceedToApp(name) {
@@ -673,18 +694,21 @@ function proceedToApp(name) {
   }
 }
 
-// Auto-restore session on page load if user previously logged in
+// Auto-restore session on page load — token must be valid + unexpired
 window.addEventListener('DOMContentLoaded', () => {
   try {
-    const saved = localStorage.getItem('yv_user');
-    if (saved) proceedToApp(saved);
+    const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
+    if (auth && auth.token && auth.expires > Date.now() && auth.user) {
+      proceedToApp(auth.user);
+    }
   } catch(e) {}
 });
 
-
-
 function doLogout() {
-  try { localStorage.removeItem('yv_user'); } catch(e) {}
+  try {
+    localStorage.removeItem('yv-auth');
+    localStorage.removeItem('yv_user'); // clean up legacy key from old version
+  } catch(e) {}
   currentUser = '';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-select').value = '';
