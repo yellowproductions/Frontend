@@ -268,15 +268,17 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
-      <button class="tab-btn" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
-      <button class="tab-btn" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
-      <button class="tab-btn" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
-      <button class="tab-btn" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
+      <button class="tab-btn active" data-portal="jindal" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
+      <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">🏦 Kotak</button>
+      <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">📁 Adhoc</button>
       <button class="tab-btn" onclick="switchTab('assets',this)">📋 Assets</button>
     </div>
 
-        <div id="tab-jindal-steel" class="tab-content active">
+        <div id="tab-jindal-steel" class="tab-content active" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📐</div>
@@ -310,7 +312,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <!-- JINDAL LEAGUE -->
-    <div id="tab-jindal-league" class="tab-content">
+    <div id="tab-jindal-league" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🖼️</div>
@@ -338,7 +340,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <!-- COMING SOON TABS -->
-    <div id="tab-jindal-youth" class="tab-content">
+    <div id="tab-jindal-youth" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
@@ -359,7 +361,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div class="empty-state">No approved creatives yet.</div>
     </div>
 
-    <div id="tab-sohar-steel" class="tab-content">
+    <div id="tab-sohar-steel" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
@@ -380,7 +382,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div class="empty-state">No approved creatives yet.</div>
     </div>
 
-    <div id="tab-duqm" class="tab-content">
+    <div id="tab-duqm" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
@@ -395,10 +397,63 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <a href="https://www.dropbox.com/scl/fo/zx1yq19ld47p76wrdppjr/AKI0haLDAMbafiKkyRIoaOM?rlkey=tw9atqp3o8pry170wqzgxv6ro&st=3rf4aq3h&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
-      <div class="section-label">Pending Review</div>
-      <div class="empty-state">No creatives pending review.</div>
+      <div class="section-label">Pending Review <span id="count-pending-duqm" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-duqm"><div class="empty-state">No creatives pending review.</div></div>
       <div class="section-label">✅ Approved</div>
-      <div class="empty-state">No approved creatives yet.</div>
+      <div id="approved-duqm"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- KOTAK TAB -->
+    <div id="tab-kotak" class="tab-content" data-portal="kotak">
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🎨</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
+          <a href="https://www.dropbox.com/scl/fo/dp5dsn7osm4e5tsafsv2d/ANkaWpBa794XvClDc5nYnIw?rlkey=45x6zandy7xm2sl3vkne8fyjq&st=px9w795f&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🖼️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Photography & references</div>
+          <a href="https://www.dropbox.com/scl/fo/a9votfw7iw9ytc9d6kzea/AMO1mV82hYfWTi-6WRwAEJE?rlkey=pmcetca3545hiftvtly32tbvg&st=hgb9030f&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">📂</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
+          <a href="https://www.dropbox.com/scl/fo/cffombdclqbz8spe4i9gr/AFCtM246_VkxPE4EM0Q18kQ?rlkey=ecfvcsyy9rhi050qf1mxzkbzc&st=i27iwsr5&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/AJvd9GMmU9ztXB_TZpZr2gs?rlkey=ylbo80tyvg0zrwosn6992n2zm&st=or8luxv0&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-kotak" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-kotak"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-kotak"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- ADHOC TAB — one-time jobs from random clients -->
+    <div id="tab-adhoc" class="tab-content" data-portal="adhoc">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">Bucket for one-off projects</strong> — Zouk mailers, Right Moves social, anything that doesn't have its own portal yet.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">All Adhoc Files</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Designs + open files for one-off jobs</div>
+          <a href="https://www.dropbox.com/scl/fo/f13lq8x7z0a2gfqdful7r/AIbDcVimpDYi_XMMvDwMPpg?rlkey=rzn4ss5zvw4ed9rt4lgr9m15k&st=ytyyi9uw&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-adhoc" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-adhoc"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-adhoc"><div class="empty-state">No approved creatives yet.</div></div>
     </div>
 
 
@@ -426,12 +481,31 @@ const DESIGNER_EMAILS = {
   Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
   Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
   Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
-  Sonal:'sonal.j@perkyowl.com', Vishwanath:'vishvanath@perkyowl.com',
+  Sonal:'sonal.j@perkyowl.com', Vishvanath:'vishvanath@perkyowl.com',
   Viplav:'viplav@yellowproductions.co.in', Siddhesh:'siddhesh@yellowproductions.co.in',
   Ajay:'ajay@yellowproductions.co.in'
 };
 
-const FOLDERS = ['steelcity','youthleague','jindal-youth','sohar-steel','duqm'];
+// Multi-client portal config — each password unlocks ONLY that client's tabs.
+const CLIENT_PORTALS = {
+  jindal: {
+    password: 'Jindal2026',
+    brand: 'Jindal Group',
+    folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm']
+  },
+  kotak: {
+    password: 'Kotak2026',
+    brand: 'Kotak',
+    folders: ['kotak']
+  },
+  adhoc: {
+    password: 'Adhoc2026',
+    brand: 'Adhoc',
+    folders: ['adhoc']
+  }
+};
+let activePortal = null;
+let FOLDERS = []; // populated on login based on active portal
 
 emailjs.init(EJS_KEY);
 let currentUser = '';
@@ -443,12 +517,50 @@ window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(location.search);
     if (params.get('founder') === '1') {
       currentUser = 'Suriti';
+      activePortal = 'all'; // founder sees every portal's tabs
+      FOLDERS = Object.values(CLIENT_PORTALS).flatMap(p => p.folders);
+      applyPortalVisibility();
       document.getElementById('header-name').textContent = 'Suriti';
       document.getElementById('login-overlay').style.display = 'none';
       loadCreatives();
     }
   } catch(e) {}
 });
+
+// Show only the tabs belonging to the active portal (or all if 'all').
+function applyPortalVisibility() {
+  // Tab buttons — show only those matching the active portal (or no data-portal = always show, e.g. Assets)
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const tabPortal = btn.getAttribute('data-portal');
+    const visible = !tabPortal || activePortal === 'all' || tabPortal === activePortal;
+    btn.style.display = visible ? '' : 'none';
+    if (!visible) btn.classList.remove('active');
+  });
+  // Tab contents — also gated by data-portal
+  document.querySelectorAll('.tab-content').forEach(div => {
+    const tabPortal = div.getAttribute('data-portal');
+    const visible = !tabPortal || activePortal === 'all' || tabPortal === activePortal;
+    if (!visible) {
+      div.classList.remove('active');
+      div.style.display = 'none';
+    } else {
+      div.style.display = '';
+    }
+  });
+  // Make sure first visible tab is active
+  const firstVisible = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.style.display !== 'none');
+  if (firstVisible) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    firstVisible.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const onclickStr = firstVisible.getAttribute('onclick') || '';
+    const m = onclickStr.match(/switchTab\('([^']+)'/);
+    if (m && m[1]) {
+      const target = document.getElementById('tab-' + m[1]);
+      if (target) target.classList.add('active');
+    }
+  }
+}
 
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -462,9 +574,16 @@ function doLogin() {
   const pwd  = document.getElementById('login-input').value.trim();
   const errEl = document.getElementById('login-error');
   if (!name) { alert('Please enter your name.'); return; }
-  if (pwd !== 'Jindal2026') { errEl.style.display = 'block'; document.getElementById('login-input').value = ''; return; }
+
+  // Match password against any portal
+  const matchedKey = Object.keys(CLIENT_PORTALS).find(k => CLIENT_PORTALS[k].password === pwd);
+  if (!matchedKey) { errEl.style.display = 'block'; document.getElementById('login-input').value = ''; return; }
+
   errEl.style.display = 'none';
   currentUser = name;
+  activePortal = matchedKey;
+  FOLDERS = CLIENT_PORTALS[matchedKey].folders;
+  applyPortalVisibility();
   document.getElementById('header-name').textContent = name;
   document.getElementById('login-overlay').style.display = 'none';
   loadCreatives();
@@ -484,7 +603,9 @@ function getCreativesFolder(folder) {
     youthleague: '/Jindal League/Creatives',
     'jindal-youth': '/Jindal Youth League/Creatives',
     'sohar-steel': '/Sohar Steel/Creatives',
-    duqm: '/Jindal Steel Duqm/Creatives'
+    duqm: '/Jindal Steel Duqm/Creatives',
+    kotak: '/KOTAK/Creatives',
+    adhoc: '/ADHOC/Creatives'
   };
   return map[folder] || '/JINDAL/Creatives';
 }
@@ -495,7 +616,9 @@ function getPendingFolder(folder) {
     youthleague: '/Jindal League/Pending',
     'jindal-youth': '/Jindal Youth League/Pending',
     'sohar-steel': '/Sohar Steel/Pending',
-    duqm: '/Jindal Steel Duqm/Pending'
+    duqm: '/Jindal Steel Duqm/Pending',
+    kotak: '/KOTAK/Pending',
+    adhoc: '/ADHOC/Pending'
   };
   return map[folder] || '/JINDAL/Pending';
 }
@@ -514,7 +637,11 @@ function renderAssets() {
   const wrap = document.getElementById('assets-table-wrap');
   if (!wrap) return;
 
-  const approved = allCreatives.filter(c => c.Status === 'Approved');
+  // Only show approved creatives belonging to the active portal's folders.
+  // FOLDERS is set on login per portal; for founder ('all') it's everything.
+  const approved = allCreatives.filter(c =>
+    c.Status === 'Approved' && FOLDERS.includes(c.Assignee)
+  );
 
   if (!approved.length) {
     wrap.innerHTML = '<div class="empty-state">No approved assets yet.</div>';
@@ -523,7 +650,8 @@ function renderAssets() {
 
   const CLIENT_NAMES = {
     steelcity: 'Jindal Steel', youthleague: 'Jindal League',
-    'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel', duqm: 'Jindal Steel Duqm'
+    'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel',
+    duqm: 'Jindal Steel Duqm', kotak: 'Kotak', adhoc: 'Adhoc'
   };
 
   wrap.innerHTML = `
@@ -536,6 +664,7 @@ function renderAssets() {
           <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Preview</th>
           <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Open File</th>
           <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Date</th>
+          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px"></th>
         </tr>
       </thead>
       <tbody>
@@ -545,20 +674,42 @@ function renderAssets() {
           const designer = parts[1] ? parts[1].trim() : '—';
           const client = CLIENT_NAMES[item.Assignee] || item.Assignee || '—';
           const preview = item['Preview Link'];
-          const openFile = item['Open File Link'];
+          const openFileRaw = (item['Open File Link'] || '').trim();
+          // Only show "Open" link if it's an actual shared URL — not an internal Dropbox path like /REVIEW/...
+          const hasValidOpenFile = openFileRaw.startsWith('http');
           const date = item.Date ? new Date(item.Date).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '—';
+          // Use the Task field as a stable row identifier for delete
+          const rowKey = encodeURIComponent(item.Task || '');
           return `<tr style="border-bottom:1px solid #f0eeea">
             <td style="padding:12px;font-weight:600;color:#1a1a1a">${name}</td>
             <td style="padding:12px;color:var(--muted)">${client}</td>
             <td style="padding:12px;color:var(--muted)">${designer}</td>
             <td style="padding:12px">${preview ? `<a href="${preview}" target="_blank" style="color:var(--yellow);font-weight:600;text-decoration:none">🖼️ View</a>` : '<span style="color:#ccc;font-size:12px">Pending</span>'}</td>
-            <td style="padding:12px">${openFile ? `<a href="${openFile}" target="_blank" style="color:var(--yellow);font-weight:600;text-decoration:none">📂 Open</a>` : '<span style="color:#ccc;font-size:12px">Pending upload</span>'}</td>
+            <td style="padding:12px">${hasValidOpenFile ? `<a href="${openFileRaw}" target="_blank" style="color:var(--yellow);font-weight:600;text-decoration:none">📂 Open</a>` : '<span style="color:#ccc;font-size:12px">Pending upload</span>'}</td>
             <td style="padding:12px;color:var(--muted);font-size:12px">${date}</td>
+            <td style="padding:12px"><button onclick="deleteAsset('${rowKey}')" title="Remove from assets" style="background:transparent;border:none;cursor:pointer;font-size:14px;opacity:0.4;padding:4px 8px" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">🗑️</button></td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
   `;
+}
+
+async function deleteAsset(rowKey) {
+  const taskValue = decodeURIComponent(rowKey);
+  if (!confirm(`Remove this asset from the list?\n\n"${taskValue.split('|')[0].trim()}"\n\nThis only removes the sheet entry. The actual Dropbox file is not touched — delete it manually from Dropbox if needed.`)) return;
+  try {
+    await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type': 'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({ action:'delete', sheet:'Type:tasks', matchColumn:'Task', matchValue: taskValue })
+    });
+    // Optimistic local removal
+    allCreatives = allCreatives.filter(c => c.Task !== taskValue);
+    renderAssets();
+    toast('Asset removed.');
+  } catch(e) {
+    toast('Could not remove. Try again.');
+  }
 }
 
 function renderAll() {
