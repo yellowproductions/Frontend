@@ -1103,10 +1103,13 @@ async function loadChat() {
         return isNew && fromOther;
       });
       if (newOnes.length > 0) {
-        // If any of them mention me, do a stronger ping
-        const mentionsMe = newOnes.some(m => (m.Task || '').match(new RegExp('@' + currentUser + '\\b', 'i')));
+        // Personal mention OR @team mention triggers a double-ping
+        const mentionsMe = newOnes.some(m => {
+          const t = m.Task || '';
+          return t.match(new RegExp('@' + currentUser + '\\b', 'i')) || t.match(/@team\b/i);
+        });
         playPing();
-        if (mentionsMe) setTimeout(playPing, 200); // double ping for mentions
+        if (mentionsMe) setTimeout(playPing, 200); // louder signal for personal/team mentions
       }
     }
     lastKnownMessageIds = new Set(fetched.map(m => `${m.Date}|${m.Title}|${m.Task}`));
@@ -1137,17 +1140,30 @@ function renderChat() {
     const time = ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
     const sender = m.Title || 'Someone';
 
-    // Pull file URLs from message before HTML-escaping
+    // Pull file URLs from message — match full URL including query string
     const text = m.Task || '';
-    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp|pdf))/i);
-    const imageMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp))/i);
-    const pdfMatch = text.match(/(https?:\/\/[^\s]+\.pdf)/i);
+    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp|pdf)(?:\?[^\s]*)?)/i);
+    const imageMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp)(?:\?[^\s]*)?)/i);
+    const pdfMatch = text.match(/(https?:\/\/[^\s]+?\.pdf(?:\?[^\s]*)?)/i);
     let textWithoutFile = text;
     if (fileUrlMatch) textWithoutFile = text.replace(fileUrlMatch[0], '').trim();
+
+    // Convert Dropbox shared URL to a direct-serving variant so <img> renders inline
+    const dbxDirect = (url) => {
+      if (!url || !url.includes('dropbox.com')) return url;
+      // Replace dl=0 with raw=1 to serve the file directly
+      let u = url.replace(/[?&]dl=0\b/, m => m[0] + 'raw=1').replace(/\bdl=0\b/, 'raw=1');
+      // If URL has no raw=1 yet (no dl=0 was present), append it
+      if (!/[?&]raw=1\b/.test(u)) u = u + (u.includes('?') ? '&raw=1' : '?raw=1');
+      return u;
+    };
 
     let safe = textWithoutFile.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:#0066cc">$1</a>');
     safe = safe.replace(/@(\w+)/g, function(_, name) {
+      if (name.toLowerCase() === 'team') {
+        return `<span style="color:#dc2626;font-weight:700;background:#fee2e2;padding:1px 8px;border-radius:10px;border:1px solid #fca5a5">@team</span>`;
+      }
       const cap = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
       const isSelf = cap === currentUser;
       return `<span style="color:${isSelf ? '#dc2626' : '#854f0b'};font-weight:700">@${cap}</span>`;
@@ -1155,7 +1171,8 @@ function renderChat() {
 
     let attachmentHtml = '';
     if (imageMatch) {
-      attachmentHtml = `<a href="${imageMatch[0]}" target="_blank" style="display:block;margin-bottom:${safe ? '6px' : '0'}"><img src="${imageMatch[0]}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy"></a>`;
+      const directSrc = dbxDirect(imageMatch[0]);
+      attachmentHtml = `<a href="${imageMatch[0]}" target="_blank" style="display:block;margin-bottom:${safe ? '6px' : '0'}"><img src="${directSrc}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy" onerror="this.parentNode.innerHTML='<div style=\\'background:#fef9ee;padding:10px;border-radius:8px;font-size:11px;color:#854f0b\\'>📎 Image — <a href=&quot;${imageMatch[0]}&quot; target=_blank style=&quot;color:#0066cc&quot;>open in browser</a></div>'"></a>`;
     } else if (pdfMatch) {
       const fname = pdfMatch[0].split('/').pop().split('?')[0];
       attachmentHtml = `<a href="${pdfMatch[0]}" target="_blank" style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6dfd0;border-radius:8px;padding:8px 10px;text-decoration:none;color:#1a1a1a;margin-bottom:${safe ? '6px' : '0'}"><span style="font-size:18px">📎</span><span style="font-size:12px;font-weight:600;word-break:break-all">${fname}</span></a>`;
@@ -1267,7 +1284,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
 
 function onChatInput(e) {
   const input = e.target;
