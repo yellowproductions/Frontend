@@ -607,11 +607,27 @@ function toast(msg) {
   setTimeout(() => el.style.display = 'none', 3500);
 }
 
+// Founder master password — unlocks all portals (same view as ?founder=1)
+const FOUNDER_MASTER_PASSWORD = 'Yellow@1234';
+
 function doLogin() {
   const name = document.getElementById('login-name').value.trim();
   const pwd  = document.getElementById('login-input').value.trim();
   const errEl = document.getElementById('login-error');
   if (!name) { alert('Please enter your name.'); return; }
+
+  // Master password → unlock all
+  if (pwd === FOUNDER_MASTER_PASSWORD) {
+    errEl.style.display = 'none';
+    currentUser = name;
+    activePortal = 'all';
+    FOLDERS = Object.values(CLIENT_PORTALS).flatMap(p => p.folders);
+    applyPortalVisibility();
+    document.getElementById('header-name').textContent = name;
+    document.getElementById('login-overlay').style.display = 'none';
+    loadCreatives();
+    return;
+  }
 
   // Match password against any portal
   const matchedKey = Object.keys(CLIENT_PORTALS).find(k => CLIENT_PORTALS[k].password === pwd);
