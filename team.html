@@ -264,12 +264,73 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="user-role" id="sidebar-role">—</div>
   </div>
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
+  <div class="nav-item" onclick="showPanel('agent')"><span>✨</span> Ideas Agent</div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
   <div class="nav-item" id="review-nav" style="display:none" onclick="showPanel('review')"><span>🎨</span> Review <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px" id="review-badge"></span></div>
-  <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)">
+
+  <!-- Standalone Chat dock — sits above Logout, separate from nav -->
+  <div style="margin-top:auto;padding:14px 20px 0">
+    <button onclick="toggleChat()" id="chat-dock-btn" style="width:100%;background:#FEBC06;color:#000;border:none;border-radius:10px;padding:11px 14px;font-weight:600;font-size:13px;font-family:'Poppins',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+      <span>Team Chat</span>
+      <span id="chat-nav-badge" style="background:#dc2626;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;display:none;font-weight:700">0</span>
+    </button>
+  </div>
+  <div style="padding:10px 20px 16px;border-top:1px solid var(--border);margin-top:10px">
     <button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%">Logout</button>
+  </div>
+</div>
+
+<!-- Floating notification bell + sound toggle, fixed top-right -->
+<div id="notif-cluster" style="position:fixed;top:18px;right:24px;z-index:200;display:none;align-items:center;gap:10px">
+  <button onclick="toggleSound()" id="sound-toggle" title="Toggle sound" style="background:#fff;border:1px solid var(--border);border-radius:50%;width:38px;height:38px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);color:#444;padding:0">
+    <svg id="sound-icon-on" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
+    <svg id="sound-icon-off" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="display:none"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
+  </button>
+  <button onclick="openNotifPanel()" id="notif-bell" title="Notifications" style="position:relative;background:#fff;border:1px solid var(--border);border-radius:50%;width:38px;height:38px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);color:#444;padding:0">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+    <span id="notif-badge" style="position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 5px;border:2px solid #fff">0</span>
+  </button>
+</div>
+
+<!-- Notification dropdown panel -->
+<div id="notif-panel" style="position:fixed;top:64px;right:24px;width:340px;max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.12);z-index:201;display:none">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+    <strong style="font-size:14px">Notifications</strong>
+    <button onclick="markAllSeen()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:'Poppins',sans-serif">Mark all seen</button>
+  </div>
+  <div id="notif-list" style="padding:8px 0">
+    <div style="padding:14px 16px;font-size:12px;color:var(--muted);text-align:center">No new notifications.</div>
+  </div>
+</div>
+
+<!-- TEAM CHAT — Soft brand chat panel -->
+<div id="chat-panel" style="position:fixed;top:0;right:-420px;width:380px;height:100vh;background:#fbf7ef;z-index:9500;display:flex;flex-direction:column;overflow:hidden;box-shadow:-6px 0 24px rgba(0,0,0,0.12);border-left:1px solid #e6dfd0;transition:right 0.25s ease">
+  <!-- Header — clean cream with subtle accents -->
+  <div style="background:#ffffff;color:#1a1a1a;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid #ece6d8">
+    <div style="width:34px;height:34px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#1a1a1a">YV</div>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:14px">Team Yellowverse</div>
+      <div style="font-size:11px;color:#888;font-weight:400">all team members</div>
+    </div>
+    <button onclick="toggleChat()" style="background:transparent;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;padding:0 4px">×</button>
+  </div>
+  <!-- Messages area — soft cream, no busy pattern -->
+  <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:6px;background:#fbf7ef"></div>
+  <!-- Mention dropdown -->
+  <div id="mention-dropdown" style="display:none;position:absolute;bottom:64px;left:10px;right:10px;background:#fff;border:1px solid #e6dfd0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:180px;overflow-y:auto;z-index:9501"></div>
+  <!-- File preview banner -->
+  <div id="chat-attach-preview" style="display:none;background:#fef9ee;border-top:1px solid #f0d080;padding:8px 12px;font-size:12px;color:#854f0b;flex-shrink:0;align-items:center;gap:8px;justify-content:space-between"></div>
+  <!-- Input bar -->
+  <div style="background:#ffffff;padding:10px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-top:1px solid #ece6d8">
+    <input type="file" id="chat-file-input" accept="image/*,.pdf" style="display:none" onchange="handleChatAttach(this)">
+    <button onclick="document.getElementById('chat-file-input').click()" id="chat-attach-btn" title="Attach image or PDF" style="background:#fbf7ef;border:1px solid #ece6d8;border-radius:50%;width:38px;height:38px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#666;padding:0">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+    </button>
+    <textarea id="chat-input" placeholder="Type a message — @ to tag" rows="1" style="flex:1;border:1px solid #ece6d8;border-radius:20px;padding:9px 14px;font-family:'Poppins',sans-serif;font-size:13.5px;resize:none;max-height:100px;background:#fbf7ef;outline:none;line-height:1.4" oninput="onChatInput(event)" onkeydown="onChatKeydown(event)"></textarea>
+    <button onclick="sendChat()" id="chat-send-btn" style="background:#FEBC06;color:#1a1a1a;border:none;border-radius:20px;padding:9px 20px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;flex-shrink:0">Send</button>
   </div>
 </div>
 
@@ -290,9 +351,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="card" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div class="card-title" style="margin:0">➕ Add a Task</div>
-        <span style="font-size:11px;color:var(--muted)">For ad-hoc / direct client requests</span>
+        <span id="quick-task-hint" style="font-size:11px;color:var(--muted)">For ad-hoc / direct client requests</span>
       </div>
-      <div style="display:grid;grid-template-columns:120px 1fr 1.5fr 90px;gap:8px;align-items:end">
+      <div id="quick-task-row" style="display:grid;grid-template-columns:120px 1fr 1.5fr 90px;gap:8px;align-items:end">
         <div>
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Date</label>
           <input type="date" id="quick-task-date" style="font-size:12px;padding:7px 8px;width:100%">
@@ -306,6 +367,26 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <input type="text" id="quick-task-desc" placeholder="What's the brief? (optional)" style="font-size:12px;padding:7px 8px;width:100%">
         </div>
         <button class="btn btn-yellow btn-sm" onclick="addQuickTask()" id="quick-task-btn" style="height:34px">Add</button>
+      </div>
+
+      <!-- Assignee row — only shown for CS roles who can assign to others -->
+      <div id="quick-task-assignee-row" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #e0ddd8">
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;font-weight:600">Assign to</label>
+        <select id="quick-task-assignee" style="font-size:12px;padding:7px 10px;width:100%;max-width:260px">
+          <option value="">— myself —</option>
+          <option value="Faizan">Faizan</option>
+          <option value="Sandesh">Sandesh</option>
+          <option value="Archana">Archana</option>
+          <option value="Vishvanath">Vishvanath</option>
+          <option value="Prathamesh">Prathamesh</option>
+          <option value="Gauri">Gauri</option>
+          <option value="Sonal">Sonal</option>
+          <option value="Gayatri">Gayatri</option>
+          <option value="Ajay">Ajay (video)</option>
+          <option value="Viplav">Viplav (copy)</option>
+          <option value="Kritya">Kritya</option>
+          <option value="Siddhesh">Siddhesh</option>
+        </select>
       </div>
     </div>
 
@@ -328,6 +409,32 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   </div>
 
   <!-- ATTENDANCE -->
+  <!-- IDEAS AGENT -->
+  <div class="panel" id="panel-agent">
+    <div class="panel-title">✨ Ideas Agent</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Drop in a brief, a campaign goal, or a problem. Get fast creative directions, references, and execution angles.</div>
+
+    <div id="agent-chat" style="background:#fdfaf3;border:1px solid #f0e6d2;border-radius:12px;padding:0;margin-bottom:14px;min-height:280px;max-height:60vh;overflow-y:auto">
+      <div id="agent-welcome" style="padding:36px 24px;text-align:center;color:var(--muted)">
+        <div style="font-size:44px;margin-bottom:12px">✨</div>
+        <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Hi — I'm your creative wingman.</div>
+        <div style="font-size:12px;line-height:1.6;max-width:440px;margin:0 auto">Paste a brief or describe what you're working on. I'll suggest concept directions and link you to <strong>Pinterest, Behance and Dribbble search boards</strong> tailored to each direction.</div>
+        <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+          <button onclick="agentQuickPrompt('Banner for steel safety campaign — bold, action-led, factory worker hero shot')" style="background:#fff;border:1px solid var(--border);font-size:11px;padding:6px 12px;border-radius:20px;cursor:pointer;font-family:'Poppins',sans-serif;color:#444">Steel safety banner</button>
+          <button onclick="agentQuickPrompt('Diwali post for Kotak Bank — festive but professional, no clichés')" style="background:#fff;border:1px solid var(--border);font-size:11px;padding:6px 12px;border-radius:20px;cursor:pointer;font-family:'Poppins',sans-serif;color:#444">Kotak Diwali post</button>
+          <button onclick="agentQuickPrompt('Match-day social for Jindal League — high energy, player focused')" style="background:#fff;border:1px solid var(--border);font-size:11px;padding:6px 12px;border-radius:20px;cursor:pointer;font-family:'Poppins',sans-serif;color:#444">Jindal League match-day</button>
+        </div>
+      </div>
+      <div id="agent-messages" style="padding:18px;display:none"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <textarea id="agent-input" placeholder="Paste a brief or describe what you need ideas on. Shift+Enter for new line." style="flex:1;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'Poppins',sans-serif;font-size:13px;resize:vertical;min-height:60px;max-height:200px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage();}"></textarea>
+      <button id="agent-send" onclick="sendAgentMessage()" style="background:#FEBC06;color:#000;border:none;border-radius:8px;padding:12px 18px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13px;height:44px;flex-shrink:0">Send</button>
+      <button onclick="resetAgentChat()" title="Start fresh" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13px;height:44px;flex-shrink:0">↻</button>
+    </div>
+  </div>
+
   <div class="panel" id="panel-attendance">
     <div class="panel-title">Attendance</div>
     <div class="card">
@@ -486,7 +593,21 @@ function proceedToApp(name) {
   // Default the quick-add task date to today
   const qd = document.getElementById('quick-task-date');
   if (qd) qd.value = new Date().toISOString().split('T')[0];
+
+  // Client Service Executives can assign tasks to anyone — show the assignee dropdown
+  const ASSIGNERS = ['Kritya', 'Siddhesh'];
+  if (ASSIGNERS.includes(name)) {
+    const row = document.getElementById('quick-task-assignee-row');
+    const hint = document.getElementById('quick-task-hint');
+    if (row) row.style.display = 'block';
+    if (hint) hint.textContent = 'Brief came in? Assign it to a designer.';
+  }
+  showNotifCluster();    // show floating bell + sound toggle
+  showChatFab();         // show team chat bubble
+  startAutoRefresh();    // every 15 min, re-fetch tasks + changes
   loadTasks();
+  loadReminders();
+  loadChat();            // initial chat load to compute unread badge
   loadAttendance();
   if(name === 'Viplav') {
     document.getElementById('review-nav').style.display = 'flex';
@@ -513,13 +634,701 @@ function doLogout() {
   document.getElementById('review-nav').style.display = 'none';
 }
 
+// ====== IDEAS AGENT ======
+const AGENT_BACKEND = 'https://yellowbackend.onrender.com/api/claude';
+const AGENT_SYSTEM = `You are an in-house creative direction assistant for designers at Yellow Productions, a sharp design-led agency in Mumbai. The team works on brand campaigns, social posts, banners, and print for clients across India and the Middle East — including Jindal Steel, Jindal League (football), Sohar Steel, Kotak Bank, and various one-off briefs.
+
+When a designer shares a brief or problem, respond with:
+
+**Three distinct concept directions** with clear names — e.g. "Heroic Worker", "Quiet Power", "Steel = Trust"
+
+For each direction give:
+- Visual approach (1-2 lines)
+- Mood/tone
+- Layout sketch (text description)
+- Type/colour direction
+- **Reference boards** (3 search URLs the designer can click to browse curated pins/projects)
+
+End with a tight execution tip — what would make it land.
+
+# How to build reference URLs
+
+DO NOT make up specific pin or project links — they break or hallucinate. Instead, build SEARCH URLs from each platform that take the designer to a fresh, real, browsable board. Use this format exactly:
+
+- Pinterest: https://www.pinterest.com/search/pins/?q=YOUR+QUERY+HERE
+- Behance: https://www.behance.net/search/projects?search=YOUR+QUERY+HERE
+- Dribbble: https://dribbble.com/search/YOUR+QUERY+HERE
+
+Replace spaces with + signs. Use specific, evocative queries — not generic ones.
+
+Example queries that work well:
+- industrial+worker+portrait+black+and+white
+- minimal+diwali+festive+bank+ad
+- football+match+day+social+post
+- brutalist+steel+poster+design
+- editorial+typography+layout
+
+# Output rules — STRICT
+
+- Output URLs as PLAIN TEXT on their own lines, preceded by an arrow → so they parse cleanly
+- DO NOT use markdown link syntax like [text](url) — it breaks our renderer
+- DO NOT wrap URLs in parentheses, brackets, or quotes
+- DO NOT put punctuation right after a URL (no trailing periods, commas, or closing parens stuck to the URL)
+- Each URL on its own line
+- Keep responses scannable: bold section headings, short lines, tight paragraphs
+- Speak like a creative director who's actually shipped work — direct, specific, no fluff`;
+
+let agentHistory = [];
+
+function agentQuickPrompt(text) {
+  document.getElementById('agent-input').value = text;
+  sendAgentMessage();
+}
+
+function resetAgentChat() {
+  agentHistory = [];
+  document.getElementById('agent-messages').innerHTML = '';
+  document.getElementById('agent-messages').style.display = 'none';
+  document.getElementById('agent-welcome').style.display = 'block';
+  try { localStorage.removeItem('yv-agent-history-' + currentUser); } catch(e) {}
+}
+
+// Robust URL → clickable link conversion. Handles markdown links, bare URLs, trailing punctuation.
+function linkifyText(s) {
+  // Escape HTML first
+  let safe = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Strip Anthropic citation tags if any leaked through
+  safe = safe.replace(/&lt;antml:cite[^&]*&gt;([\s\S]*?)&lt;\/antml:cite&gt;/g, '$1');
+
+  // Markdown links [text](url) → <a>text</a>
+  safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" style="color:#0066cc;text-decoration:underline">$1</a>');
+
+  // Bare URLs — match cleanly, strip trailing punctuation safely
+  safe = safe.replace(/(^|[\s>(])(https?:\/\/[^\s<>"'()\[\]]+)/g,
+    function(m, pre, url) {
+      // Strip dangling trailing punctuation that isn't part of a real URL
+      let trail = '';
+      while (/[.,;:!?]$/.test(url)) { trail = url.slice(-1) + trail; url = url.slice(0, -1); }
+      return pre + '<a href="' + url + '" target="_blank" style="color:#0066cc;text-decoration:underline;word-break:break-all">' + url + '</a>' + trail;
+    });
+
+  // Bold (**text**)
+  safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  // Italic (_text_) — only when surrounded by spaces or punctuation
+  safe = safe.replace(/(^|\s)_([^_\n]+)_/g, '$1<em>$2</em>');
+
+  // Newlines
+  safe = safe.replace(/\n/g, '<br>');
+  return safe;
+}
+
+function renderAgentMessage(role, text) {
+  const wrap = document.getElementById('agent-messages');
+  const isUser = role === 'user';
+  const bubble = document.createElement('div');
+  bubble.style.cssText = `display:flex;justify-content:${isUser ? 'flex-end' : 'flex-start'};margin-bottom:14px`;
+  bubble.innerHTML = `
+    <div style="max-width:85%;background:${isUser ? '#FEBC06' : '#fff'};color:${isUser ? '#000' : '#1a1a1a'};border:${isUser ? 'none' : '1px solid #f0e6d2'};border-radius:14px;padding:12px 16px;font-size:13px;line-height:1.6;word-wrap:break-word">${linkifyText(text)}</div>
+  `;
+  wrap.appendChild(bubble);
+  document.getElementById('agent-chat').scrollTop = document.getElementById('agent-chat').scrollHeight;
+}
+
+const VALID_TEAM = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+
+function detectReminder(text) {
+  // Patterns: "remind me to/about X" or "remind <name> to/about X"
+  const m = text.match(/^remind\s+(\w+)\s+(?:to\s+|about\s+|that\s+)?(.+)$/i);
+  if (!m) return null;
+  let who = m[1];
+  const what = m[2].trim();
+  if (who.toLowerCase() === 'me') return { target: currentUser, message: what };
+  who = who.charAt(0).toUpperCase() + who.slice(1).toLowerCase();
+  if (!VALID_TEAM.includes(who)) return null;
+  return { target: who, message: what };
+}
+
+async function createReminder(target, message) {
+  const row = {
+    Date: new Date().toISOString().split('T')[0],
+    Title: `Reminder from ${currentUser}`,
+    Task: message,
+    Assignee: target,
+    Status: 'Pending',
+    Notes: currentUser,
+    Type: 'reminder'
+  };
+  await fetch(SHEETDB, {
+    method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+  });
+}
+
+async function sendAgentMessage() {
+  const input = document.getElementById('agent-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  document.getElementById('agent-welcome').style.display = 'none';
+  document.getElementById('agent-messages').style.display = 'block';
+
+  // ====== REMINDER SHORTCUT ======
+  // Detect "remind me/X to ..." before going to the LLM — saves a Claude call and writes directly.
+  const rem = detectReminder(text);
+  if (rem) {
+    renderAgentMessage('user', text);
+    agentHistory.push({ role: 'user', content: text });
+    input.value = '';
+    try {
+      await createReminder(rem.target, rem.message);
+      const targetLabel = rem.target === currentUser ? 'you' : rem.target;
+      const reply = `✓ Reminder created for **${targetLabel}**: _"${rem.message}"_\n\n${rem.target === currentUser ? "It'll show up in your bell 🔔 next time you log in or refresh." : `${rem.target} will see this in their notifications.`}`;
+      renderAgentMessage('assistant', reply);
+      agentHistory.push({ role: 'assistant', content: reply });
+      // Refresh own reminders if it's for self
+      if (rem.target === currentUser) loadReminders();
+    } catch(e) {
+      renderAgentMessage('assistant', '⚠️ Could not save the reminder. Try again.');
+    }
+    return;
+  }
+
+  renderAgentMessage('user', text);
+  agentHistory.push({ role: 'user', content: text });
+  input.value = '';
+
+  const sendBtn = document.getElementById('agent-send');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '...';
+
+  // Loading bubble
+  const wrap = document.getElementById('agent-messages');
+  const loader = document.createElement('div');
+  loader.id = 'agent-loader';
+  loader.style.cssText = 'display:flex;justify-content:flex-start;margin-bottom:14px';
+  loader.innerHTML = '<div style="background:#fff;border:1px solid #f0e6d2;border-radius:14px;padding:12px 16px;color:var(--muted);font-size:13px">thinking up directions…</div>';
+  wrap.appendChild(loader);
+
+  try {
+    const res = await fetch(AGENT_BACKEND, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        system: AGENT_SYSTEM,
+        messages: agentHistory,
+        max_tokens: 2500
+      })
+    });
+    const data = await res.json();
+    document.getElementById('agent-loader')?.remove();
+
+    let combinedText = '';
+    if (Array.isArray(data.content)) {
+      data.content.forEach(block => {
+        if (block.type === 'text') combinedText += (combinedText ? '\n\n' : '') + block.text;
+      });
+    }
+    if (!combinedText) combinedText = data.text || (data.error?.message ? `⚠️ ${data.error.message}` : 'No response.');
+
+    renderAgentMessage('assistant', combinedText);
+    agentHistory.push({ role: 'assistant', content: combinedText });
+    try { localStorage.setItem('yv-agent-history-' + currentUser, JSON.stringify(agentHistory.slice(-20))); } catch(e) {}
+  } catch(e) {
+    document.getElementById('agent-loader')?.remove();
+    renderAgentMessage('assistant', '⚠️ Could not reach the agent. Check connection and retry.');
+  }
+  sendBtn.disabled = false;
+  sendBtn.textContent = 'Send';
+}
+
+function restoreAgentHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('yv-agent-history-' + currentUser) || '[]');
+    if (saved.length) {
+      agentHistory = saved;
+      document.getElementById('agent-welcome').style.display = 'none';
+      document.getElementById('agent-messages').style.display = 'block';
+      saved.forEach(m => renderAgentMessage(m.role, m.content));
+    }
+  } catch(e) {}
+}
+
+// ====== NOTIFICATIONS: BELL + SOUND + AUTO-REFRESH ======
+let knownTaskIds = new Set();      // tracks tasks we've already seen
+let knownChangeIds = new Set();    // tracks rejected creatives we've already seen
+let unseenItems = [];              // [{type, title, when}]
+let pendingReminders = [];         // [{rowKey, from, message, date}]
+let firstLoadDone = false;
+
+async function loadReminders() {
+  try {
+    const res = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+    const raw = await res.json();
+    const rows = Array.isArray(raw) ? raw : [];
+    pendingReminders = rows
+      .filter(r => r.Type === 'reminder' && r.Assignee === currentUser && (r.Status === 'Pending' || r.Status === 'pending' || !r.Status))
+      .map(r => ({
+        rowKey: r.Task,            // used to mark done
+        from: r.Notes || 'team',
+        message: r.Task,
+        date: normalizeDate(r.Date)
+      }));
+    updateBellBadge();
+  } catch(e) {}
+}
+
+async function markReminderDone(rowKey) {
+  try {
+    await fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: rowKey, data: { Status: 'Done' } })
+    });
+    pendingReminders = pendingReminders.filter(r => r.rowKey !== rowKey);
+    updateBellBadge();
+    openNotifPanel(true); // re-render
+  } catch(e) {}
+}
+
+function soundEnabled() {
+  return localStorage.getItem('yv-sound-enabled') !== 'false';
+}
+
+function toggleSound() {
+  const enabled = soundEnabled();
+  localStorage.setItem('yv-sound-enabled', enabled ? 'false' : 'true');
+  // Swap SVG: speaker-on shown when enabled, speaker-muted shown when off
+  document.getElementById('sound-icon-on').style.display = !enabled ? '' : 'none';
+  document.getElementById('sound-icon-off').style.display = !enabled ? 'none' : '';
+  document.getElementById('sound-toggle').title = !enabled ? 'Sound on (click to mute)' : 'Sound muted (click to enable)';
+  if (!enabled) playPing(); // confirm on enable
+}
+
+function playPing() {
+  if (!soundEnabled()) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+}
+
+function showNotifCluster() {
+  const cluster = document.getElementById('notif-cluster');
+  if (cluster) cluster.style.display = 'flex';
+  // Initialise sound icon state
+  const enabled = soundEnabled();
+  document.getElementById('sound-icon-on').style.display = enabled ? '' : 'none';
+  document.getElementById('sound-icon-off').style.display = enabled ? 'none' : '';
+}
+
+function updateBellBadge() {
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  const total = unseenItems.length + pendingReminders.length;
+  if (total > 0) {
+    badge.textContent = total > 99 ? '99+' : total;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openNotifPanel(forceShow) {
+  const panel = document.getElementById('notif-panel');
+  const list = document.getElementById('notif-list');
+  let html = '';
+
+  // SECTION 1: Reminders (persistent — until marked done)
+  if (pendingReminders.length > 0) {
+    html += '<div style="padding:10px 16px 6px;font-size:10px;color:#854f0b;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;background:#fdf6e0">📬 Reminders</div>';
+    html += pendingReminders.map(r => `
+      <div style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:start">
+        <div style="flex:1;min-width:0">
+          <div style="color:#1a1a1a;line-height:1.4;word-wrap:break-word">${(r.message||'').replace(/</g,'&lt;')}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">from ${r.from} · ${r.date || '—'}</div>
+        </div>
+        <button onclick="markReminderDone('${(r.rowKey||'').replace(/'/g,"\\'")}')" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0">✓ Done</button>
+      </div>
+    `).join('');
+  }
+
+  // SECTION 2: Recent activity (new tasks + changes — clearable)
+  if (unseenItems.length > 0) {
+    html += '<div style="padding:10px 16px 6px;font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;background:#f7f7f3">Recent activity</div>';
+    html += unseenItems.map(n => `
+      <div style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="font-size:14px">${n.type === 'task' ? '📌' : '🔄'}</span>
+          <strong style="font-size:11px;color:${n.type === 'task' ? '#854f0b' : '#991b1b'};text-transform:uppercase;letter-spacing:0.05em">${n.type === 'task' ? 'New Task' : 'Changes Needed'}</strong>
+        </div>
+        <div style="color:#1a1a1a;line-height:1.4;margin-left:22px">${n.title}</div>
+      </div>
+    `).join('');
+  }
+
+  if (!html) html = '<div style="padding:24px 16px;font-size:12px;color:var(--muted);text-align:center">All clear ✨</div>';
+  list.innerHTML = html;
+
+  if (forceShow !== false) panel.style.display = panel.style.display === 'block' && !forceShow ? 'none' : 'block';
+}
+
+function markAllSeen() {
+  unseenItems = [];
+  updateBellBadge();
+  document.getElementById('notif-panel').style.display = 'none';
+}
+
+// Close notif panel when clicking outside
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notif-panel');
+  const bell = document.getElementById('notif-bell');
+  if (panel && panel.style.display === 'block' && !panel.contains(e.target) && !bell.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// Compare new task list with known set; flag new items + play sound
+function detectNewItems(allMyTasks, allMyChanges) {
+  const taskKey = t => `T:${t.Date || ''}|${t.Title || t.Task || ''}`;
+  const changeKey = c => `C:${c.Date || ''}|${c.Task || ''}`;
+
+  if (firstLoadDone) {
+    // Detect new tasks
+    allMyTasks.forEach(t => {
+      const k = taskKey(t);
+      if (!knownTaskIds.has(k)) {
+        unseenItems.push({ type: 'task', title: t.Title || (t.Task || '').substring(0, 60), when: Date.now() });
+      }
+    });
+    // Detect new changes (Sent Back)
+    allMyChanges.forEach(c => {
+      const k = changeKey(c);
+      if (!knownChangeIds.has(k)) {
+        unseenItems.push({ type: 'change', title: (c.Task || '').split('|')[0].trim() + ' — feedback waiting', when: Date.now() });
+      }
+    });
+    if (unseenItems.length > 0) {
+      playPing();
+      updateBellBadge();
+    }
+  }
+
+  // Refresh known sets
+  knownTaskIds = new Set(allMyTasks.map(taskKey));
+  knownChangeIds = new Set(allMyChanges.map(changeKey));
+  firstLoadDone = true;
+}
+
+// Auto-refresh tasks + changes every 15 min
+function startAutoRefresh() {
+  setInterval(() => {
+    if (!currentUser) return;
+    loadTasks();
+    loadReminders();
+    loadChanges?.();
+    loadChat?.();
+  }, 15 * 60 * 1000);
+}
+
+// ====== TEAM CHAT ======
+let chatMessages = [];
+let lastSeenChatTimestamp = 0;
+let lastKnownMessageIds = new Set(); // separate first-load tracking for chat sounds
+let chatPollInterval = null;
+let chatFirstLoad = true;
+
+function showChatFab() {
+  // No-op now — chat is opened via sidebar nav, not a floating button.
+  try { lastSeenChatTimestamp = parseInt(localStorage.getItem('yv-chat-lastseen-' + currentUser) || '0'); } catch(e) {}
+}
+
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  const isOpen = panel.style.right === '0px';
+  // Find the yellow home dot in this page (defensive selector — anchor with the home glyph)
+  const homeDot = document.querySelector('a[title*="Yellowverse" i]');
+  if (isOpen) {
+    panel.style.right = '-420px';
+    if (homeDot) homeDot.style.display = '';
+    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+  } else {
+    panel.style.right = '0px';
+    if (homeDot) homeDot.style.display = 'none';   // prevent overlap with send button
+    loadChat();
+    lastSeenChatTimestamp = Date.now();
+    try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
+    updateChatUnread();
+    chatPollInterval = setInterval(loadChat, 20 * 1000);
+    setTimeout(() => document.getElementById('chat-input')?.focus(), 300);
+  }
+}
+
+async function loadChat() {
+  try {
+    const res = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+    const raw = await res.json();
+    const rows = Array.isArray(raw) ? raw : [];
+    const fetched = rows
+      .filter(r => r.Type === 'chat')
+      .sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime())
+      .slice(-100);
+
+    // Detect new messages from others — independent of task tracking, fixes silent first-poll bug
+    if (!chatFirstLoad) {
+      const newOnes = fetched.filter(m => {
+        const id = `${m.Date}|${m.Title}|${m.Task}`;
+        const isNew = !lastKnownMessageIds.has(id);
+        const fromOther = m.Title !== currentUser;
+        return isNew && fromOther;
+      });
+      if (newOnes.length > 0) {
+        // If any of them mention me, do a stronger ping
+        const mentionsMe = newOnes.some(m => (m.Task || '').match(new RegExp('@' + currentUser + '\\b', 'i')));
+        playPing();
+        if (mentionsMe) setTimeout(playPing, 200); // double ping for mentions
+      }
+    }
+    lastKnownMessageIds = new Set(fetched.map(m => `${m.Date}|${m.Title}|${m.Task}`));
+    chatFirstLoad = false;
+    chatMessages = fetched;
+    renderChat();
+    updateChatUnread();
+  } catch(e) {}
+}
+
+function renderChat() {
+  const wrap = document.getElementById('chat-messages');
+  if (!wrap) return;
+  if (!chatMessages.length) {
+    wrap.innerHTML = '<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 20px;background:#fff8c5;border-radius:10px;margin:20px auto;max-width:280px;line-height:1.6">👋 No messages yet.<br><span style="font-size:11px;color:#777">Type @ to tag · 📎 to attach</span></div>';
+    return;
+  }
+  let lastDate = '';
+  let html = '';
+  chatMessages.forEach(m => {
+    const ts = new Date(m.Date);
+    const dateStr = ts.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    if (dateStr !== lastDate) {
+      html += `<div style="text-align:center;margin:10px 0"><span style="background:#fff;color:#5a5a5a;font-size:11px;padding:4px 12px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,0.06);border:1px solid #e6dfd0">${dateStr}</span></div>`;
+      lastDate = dateStr;
+    }
+    const isMe = m.Title === currentUser;
+    const time = ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
+    const sender = m.Title || 'Someone';
+
+    // Pull file URLs from message before HTML-escaping
+    const text = m.Task || '';
+    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp|pdf))/i);
+    const imageMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp))/i);
+    const pdfMatch = text.match(/(https?:\/\/[^\s]+\.pdf)/i);
+    let textWithoutFile = text;
+    if (fileUrlMatch) textWithoutFile = text.replace(fileUrlMatch[0], '').trim();
+
+    let safe = textWithoutFile.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:#0066cc">$1</a>');
+    safe = safe.replace(/@(\w+)/g, function(_, name) {
+      const cap = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+      const isSelf = cap === currentUser;
+      return `<span style="color:${isSelf ? '#dc2626' : '#854f0b'};font-weight:700">@${cap}</span>`;
+    });
+
+    let attachmentHtml = '';
+    if (imageMatch) {
+      attachmentHtml = `<a href="${imageMatch[0]}" target="_blank" style="display:block;margin-bottom:${safe ? '6px' : '0'}"><img src="${imageMatch[0]}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy"></a>`;
+    } else if (pdfMatch) {
+      const fname = pdfMatch[0].split('/').pop().split('?')[0];
+      attachmentHtml = `<a href="${pdfMatch[0]}" target="_blank" style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6dfd0;border-radius:8px;padding:8px 10px;text-decoration:none;color:#1a1a1a;margin-bottom:${safe ? '6px' : '0'}"><span style="font-size:18px">📎</span><span style="font-size:12px;font-weight:600;word-break:break-all">${fname}</span></a>`;
+    }
+
+    const bg = isMe ? '#fef3c7' : '#ffffff';
+    const radius = isMe ? '14px 4px 14px 14px' : '4px 14px 14px 14px';
+    const justify = isMe ? 'flex-end' : 'flex-start';
+    const senderLine = isMe ? '' : `<div style="font-size:11px;font-weight:700;color:#854f0b;margin-bottom:3px">${sender}</div>`;
+
+    html += `<div style="display:flex;justify-content:${justify};margin:1px 0">
+      <div style="background:${bg};border-radius:${radius};padding:7px 10px 5px;max-width:80%;box-shadow:0 1px 0.5px rgba(0,0,0,0.08);position:relative;color:#1a1a1a;border:1px solid ${isMe ? '#fde68a' : '#ece6d8'}">
+        ${senderLine}
+        ${attachmentHtml}
+        ${safe ? `<div style="font-size:13.5px;line-height:1.4;word-wrap:break-word;padding-right:42px">${safe}</div>` : ''}
+        <div style="font-size:10px;color:#999;text-align:right;margin-top:${safe ? '-12px' : '2px'};margin-right:-2px">${time}</div>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// File attachment handler
+let pendingAttachUrl = null;
+
+async function handleChatAttach(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('chat-attach-preview');
+  preview.style.display = 'flex';
+  preview.innerHTML = `<span>📎 Uploading <strong>${file.name}</strong>…</span><span style="color:var(--muted)">please wait</span>`;
+  try {
+    const formData = new FormData();
+    const ext = (file.name.split('.').pop() || 'bin');
+    const dropboxPath = `/CHAT/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+    formData.append('file', file, file.name);
+    formData.append('dropboxPath', dropboxPath);
+    const res = await fetch('https://yellowbackend.onrender.com/api/dropbox-upload', { method:'POST', body: formData });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Upload failed');
+    pendingAttachUrl = data.url;
+    preview.innerHTML = `<span>📎 <strong>${file.name}</strong> ready to send</span><button onclick="cancelChatAttach()" style="background:transparent;border:none;color:#854f0b;cursor:pointer;font-size:14px;padding:0">×</button>`;
+  } catch(e) {
+    preview.innerHTML = `<span style="color:#dc2626">Upload failed</span><button onclick="cancelChatAttach()" style="background:transparent;border:none;color:#854f0b;cursor:pointer;font-size:14px;padding:0">×</button>`;
+    pendingAttachUrl = null;
+  }
+  input.value = ''; // reset so same file can be re-picked
+}
+
+function cancelChatAttach() {
+  pendingAttachUrl = null;
+  document.getElementById('chat-attach-preview').style.display = 'none';
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  // Allow sending if either text OR an attachment is queued
+  if (!text && !pendingAttachUrl) return;
+  const btn = document.getElementById('chat-send-btn');
+  btn.disabled = true; btn.textContent = '...';
+
+  const messageBody = pendingAttachUrl
+    ? (text ? `${text} ${pendingAttachUrl}` : pendingAttachUrl)
+    : text;
+
+  const row = {
+    Date: new Date().toISOString(),
+    Title: currentUser,
+    Task: messageBody,
+    Assignee: 'all',
+    Type: 'chat'
+  };
+  chatMessages.push(row);
+  renderChat();
+  input.value = '';
+  pendingAttachUrl = null;
+  document.getElementById('chat-attach-preview').style.display = 'none';
+  hideMentionDropdown();
+  try {
+    await fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+    });
+    setTimeout(loadChat, 1500);
+  } catch(e) {
+    chatMessages.pop();
+    renderChat();
+  }
+  btn.disabled = false; btn.textContent = 'Send';
+  lastSeenChatTimestamp = Date.now();
+  try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
+}
+
+function updateChatUnread() {
+  const navBadge = document.getElementById('chat-nav-badge');
+  if (!navBadge) return;
+  const unread = chatMessages.filter(m => {
+    const t = new Date(m.Date).getTime();
+    return t > lastSeenChatTimestamp && m.Title !== currentUser;
+  }).length;
+  if (unread > 0) {
+    navBadge.textContent = unread > 99 ? '99+' : unread;
+    navBadge.style.display = 'inline-flex';
+  } else {
+    navBadge.style.display = 'none';
+  }
+}
+
+// ===== @mention autocomplete =====
+const TAGGABLE = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+
+function onChatInput(e) {
+  const input = e.target;
+  const value = input.value;
+  const pos = input.selectionStart;
+  // Find an @ before the cursor with no whitespace between it and cursor
+  const upToCursor = value.slice(0, pos);
+  const m = upToCursor.match(/@(\w*)$/);
+  if (m) showMentionDropdown(m[1]);
+  else hideMentionDropdown();
+}
+
+function onChatKeydown(e) {
+  const dd = document.getElementById('mention-dropdown');
+  const isOpen = dd.style.display === 'block';
+  if (isOpen && (e.key === 'Escape' || e.key === ' ')) {
+    if (e.key === 'Escape') { hideMentionDropdown(); e.preventDefault(); }
+    if (e.key === ' ') hideMentionDropdown();
+    return;
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (isOpen) {
+      // Pick first match
+      const first = dd.querySelector('.mention-option');
+      if (first) first.click();
+    } else {
+      sendChat();
+    }
+  }
+}
+
+function showMentionDropdown(query) {
+  const dd = document.getElementById('mention-dropdown');
+  const matches = TAGGABLE.filter(n => n.toLowerCase().startsWith(query.toLowerCase())).slice(0, 6);
+  if (!matches.length) { hideMentionDropdown(); return; }
+  dd.innerHTML = matches.map(n =>
+    `<div class="mention-option" onclick="insertMention('${n}')" style="padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0eeea" onmouseover="this.style.background='#fef9ef'" onmouseout="this.style.background='#fff'">@${n}</div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+function hideMentionDropdown() {
+  const dd = document.getElementById('mention-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function insertMention(name) {
+  const input = document.getElementById('chat-input');
+  const value = input.value;
+  const pos = input.selectionStart;
+  const before = value.slice(0, pos).replace(/@\w*$/, '@' + name + ' ');
+  const after = value.slice(pos);
+  input.value = before + after;
+  input.focus();
+  input.setSelectionRange(before.length, before.length);
+  hideMentionDropdown();
+}
+
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
   if (name === 'calendar') renderCalendar();
+  if (name === 'agent' && agentHistory.length === 0) restoreAgentHistory();
 }
+
+
 
 // ====== CALENDAR ======
 const HOLIDAYS_2026 = [
@@ -644,10 +1453,16 @@ async function addQuickTask() {
   const dateEl = document.getElementById('quick-task-date');
   const titleEl = document.getElementById('quick-task-title');
   const descEl = document.getElementById('quick-task-desc');
+  const assigneeEl = document.getElementById('quick-task-assignee');
   const btn = document.getElementById('quick-task-btn');
   const date = dateEl.value;
   const title = titleEl.value.trim();
   const desc = descEl.value.trim();
+  // If the assignee dropdown is visible AND has a value, use it; otherwise self-assign.
+  const assigneeRow = document.getElementById('quick-task-assignee-row');
+  const assignTo = (assigneeRow && assigneeRow.style.display !== 'none' && assigneeEl?.value)
+    ? assigneeEl.value
+    : currentUser;
 
   if (!date) { alert('Pick a date.'); return; }
   if (!title) { alert('Add a title.'); return; }
@@ -658,20 +1473,23 @@ async function addQuickTask() {
       Date: date,
       Title: title,
       Task: desc || title,
-      Assignee: currentUser,
+      Assignee: assignTo,
       Status: 'Pending',
+      Notes: assignTo !== currentUser ? `assigned by ${currentUser}` : '',
       Type: 'task'
     };
     fetch(SHEETDB, {
       method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
       body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
     });
-    btn.textContent = '✓ Added'; btn.style.background = '#22c55e'; btn.style.color = '#fff';
+    const successLabel = assignTo !== currentUser ? `✓ Sent to ${assignTo}` : '✓ Added';
+    btn.textContent = successLabel; btn.style.background = '#22c55e'; btn.style.color = '#fff';
     titleEl.value = ''; descEl.value = '';
+    if (assigneeEl) assigneeEl.value = '';
     setTimeout(() => {
       btn.textContent = 'Add'; btn.disabled = false; btn.style.background = ''; btn.style.color = '';
       loadTasks();
-    }, 900);
+    }, 1100);
   } catch(e) {
     btn.textContent = '✕ Error'; btn.disabled = false;
     setTimeout(() => { btn.textContent = 'Add'; }, 2000);
@@ -759,6 +1577,12 @@ async function loadTasks() {
     const all  = data.filter(t =>
       t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
     );
+
+    // Detect new items (tasks for me + sent-back creatives) and ping bell + sound
+    const myChanges = data.filter(c =>
+      c.Type === 'creative' && c.Status === 'Sent Back' && (c.Task || '').includes(`| ${currentUser}`)
+    );
+    detectNewItems(all, myChanges);
 
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = today.substring(0, 7); // YYYY-MM
@@ -1264,7 +2088,7 @@ document.getElementById('leave-from').value = new Date().toISOString().split('T'
 
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Yellowverse"></a>
+<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer" title="Go to Yellowverse"></a>
 
 </body>
 </html>
