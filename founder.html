@@ -647,7 +647,6 @@
         <div style="display:flex;gap:8px;align-items:center">
           <input type="text" id="task-search" placeholder="🔍 Search task or person..." style="width:220px" oninput="filterTasks()">
           <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
-          <button class="btn btn-yellow btn-sm" onclick="sendAllEmails()">📧 Email All</button>
         </div>
       </div>
       <div id="quick-lookup-result" style="display:none;margin-bottom:12px;padding:12px;background:var(--surface2);border:1px solid var(--yellow);border-radius:6px"></div>
@@ -1697,6 +1696,12 @@ function checkTeamNotifications(tasks) {
 
   if (newOnes.length === 0 && cleared.length === 0) return;
 
+  // Play a ping so Suriti hears the change even if she's not looking
+  if (typeof playPingFounder === 'function') {
+    playPingFounder();
+    if (cleared.length > 0) setTimeout(playPingFounder, 220); // double-ping for capacity-now-free
+  }
+
   showTeamNotificationBanner(newOnes, cleared, () => {
     localStorage.setItem('yos-known-team-tasks', JSON.stringify(teamTasks.map(taskId)));
     localStorage.setItem('yos-last-open-counts', JSON.stringify(openCounts));
@@ -1727,7 +1732,7 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
   }
 
   cleared.forEach(c => {
-    items.push(`<div style="font-size:13px;color:#15803d;line-height:1.5"><strong>🎉 ${c.name} cleared all ${c.count} task${c.count>1?'s':''} — fully done.</strong></div>`);
+    items.push(`<div style="font-size:13px;color:#15803d;line-height:1.5"><strong>🟢 ${c.name} just cleared all ${c.count} task${c.count>1?'s':''} — sitting idle, ready for new work.</strong></div>`);
   });
 
   const banner = document.createElement('div');
@@ -2033,64 +2038,7 @@ async function addTask() {
   } catch(e) { alert('Error saving task: ' + e.message); }
 }
 
-async function sendAllEmails() {
-  // Email each designer their CURRENT OPEN tasks — not filtered by Date.
-  // Includes title, description, status, and the most recent update for each task.
-  const openTasks = allTasks.filter(t =>
-    t.Status !== 'Done' &&
-    (t.Type === 'task' || !t.Type || t.Type === '') &&
-    t.Assignee
-  );
-  if(!openTasks.length) { alert('No open tasks to email.'); return; }
-
-  const byPerson = {};
-  openTasks.forEach(t => {
-    if(!byPerson[t.Assignee]) byPerson[t.Assignee] = [];
-    byPerson[t.Assignee].push(t);
-  });
-
-  const btn = document.querySelector('[onclick="sendAllEmails()"]');
-  if(btn) { btn.textContent = '⏳ Sending...'; btn.disabled = true; }
-
-  const today = new Date().toISOString().split('T')[0];
-  let sent = 0, failed = [];
-  for(const [person, tasks] of Object.entries(byPerson)) {
-    if(!TEAM[person]) { failed.push(`${person} (no email)`); continue; }
-    const taskList = tasks.map((t, i) => {
-      const title = t.Title || t.Task || '(untitled)';
-      const desc = (t.Title && t.Task && t.Task !== t.Title) ? `\n   ${t.Task}` : '';
-      const status = t.Status || 'Pending';
-      const updates = (t.Update || '').trim();
-      let updateBlock = '';
-      if (updates) {
-        const lines = updates.split('\n').filter(l => l.trim()).slice(-3).reverse();
-        updateBlock = '\n   Recent direction (newest first):\n' + lines.map(l => `   • ${l}`).join('\n');
-      }
-      return `${i+1}. ${title}  [${status}]${desc}${updateBlock}`;
-    }).join('\n\n');
-
-    try {
-      await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-        to_email: TEAM[person], to_name: person,
-        task_name: `Your open tasks (${tasks.length})`,
-        task_list: taskList,
-        task_date: today,
-        email: 'creative@yellowproductions.co.in'
-      });
-      sent++;
-    } catch(e) {
-      console.error('Email failed for', person, e);
-      failed.push(`${person} (${e.text || e.message || 'error'})`);
-    }
-  }
-
-  if(btn) { btn.textContent = '📧 Email All'; btn.disabled = false; }
-  if(failed.length) {
-    alert(`✅ Sent to ${sent} people.\n❌ Failed: ${failed.join(', ')}`);
-  } else {
-    alert(`✅ Open task lists sent to ${sent} team members!`);
-  }
-}
+// (Email-all functionality removed — team sees tasks live in their portal.)
 
 // ====== HR ======
 async function loadHR() {
@@ -2881,7 +2829,10 @@ async function loadChat() {
         return !lastKnownMessageIds.has(id) && m.Title !== CURRENT_USER_FOUNDER;
       });
       if (newOnes.length > 0) {
-        const mentionsMe = newOnes.some(m => (m.Task || '').match(/@Suriti\b/i));
+        const mentionsMe = newOnes.some(m => {
+          const t = m.Task || '';
+          return t.match(/@Suriti\b/i) || t.match(/@team\b/i);
+        });
         playPingFounder();
         if (mentionsMe) setTimeout(playPingFounder, 200);
       }
@@ -2914,15 +2865,25 @@ function renderChat() {
     const sender = m.Title || 'Someone';
 
     const text = m.Task || '';
-    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp|pdf))/i);
-    const imageMatch = text.match(/(https?:\/\/[^\s]+\.(?:jpe?g|png|gif|webp))/i);
-    const pdfMatch = text.match(/(https?:\/\/[^\s]+\.pdf)/i);
+    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp|pdf)(?:\?[^\s]*)?)/i);
+    const imageMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp)(?:\?[^\s]*)?)/i);
+    const pdfMatch = text.match(/(https?:\/\/[^\s]+?\.pdf(?:\?[^\s]*)?)/i);
     let textWithoutFile = text;
     if (fileUrlMatch) textWithoutFile = text.replace(fileUrlMatch[0], '').trim();
+
+    const dbxDirect = (url) => {
+      if (!url || !url.includes('dropbox.com')) return url;
+      let u = url.replace(/[?&]dl=0\b/, m => m[0] + 'raw=1').replace(/\bdl=0\b/, 'raw=1');
+      if (!/[?&]raw=1\b/.test(u)) u = u + (u.includes('?') ? '&raw=1' : '?raw=1');
+      return u;
+    };
 
     let safe = textWithoutFile.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:#0066cc">$1</a>');
     safe = safe.replace(/@(\w+)/g, function(_, name) {
+      if (name.toLowerCase() === 'team') {
+        return `<span style="color:#dc2626;font-weight:700;background:#fee2e2;padding:1px 8px;border-radius:10px;border:1px solid #fca5a5">@team</span>`;
+      }
       const cap = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
       const isSelf = cap === CURRENT_USER_FOUNDER;
       return `<span style="color:${isSelf ? '#dc2626' : '#854f0b'};font-weight:700">@${cap}</span>`;
@@ -2930,7 +2891,8 @@ function renderChat() {
 
     let attachmentHtml = '';
     if (imageMatch) {
-      attachmentHtml = `<a href="${imageMatch[0]}" target="_blank" style="display:block;margin-bottom:${safe ? '6px' : '0'}"><img src="${imageMatch[0]}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy"></a>`;
+      const directSrc = dbxDirect(imageMatch[0]);
+      attachmentHtml = `<a href="${imageMatch[0]}" target="_blank" style="display:block;margin-bottom:${safe ? '6px' : '0'}"><img src="${directSrc}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy" onerror="this.parentNode.innerHTML='<div style=\\'background:#fef9ee;padding:10px;border-radius:8px;font-size:11px;color:#854f0b\\'>📎 Image — <a href=&quot;${imageMatch[0]}&quot; target=_blank style=&quot;color:#0066cc&quot;>open in browser</a></div>'"></a>`;
     } else if (pdfMatch) {
       const fname = pdfMatch[0].split('/').pop().split('?')[0];
       attachmentHtml = `<a href="${pdfMatch[0]}" target="_blank" style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6dfd0;border-radius:8px;padding:8px 10px;text-decoration:none;color:#1a1a1a;margin-bottom:${safe ? '6px' : '0'}"><span style="font-size:18px">📎</span><span style="font-size:12px;font-weight:600;word-break:break-all">${fname}</span></a>`;
@@ -3027,7 +2989,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
 
 function onChatInput(e) {
   const input = e.target;
