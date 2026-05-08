@@ -205,7 +205,7 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
             <option value="">Select your name</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishwanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Ajay</option>
           </select>
         </div>
@@ -232,6 +232,15 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
             <option value="jindal-youth">Jindal Youth League</option>
             <option value="sohar-steel">Sohar Steel</option>
           </select>
+        </div>
+
+        <div class="field">
+          <label>File type</label>
+          <select id="q-filetype" onchange="updateFileTypeHint()">
+            <option value="final">📄 Final / Preview (JPEG, PDF, MP4) — goes for review</option>
+            <option value="open">📂 Open file (PSD, AI, source) — goes straight to client folder</option>
+          </select>
+          <div id="filetype-hint" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Final files flow through Viplav → client. Open files skip review and land directly in the client's source folder.</div>
         </div>
 
         <div class="field">
@@ -269,6 +278,27 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
 const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
+
+// Where each client's source/open files live in Dropbox
+const CLIENT_OPEN_FOLDERS = {
+  'steelcity':    '/JINDAL/Open Files',
+  'youthleague':  '/Jindal League/Open Files',
+  'jindal-youth': '/Jindal Youth League/Open Files',
+  'sohar-steel':  '/Sohar Steel/Open Files',
+  'duqm':         '/Jindal Steel Duqm/Open Files'
+};
+
+function updateFileTypeHint() {
+  const ft = document.getElementById('q-filetype').value;
+  const hint = document.getElementById('filetype-hint');
+  if (ft === 'open') {
+    hint.innerHTML = '📂 Open file mode — file will go directly to the client\'s <strong>Open Files</strong> folder. No review step. Use this for PSDs, AI files, working masters.';
+    hint.style.color = '#15803d';
+  } else {
+    hint.innerHTML = 'Final files flow through Viplav → client. Open files skip review and land directly in the client\'s source folder.';
+    hint.style.color = 'var(--muted)';
+  }
+}
 
 // Warmup Render on page load so backend is hot by the time user clicks upload
 fetch(BACKEND+'/health').catch(()=>{});
@@ -333,10 +363,14 @@ async function onDesignerChange() {
     };
 
     myTasks = data.filter(r => {
+      // If a Done/Approved task already has its Open File uploaded, hide it — fully complete.
+      const isFullyComplete = (r.Status === 'Done' || r.Status === 'Approved') && (r['Open File Link'] || '').trim();
+      if (isFullyComplete) return false;
+
       // Open tasks assigned to this designer
       if ((r.Type === 'task' || !r.Type || r.Type === '') && r.Assignee === designer) {
         if (r.Status !== 'Done') return true; // active task — always show
-        return isWithinWindow(r.Date); // recently done — keep for a week
+        return isWithinWindow(r.Date); // recently done — keep for a week so designer can upload open file
       }
       // Creatives by this designer
       if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
@@ -350,11 +384,12 @@ async function onDesignerChange() {
     myTasks.forEach((t, i) => {
       const isRework = t.Type === 'creative' && t.Status === 'Sent Back';
       const isClosed = t.Status === 'Done' || t.Status === 'Approved' || t.Status === 'Rejected';
+      const needsOpenFile = (t.Status === 'Done' || t.Status === 'Approved') && !(t['Open File Link'] || '').trim();
       // Display: prefer Title; otherwise truncated Task description
       const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
       const displayName = rawName.length > 50 ? rawName.substring(0, 50) + '…' : rawName;
-      const prefix = isRework ? '🔄 Rework: ' : (isClosed ? `✓ ` : '');
-      const suffix = isClosed ? ` [${t.Status}]` : (t.Status && t.Status !== 'Pending' && !isRework ? ` [${t.Status}]` : '');
+      const prefix = isRework ? '🔄 Rework: ' : (needsOpenFile ? '📂 ' : (isClosed ? `✓ ` : ''));
+      const suffix = needsOpenFile ? ' [needs open file]' : (isClosed ? ` [${t.Status}]` : (t.Status && t.Status !== 'Pending' && !isRework ? ` [${t.Status}]` : ''));
       opts.push(`<option value="${i}">${prefix}${displayName}${suffix}</option>`);
     });
     opts.push('<option value="adhoc">+ Ad-hoc / Not in my task list</option>');
@@ -376,6 +411,7 @@ async function submitUpload(){
   const designer = document.getElementById('q-designer').value;
   const taskVal = document.getElementById('q-task').value;
   const client = document.getElementById('q-client').value;
+  const fileType = document.getElementById('q-filetype').value || 'final';
   const filesEl = document.getElementById('q-file');
   const files = filesEl.files;
   const isAdhoc = taskVal === 'adhoc';
@@ -386,6 +422,8 @@ async function submitUpload(){
   if (isAdhoc && !adhocName) { showErr('Please enter a creative name.'); return; }
   if (!client) { showErr('Please select a client.'); return; }
   if (!files || !files.length) { showErr('Please select at least one file.'); return; }
+
+  const isOpenFile = fileType === 'open';
 
   // Determine base creative name + whether we'll patch an existing task row
   let baseCreativeName, originalTaskText = null, isRework = false;
@@ -416,7 +454,6 @@ async function submitUpload(){
     btn.textContent = `Uploading ${i+1} of ${total}...`;
     setProgress(Math.round((i / total) * 90) + 5);
 
-    // Build creative name — if multiple files, append filename without extension to disambiguate
     const fileBase = file.name.replace(/\.[^.]+$/, '');
     const creativeName = total > 1 ? `${baseCreativeName} — ${fileBase}` : baseCreativeName;
 
@@ -424,7 +461,12 @@ async function submitUpload(){
       const formData = new FormData();
       const safeName = creativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
       const ext = file.name.split('.').pop();
-      const dropboxPath = `/REVIEW/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
+
+      // Branch: open files go to client folder direct, final files go to /REVIEW for Viplav
+      const targetFolder = isOpenFile
+        ? (CLIENT_OPEN_FOLDERS[client] || `/${CLIENT_NAMES[client] || client}/Open Files`)
+        : '/REVIEW';
+      const dropboxPath = `${targetFolder}/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
       formData.append('file', file, file.name);
       formData.append('dropboxPath', dropboxPath);
 
@@ -434,22 +476,39 @@ async function submitUpload(){
       const fileUrl = uploadData.url || uploadData.path;
       const dropPath = uploadData.path || '';
 
-      // First file: patch the existing task/creative row (if any)
-      // Subsequent files: always create new rows
-      if (i === 0 && originalTaskText) {
-        const patchData = isRework
-          ? { Task: `${creativeName} | ${designer}`, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Notes: '' }
-          : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type: 'creative' };
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
-        });
+      if (isOpenFile) {
+        // OPEN FILE flow — patch the row's Open File Link only. Don't change status/type.
+        // If the task is Done & has Preview Link already, this completes the cycle and the task vanishes from the studio dropdown next refresh.
+        if (i === 0 && originalTaskText) {
+          fetch(SHEETDB, {
+            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+            body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': fileUrl } })
+          });
+        } else {
+          // Adhoc or extra files — create a row to track the open-file upload
+          const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': fileUrl, Type:'open' };
+          fetch(SHEETDB, {
+            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+            body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+          });
+        }
       } else {
-        const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, 'Open File Link': dropPath, Type:'creative' };
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-        });
+        // FINAL FILE flow — existing review pipeline
+        if (i === 0 && originalTaskText) {
+          const patchData = isRework
+            ? { Task: `${creativeName} | ${designer}`, Status: 'Pending Review', 'Preview Link': fileUrl, Notes: '' }
+            : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, Type: 'creative' };
+          fetch(SHEETDB, {
+            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+            body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
+          });
+        } else {
+          const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, Type:'creative' };
+          fetch(SHEETDB, {
+            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+            body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+          });
+        }
       }
       successCount++;
     } catch(e) {
@@ -459,7 +518,10 @@ async function submitUpload(){
 
   setProgress(100);
   if (successCount === total) {
-    btn.textContent = total > 1 ? `✅ Uploaded ${total} files! With Viplav for review` : '✅ Uploaded! With Viplav for review';
+    const successMsg = isOpenFile
+      ? (total > 1 ? `✅ ${total} open files saved to client folder!` : '✅ Open file saved to client folder!')
+      : (total > 1 ? `✅ Uploaded ${total} files! With Viplav for review` : '✅ Uploaded! With Viplav for review');
+    btn.textContent = successMsg;
     btn.style.background = '#22c55e';
     btn.style.color = '#fff';
     btn.disabled = false;
@@ -499,6 +561,9 @@ function resetForm(){
   sb.style.background='#FEBC06';
   sb.style.color='#000';
   sb.disabled=false;
+  // Reset filetype dropdown to default
+  const ft = document.getElementById('q-filetype');
+  if (ft) { ft.value = 'final'; updateFileTypeHint(); }
   document.getElementById('progress-bar').style.display='none';
   document.getElementById('progress-fill').style.width='0%';
   document.getElementById('form-view').style.display='block';
