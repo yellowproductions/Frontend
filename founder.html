@@ -498,6 +498,9 @@
   <div class="nav-item" onclick="showPanel('hr')">
     <span class="nav-icon">👥</span> HR
   </div>
+  <div class="nav-item" onclick="showPanel('pipeline')">
+    <span class="nav-icon">🎯</span> Pipeline
+  </div>
   <div class="nav-item" onclick="showPanel('calendar')">
     <span class="nav-icon">📅</span> Calendar
   </div>
@@ -551,6 +554,19 @@
   <!-- CEO PANEL -->
   <div class="panel active" id="panel-ceo">
     <div class="panel-title">Good morning, Suriti ☀️</div>
+
+    <!-- ===== MORNING DIGEST — what changed + what needs you today ===== -->
+    <div class="card" id="morning-digest" style="margin-bottom:18px;background:#fefbf2;border:1px solid #f0d080">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">📋</span>
+          <div style="font-size:13px;font-weight:700;color:#854f0b;letter-spacing:0.04em;text-transform:uppercase">Today's Brief</div>
+        </div>
+        <span id="digest-date" style="font-size:11px;color:#a07419"></span>
+      </div>
+      <div id="digest-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px"></div>
+      <div id="digest-flags" style="margin-top:14px"></div>
+    </div>
 
     <!-- Agent cards — horizontal grid, click any to start a NEW chat thread -->
     <div class="agent-grid">
@@ -658,6 +674,15 @@
   <div class="panel" id="panel-hr">
     <div class="panel-title">HR — People & Attendance</div>
 
+    <!-- 📊 TEAM CAPACITY — at a glance, who has bandwidth -->
+    <div class="card" style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin:0">Team Capacity</div>
+        <span style="font-size:11px;color:var(--muted)">Sorted by load · pick someone with bandwidth for new briefs</span>
+      </div>
+      <div id="capacity-list"><div class="empty-state" style="padding:14px">Loading...</div></div>
+    </div>
+
     <div class="hr-grid">
       <div class="card">
         <div class="card-title">Today's Attendance</div>
@@ -676,6 +701,40 @@
       </div>
       <div id="attendance-log"><div class="empty-state">Select a date to view log.</div></div>
     </div>
+  </div>
+
+  <!-- 🎯 PIPELINE PANEL — new business prospects + active client cadence -->
+  <div class="panel" id="panel-pipeline">
+    <div class="panel-title">Pipeline</div>
+
+    <!-- Add new prospect -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin:0;font-size:13px">Add Prospect</div>
+        <span style="font-size:11px;color:var(--muted)">New business · pitches · referrals</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 90px;gap:8px;align-items:end">
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Company</label>
+          <input type="text" id="pipe-company" placeholder="Company name" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Contact person</label>
+          <input type="text" id="pipe-contact" placeholder="Name + email/phone" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Notes</label>
+          <input type="text" id="pipe-notes" placeholder="Source · scope · context" style="font-size:12px;padding:7px 8px;width:100%">
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="addProspect()" id="pipe-add-btn" style="height:34px">Add</button>
+      </div>
+    </div>
+
+    <!-- Pipeline summary tiles -->
+    <div id="pipe-summary" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:10px;margin-bottom:14px"></div>
+
+    <!-- Stages — list grouped by stage, simple and scannable -->
+    <div id="pipeline-stages"><div class="empty-state" style="padding:30px">Loading prospects…</div></div>
   </div>
 
   <!-- CALENDAR PANEL -->
@@ -1210,6 +1269,7 @@ function showPanel(name) {
   if(name === 'review') renderReview();
   if(name === 'clients') loadClientCreatives();
   if(name === 'calendar') renderCalendar();
+  if(name === 'pipeline') loadPipeline();
 }
 
 // ====== AGENT SYSTEM ======
@@ -1654,9 +1714,358 @@ async function loadTasks() {
       .map(t => ({ ...t, Date: normalizeDate(t.Date) }));
     renderTasks(allTasks);
     checkTeamNotifications(allTasks);
+    renderMorningDigest(allTasks); // 📋 Today's Brief — surfaces capacity issues, hot deadlines, slowdowns
   } catch(e) {
     document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
   }
+}
+
+// =================== 🎯 PIPELINE — new business prospects ===================
+const PIPELINE_STAGES = ['New Lead', 'In Discussion', 'Proposal Sent', 'Won', 'Lost'];
+const STAGE_COLORS = {
+  'New Lead':       { bg:'#dbeafe', color:'#1e40af', border:'#93c5fd' },
+  'In Discussion':  { bg:'#fef3c7', color:'#854f0b', border:'#fde68a' },
+  'Proposal Sent':  { bg:'#ede9fe', color:'#5b21b6', border:'#c4b5fd' },
+  'Won':            { bg:'#dcfce7', color:'#15803d', border:'#86efac' },
+  'Lost':           { bg:'#f5f5f4', color:'#666',   border:'#d6d3d1' }
+};
+let allProspects = [];
+
+async function loadPipeline() {
+  try {
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
+    const data = await res.json();
+    allProspects = data
+      .filter(r => r.Type === 'prospect')
+      .map(p => ({ ...p, Date: normalizeDate(p.Date) }));
+    renderPipeline(allProspects);
+  } catch(e) {
+    document.getElementById('pipeline-stages').innerHTML = '<div class="empty-state">Could not load pipeline.</div>';
+  }
+}
+
+function renderPipeline(prospects) {
+  // Summary tiles
+  const summary = document.getElementById('pipe-summary');
+  if (summary) {
+    summary.innerHTML = PIPELINE_STAGES.map(stage => {
+      const count = prospects.filter(p => (p.Status || 'New Lead') === stage).length;
+      const c = STAGE_COLORS[stage];
+      return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:8px;padding:10px 12px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:${c.color};line-height:1">${count}</div>
+        <div style="font-size:11px;color:${c.color};font-weight:600;margin-top:3px">${stage}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Empty state
+  const wrap = document.getElementById('pipeline-stages');
+  if (!prospects.length) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:40px;text-align:center">
+      <div style="font-size:32px;margin-bottom:10px">🎯</div>
+      <div style="font-size:14px;color:#666;margin-bottom:6px">No prospects yet</div>
+      <div style="font-size:12px;color:#888">Add your first lead above. New business stays here until won or lost.</div>
+    </div>`;
+    return;
+  }
+
+  // Group by stage, render only stages with prospects
+  const today = new Date().toISOString().split('T')[0];
+  let html = '';
+  PIPELINE_STAGES.forEach(stage => {
+    const inStage = prospects.filter(p => (p.Status || 'New Lead') === stage);
+    if (!inStage.length) return;
+    // Sort: oldest last-touch first (most need follow-up)
+    inStage.sort((a, b) => (a.Date || '').localeCompare(b.Date || ''));
+    const c = STAGE_COLORS[stage];
+
+    html += `<div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 10px;background:${c.bg};border:1px solid ${c.border};border-radius:6px;width:fit-content">
+        <span style="font-size:12px;font-weight:700;color:${c.color};letter-spacing:0.04em;text-transform:uppercase">${stage}</span>
+        <span style="font-size:11px;color:${c.color};opacity:0.7">${inStage.length}</span>
+      </div>
+      <div>`;
+
+    inStage.forEach((p, idx) => {
+      // Days since last touch — flag warm/cold
+      let touchTag = '';
+      if (p.Date && stage !== 'Won' && stage !== 'Lost') {
+        const days = Math.floor((new Date(today) - new Date(p.Date)) / (1000*60*60*24));
+        if (days >= 35) touchTag = `<span style="background:#fee2e2;color:#c0392b;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${days}d cold</span>`;
+        else if (days >= 21) touchTag = `<span style="background:#fed7aa;color:#9a3412;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${days}d quiet</span>`;
+        else touchTag = `<span style="color:#888;font-size:11px">${days}d ago</span>`;
+      }
+
+      html += `<div style="background:#fff;border:1px solid #ece6d8;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1.4fr 1fr 1fr 130px 130px 30px;gap:12px;align-items:center">
+        <div style="min-width:0">
+          <div style="font-weight:600;font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis">${p.Title || '—'}</div>
+          ${p.Task ? `<div style="font-size:11px;color:#888;margin-top:3px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.Task}</div>` : ''}
+        </div>
+        <div style="font-size:12px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis">${p.Assignee || '—'}</div>
+        <div>${touchTag}</div>
+        <select onchange="updateProspect('${encodeURIComponent(p.Title)}','${p.Date}','stage',this.value)" style="font-size:11px;padding:5px 8px;border-radius:6px;width:100%">
+          ${PIPELINE_STAGES.map(s => `<option value="${s}" ${s===stage?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <button onclick="touchProspect('${encodeURIComponent(p.Title)}','${p.Date}')" title="Mark as contacted today" style="font-size:11px;padding:5px 8px;border-radius:6px;background:#fefbf2;border:1px solid #f0d080;color:#854f0b;cursor:pointer;font-weight:600">Touched</button>
+        <button onclick="deleteProspect('${encodeURIComponent(p.Title)}','${p.Date}')" title="Delete" style="background:transparent;border:none;color:#c0392b;font-size:14px;cursor:pointer;padding:0">✕</button>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+async function addProspect() {
+  const company = document.getElementById('pipe-company').value.trim();
+  const contact = document.getElementById('pipe-contact').value.trim();
+  const notes = document.getElementById('pipe-notes').value.trim();
+  const btn = document.getElementById('pipe-add-btn');
+  if (!company) { alert('Company name needed.'); return; }
+  btn.textContent = '...'; btn.disabled = true;
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    const row = {
+      Date: today,
+      Title: company,
+      Task: notes,
+      Assignee: contact,
+      Status: 'New Lead',
+      Type: 'prospect'
+    };
+    fetch(SHEETDB_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+    });
+    btn.textContent = '✓'; btn.style.background = '#22c55e'; btn.style.color = '#fff';
+    document.getElementById('pipe-company').value = '';
+    document.getElementById('pipe-contact').value = '';
+    document.getElementById('pipe-notes').value = '';
+    setTimeout(() => {
+      btn.textContent = 'Add'; btn.disabled = false; btn.style.background = ''; btn.style.color = '';
+      loadPipeline();
+    }, 1100);
+  } catch(e) {
+    btn.textContent = '✕'; btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Add'; }, 2000);
+  }
+}
+
+async function updateProspect(encodedTitle, date, field, value) {
+  const title = decodeURIComponent(encodedTitle);
+  const patch = { sheet:'Type:tasks', match:{ Title: title, Date: date, Type: 'prospect' } };
+  if (field === 'stage') patch.update = { Status: value };
+  try {
+    fetch(SHEETDB_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ action:'update', ...patch })
+    });
+    setTimeout(loadPipeline, 800);
+  } catch(e) { console.error(e); }
+}
+
+async function touchProspect(encodedTitle, date) {
+  const title = decodeURIComponent(encodedTitle);
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    fetch(SHEETDB_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ action:'update', sheet:'Type:tasks',
+        match:{ Title: title, Date: date, Type: 'prospect' },
+        update:{ Date: today } })
+    });
+    setTimeout(loadPipeline, 800);
+  } catch(e) { console.error(e); }
+}
+
+async function deleteProspect(encodedTitle, date) {
+  const title = decodeURIComponent(encodedTitle);
+  if (!confirm(`Delete prospect "${title}"?`)) return;
+  try {
+    fetch(SHEETDB_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ action:'delete', sheet:'Type:tasks',
+        match:{ Title: title, Date: date, Type: 'prospect' } })
+    });
+    setTimeout(loadPipeline, 800);
+  } catch(e) { console.error(e); }
+}
+
+// =================== 📊 TEAM CAPACITY VIEW ===================
+// Sorted list: idle/light first → loaded last. At-a-glance "who can take a brief?"
+function renderCapacity(tasks) {
+  const wrap = document.getElementById('capacity-list');
+  if (!wrap) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  const OPEN = ['Pending','In Progress','Awaiting Review','Awaiting Client','On Hold'];
+  const ACTIONABLE = ['Pending','In Progress','On Hold'];
+
+  // Build per-person stats
+  const TEAM = (typeof TEAM_LIST !== 'undefined' ? TEAM_LIST : []);
+  const stats = TEAM.map(name => {
+    const myTasks = tasks.filter(t => t.Assignee === name && OPEN.includes(t.Status || 'Pending'));
+    const overdue = myTasks.filter(t => t.Date && t.Date < today && ACTIONABLE.includes(t.Status || 'Pending')).length;
+    let oldestAge = 0;
+    myTasks.forEach(t => {
+      if (!t.Date) return;
+      const age = Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24));
+      if (age > oldestAge) oldestAge = age;
+    });
+    return { name, count: myTasks.length, overdue, oldestAge };
+  });
+
+  // Sort: idle (0 tasks) first, then ascending count, then by overdue ascending
+  stats.sort((a, b) => {
+    if (a.count !== b.count) return a.count - b.count;
+    return a.overdue - b.overdue;
+  });
+
+  // Render rows
+  wrap.innerHTML = `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 110px;gap:10px;padding:6px 4px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;border-bottom:1px solid var(--border)">
+    <span>Designer</span><span>Open</span><span>Overdue</span><span>Oldest task</span><span>Status</span>
+  </div>` + stats.map(s => {
+    let statusLabel, statusColor, statusBg;
+    if (s.count === 0) { statusLabel = '🟢 Idle · ready'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 2) { statusLabel = '🟢 Light'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 4) { statusLabel = '🟡 Medium'; statusColor = '#854f0b'; statusBg = '#fefbf2'; }
+    else if (s.count <= 6) { statusLabel = '🟠 Heavy'; statusColor = '#9a3412'; statusBg = '#fff7ed'; }
+    else { statusLabel = '🔴 Overloaded'; statusColor = '#7f1d1d'; statusBg = '#fef2f2'; }
+
+    const oldestText = s.oldestAge > 0 ? `${s.oldestAge}d old` : '—';
+    const overdueText = s.overdue > 0
+      ? `<span style="color:#dc2626;font-weight:600">${s.overdue}</span>`
+      : `<span style="color:#999">0</span>`;
+
+    return `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 110px;gap:10px;padding:9px 4px;font-size:13px;border-bottom:1px solid #f5ecd6;align-items:center">
+      <span style="font-weight:600">${s.name}</span>
+      <span style="color:${s.count === 0 ? '#999' : '#1a1a1a'};font-weight:${s.count === 0 ? '400' : '600'}">${s.count}</span>
+      <span>${overdueText}</span>
+      <span style="color:${s.oldestAge > 7 ? '#dc2626' : '#666'};font-size:12px">${oldestText}</span>
+      <span style="background:${statusBg};color:${statusColor};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;text-align:center">${statusLabel}</span>
+    </div>`;
+  }).join('');
+}
+
+// =================== 📋 MORNING DIGEST ===================
+// Computes "what needs you today" from current task data. Surfaces:
+//  • Hot deadlines (due ≤2 days, not started)
+//  • Stuck tasks (>7 days no update)
+//  • Idle designers (0 open tasks)
+//  • Overloaded designers (5+ open tasks)
+//  • Throughput this week (closed tasks)
+function renderMorningDigest(tasks) {
+  const grid = document.getElementById('digest-grid');
+  const flags = document.getElementById('digest-flags');
+  const dateEl = document.getElementById('digest-date');
+  if (!grid || !flags) return;
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - 7);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+
+  if (dateEl) dateEl.textContent = today.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+
+  const DONE = ['Done','Approved','Closed'];
+  const OPEN = ['Pending','In Progress','Awaiting Review','Awaiting Client','On Hold'];
+  const ACTIONABLE = ['Pending','In Progress','On Hold']; // designer must act
+
+  const openTasks = tasks.filter(t => OPEN.includes(t.Status || 'Pending'));
+  const overdueTasks = openTasks.filter(t => t.Date && t.Date < todayStr && ACTIONABLE.includes(t.Status || 'Pending'));
+  const dueTodayTasks = openTasks.filter(t => t.Date === todayStr && ACTIONABLE.includes(t.Status || 'Pending'));
+
+  // Hot deadlines — due in ≤2 days but still Pending or In Progress
+  const twoDaysOut = new Date(today); twoDaysOut.setDate(today.getDate() + 2);
+  const twoDaysStr = twoDaysOut.toISOString().split('T')[0];
+  const hotDeadlines = openTasks.filter(t =>
+    t.Date && t.Date >= todayStr && t.Date <= twoDaysStr &&
+    ACTIONABLE.includes(t.Status || 'Pending')
+  );
+
+  // Stuck — Update column has no entry from last 7 days, AND task is open and >7d old
+  const stuckTasks = openTasks.filter(t => {
+    if (!t.Date || t.Date >= weekStartStr) return false; // recent task, not stuck
+    const updates = (t.Update || '').trim();
+    if (!updates) return true; // no updates ever → stuck if old
+    // Check if any update line has a recent [MM-DD] prefix
+    const recentUpdate = updates.split('\n').some(line => {
+      const m = line.match(/\[(\d{2})-(\d{2})\]/);
+      if (!m) return false;
+      const lineDate = `${today.getFullYear()}-${m[1]}-${m[2]}`;
+      return lineDate >= weekStartStr;
+    });
+    return !recentUpdate;
+  });
+
+  // Per-designer open task counts
+  const byPerson = {};
+  openTasks.forEach(t => {
+    if (!t.Assignee) return;
+    if (!byPerson[t.Assignee]) byPerson[t.Assignee] = 0;
+    byPerson[t.Assignee]++;
+  });
+  const idleDesigners = (typeof TEAM_LIST !== 'undefined' ? TEAM_LIST : Object.keys(byPerson))
+    .filter(n => !byPerson[n] || byPerson[n] === 0);
+  const overloaded = Object.entries(byPerson).filter(([n,c]) => c >= 5).map(([n,c]) => ({ name:n, count:c }));
+
+  // Throughput — tasks closed in last 7 days (using Date as proxy if no closed-date)
+  const closedThisWeek = tasks.filter(t => DONE.includes(t.Status) && t.Date && t.Date >= weekStartStr).length;
+
+  // ===== Top metric tiles =====
+  const tileBuilder = (label, value, subtext, color) => `
+    <div style="background:#fff;border:1px solid #ece6d8;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">${label}</div>
+      <div style="font-size:22px;font-weight:800;color:${color};line-height:1">${value}</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">${subtext}</div>
+    </div>`;
+
+  grid.innerHTML = [
+    tileBuilder('Need attention', overdueTasks.length + dueTodayTasks.length,
+      `${overdueTasks.length} overdue · ${dueTodayTasks.length} due today`,
+      (overdueTasks.length + dueTodayTasks.length) > 0 ? '#dc2626' : '#22c55e'),
+    tileBuilder('Idle designers', idleDesigners.length,
+      idleDesigners.length ? idleDesigners.slice(0,3).join(', ') + (idleDesigners.length > 3 ? ` +${idleDesigners.length-3}` : '') : 'all loaded',
+      idleDesigners.length > 0 ? '#22c55e' : '#666'),
+    tileBuilder('Overloaded', overloaded.length,
+      overloaded.length ? overloaded.slice(0,2).map(o => `${o.name} (${o.count})`).join(', ') : 'no one stretched',
+      overloaded.length > 0 ? '#f59e0b' : '#666'),
+    tileBuilder('Closed this week', closedThisWeek,
+      'tasks marked Done · Approved · Closed', '#3b82f6'),
+  ].join('');
+
+  // ===== Predictive flags (under tiles) =====
+  const flagItems = [];
+  if (hotDeadlines.length) {
+    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:8px">
+      <span style="font-size:14px">🔴</span>
+      <div style="flex:1;font-size:12.5px;color:#7f1d1d"><strong>${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
+      <span style="font-size:11px;color:#9b3030">${hotDeadlines.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee} · due ${t.Date}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <em>+${hotDeadlines.length-3} more</em>` : ''}</span></div>
+    </div>`);
+  }
+  if (stuckTasks.length) {
+    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fefbf2;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px">
+      <span style="font-size:14px">🟡</span>
+      <div style="flex:1;font-size:12.5px;color:#854f0b"><strong>${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
+      <span style="font-size:11px;color:#a07419">${stuckTasks.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <em>+${stuckTasks.length-3} more</em>` : ''}</span></div>
+    </div>`);
+  }
+  if (overloaded.length) {
+    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fef9ee;border:1px solid #fcd34d;border-radius:8px;margin-bottom:8px">
+      <span style="font-size:14px">🟠</span>
+      <div style="flex:1;font-size:12.5px;color:#854f0b"><strong>Capacity stretched</strong> — ${overloaded.map(o => `<em>${o.name}</em> (${o.count} open)`).join(', ')}. Consider reassigning or holding new briefs.</div>
+    </div>`);
+  }
+  if (idleDesigners.length && (overdueTasks.length || dueTodayTasks.length)) {
+    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:8px">
+      <span style="font-size:14px">🟢</span>
+      <div style="flex:1;font-size:12.5px;color:#15803d"><strong>${idleDesigners.length} designer${idleDesigners.length>1?'s':''} sitting idle</strong> while ${overdueTasks.length + dueTodayTasks.length} task${(overdueTasks.length + dueTodayTasks.length)>1?'s':''} need attention. Reassign?<br>
+      <span style="font-size:11px;color:#16803d">Idle: ${idleDesigners.join(', ')}</span></div>
+    </div>`);
+  }
+  if (!flagItems.length) {
+    flagItems.push(`<div style="text-align:center;padding:14px;color:#15803d;font-size:13px;font-weight:500">✓ Nothing flagged. Smooth day ahead.</div>`);
+  }
+  flags.innerHTML = flagItems.join('');
 }
 
 // ========== TEAM NOTIFICATIONS ==========
@@ -1766,10 +2175,14 @@ function renderTasks(tasks) {
 
   // Only the select gets colour — strong, not pastel
   const STATUS_SELECT = {
-    'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-    'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-    'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-    'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+    'Pending':         'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
+    'In Progress':     'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
+    'Awaiting Review': 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
+    'Awaiting Client': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
+    'Approved':        'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
+    'Closed':          'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+    'On Hold':         'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+    'Done':            'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
   };
 
   const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
@@ -1845,8 +2258,12 @@ function renderTasks(tasks) {
           style="font-size:11px;padding:4px 6px;width:100%;border-radius:20px;${selectStyle}">
           <option ${status==='Pending'?'selected':''}>Pending</option>
           <option ${status==='In Progress'?'selected':''}>In Progress</option>
-          <option ${status==='Done'?'selected':''}>Done</option>
+          <option ${status==='Awaiting Review'?'selected':''}>Awaiting Review</option>
+          <option ${status==='Awaiting Client'?'selected':''}>Awaiting Client</option>
+          <option ${status==='Approved'?'selected':''}>Approved</option>
+          <option ${status==='Closed'?'selected':''}>Closed</option>
           <option ${status==='On Hold'?'selected':''}>On Hold</option>
+          ${status==='Done'?'<option selected>Done</option>':''}
         </select>
         <input type="text" placeholder="Paste link" value="${t['Preview Link']||''}"
           onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
@@ -2042,6 +2459,9 @@ async function addTask() {
 
 // ====== HR ======
 async function loadHR() {
+  // Render capacity using already-loaded tasks (don't double-fetch)
+  if (typeof allTasks !== 'undefined' && allTasks) renderCapacity(allTasks);
+
   const today = new Date().toISOString().split('T')[0];
   const filterDate = document.getElementById('hr-date-filter')?.value || today;
 
