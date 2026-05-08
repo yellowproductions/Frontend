@@ -227,6 +227,9 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
           <select id="q-client">
             <option value="">Select client...</option>
             <option value="duqm">Jindal Steel Duqm</option>
+            <option value="kotak">Kotak</option>
+            <option value="adhoc">Adhoc / One-time client</option>
+            <option value="pitches">Pitches &amp; Ideas (Internal)</option>
             <option value="youthleague">Jindal League</option>
             <option value="steelcity">Jindal Steel</option>
             <option value="jindal-youth">Jindal Youth League</option>
@@ -277,7 +280,7 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 <script>
 const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
-const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm'};
+const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm',kotak:'Kotak',adhoc:'Adhoc',pitches:'Pitches & Ideas'};
 
 // Where each client's source/open files live in Dropbox
 const CLIENT_OPEN_FOLDERS = {
@@ -285,7 +288,10 @@ const CLIENT_OPEN_FOLDERS = {
   'youthleague':  '/Jindal League/Open Files',
   'jindal-youth': '/Jindal Youth League/Open Files',
   'sohar-steel':  '/Sohar Steel/Open Files',
-  'duqm':         '/Jindal Steel Duqm/Open Files'
+  'duqm':         '/Jindal Steel Duqm/Open Files',
+  'kotak':        '/KOTAK/Open Files',
+  'adhoc':        '/ADHOC/Open Files',
+  'pitches':      '/PITCHES/Open Files'
 };
 
 function updateFileTypeHint() {
@@ -392,12 +398,12 @@ async function onDesignerChange() {
       const suffix = needsOpenFile ? ' [needs open file]' : (isClosed ? ` [${t.Status}]` : (t.Status && t.Status !== 'Pending' && !isRework ? ` [${t.Status}]` : ''));
       opts.push(`<option value="${i}">${prefix}${displayName}${suffix}</option>`);
     });
-    opts.push('<option value="adhoc">+ Ad-hoc / Not in my task list</option>');
+    opts.push('<option value="" disabled>— No matching task? Add one in your Team portal —</option>');
 
     taskSelect.innerHTML = opts.join('');
     taskSelect.disabled = false;
   } catch(e) {
-    taskSelect.innerHTML = '<option value="">Could not load tasks</option><option value="adhoc">+ Ad-hoc / Not in my task list</option>';
+    taskSelect.innerHTML = '<option value="">Could not load tasks. Refresh and try again.</option>';
     taskSelect.disabled = false;
   }
 }
