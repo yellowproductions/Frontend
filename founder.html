@@ -572,51 +572,27 @@
       <div id="digest-flags" style="margin-top:14px"></div>
     </div>
 
-    <!-- Agent cards — horizontal grid, click any to start a NEW chat thread -->
-    <div class="agent-grid">
-      <div class="agent-card" onclick="startNewChat('ceo')">
-        <div class="agent-name">⚡ CEO Agent</div>
-        <div class="agent-desc">Strategy, decisions, priorities</div>
-      </div>
-      <div class="agent-card" onclick="startNewChat('client')">
-        <div class="agent-name">🤝 Client Agent</div>
-        <div class="agent-desc">Proposals, follow-ups, briefs</div>
-      </div>
-      <div class="agent-card" onclick="startNewChat('content')">
-        <div class="agent-name">✍️ Content Agent</div>
-        <div class="agent-desc">Scripts, captions, copy</div>
-      </div>
-      <div class="agent-card" onclick="startNewChat('social')">
-        <div class="agent-name">📱 Social Agent</div>
-        <div class="agent-desc">Instagram & LinkedIn strategy</div>
-      </div>
-      <div class="agent-card" onclick="startNewChat('ops')">
-        <div class="agent-name">⚙️ Ops Agent</div>
-        <div class="agent-desc">Process, timelines, blockers</div>
-      </div>
-      <div class="agent-card" onclick="startNewChat('finance')">
-        <div class="agent-name">💰 Finance Agent</div>
-        <div class="agent-desc">Quotes, estimates, invoices</div>
-      </div>
-    </div>
-
     <!-- Recents sidebar (left) + chat (right) -->
-    <div style="display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start;margin-top:18px">
+    <div style="display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start">
       <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;position:sticky;top:0;max-height:70vh;overflow-y:auto">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px 10px">
           <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700">Recents</span>
-          <span id="active-agent-tag" style="font-size:10px;color:#a07a1f;font-family:'DM Mono',monospace"></span>
+          <button onclick="startNewChat('ceo')" title="Start a new chat" style="background:transparent;border:1px solid #e6dfd0;color:#666;font-size:11px;padding:3px 9px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif">+ New</button>
         </div>
         <div id="recents-list"></div>
       </div>
 
       <div class="card" style="margin:0">
-        <div class="chat-container" id="ceo-chat">
-          <div class="msg ai">Pick an agent above to start a conversation. Recent chats appear on the left.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.06em;text-transform:uppercase">Yellow Agent</span>
+          <span style="font-size:11px;color:#aaa">· strategy, ideas, drafting, anything</span>
         </div>
-        <div id="loading">Agent is thinking...</div>
+        <div class="chat-container" id="ceo-chat">
+          <div class="msg ai">Hi Suriti — what are we working on?</div>
+        </div>
+        <div id="loading">thinking...</div>
         <div class="chat-input-row">
-          <input type="text" id="ceo-input" placeholder="Ask anything about your business..." onkeydown="if(event.key==='Enter') sendChat()">
+          <input type="text" id="ceo-input" placeholder="Ask anything..." onkeydown="if(event.key==='Enter') sendChat()">
           <button class="btn btn-yellow" onclick="sendChat()">Send</button>
         </div>
       </div>
@@ -1242,25 +1218,64 @@ const TEAM = {
 
 const TEAM_LIST = Object.keys(TEAM);
 
-// ====== PASSWORD ======
-function checkPassword() {
+// ====== AUTH (backend-based) ======
+const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
+
+async function checkPassword() {
   const val = document.getElementById('pwd-input').value.trim();
-  if (val === 'Yellow@1234') {
-    document.getElementById('pwd-screen').style.display = 'none';
-    document.getElementById('pwd-screen').style.visibility = 'hidden';
-    document.getElementById('main-app').style.display = 'flex';
-    loadTasks();
-    loadHR();
-    renderChat();
-    renderRecents();
-    startISTClockFounder();
-    startChatPollingFounder();
-  } else {
-    document.getElementById('pwd-error').style.display = 'block';
-    document.getElementById('pwd-input').value = '';
-    document.getElementById('pwd-input').focus();
+  if (!val) return;
+
+  try {
+    const res = await fetch(BACKEND_AUTH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'founder', password: val })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById('pwd-error').style.display = 'block';
+      document.getElementById('pwd-input').value = '';
+      document.getElementById('pwd-input').focus();
+      return;
+    }
+    // Save 7-day session
+    try {
+      localStorage.setItem('yos-auth', JSON.stringify({
+        user: data.user,
+        token: data.token,
+        role: 'founder',
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000
+      }));
+    } catch(e) {}
+    enterFounder();
+  } catch(e) {
+    const err = document.getElementById('pwd-error');
+    err.style.display = 'block';
+    err.textContent = 'Login service unavailable — try again.';
   }
 }
+
+function enterFounder() {
+  document.getElementById('pwd-screen').style.display = 'none';
+  document.getElementById('pwd-screen').style.visibility = 'hidden';
+  document.getElementById('main-app').style.display = 'flex';
+  loadTasks();
+  loadHR();
+  renderChat();
+  renderRecents();
+  startISTClockFounder();
+  startChatPollingFounder();
+}
+
+// Auto-restore session if token still valid
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const auth = JSON.parse(localStorage.getItem('yos-auth') || 'null');
+    if (auth && auth.token && auth.expires > Date.now()) {
+      enterFounder();
+    }
+  } catch(e) {}
+});
 
 // ====== IST CLOCK — visible in sidebar across all panels ======
 function startISTClockFounder() {
@@ -1300,12 +1315,35 @@ function showPanel(name) {
 // ====== AGENT SYSTEM ======
 let currentAgent = 'ceo';
 const agentSystemPrompts = {
-  ceo: `You are the CEO Agent for Yellow Productions, a production, content and photography agency based in Mumbai. Founder: Suriti Arora. Team: Sandesh (hard working, concepts), Gayatri (precision, slow), Faizan (AI creatives, new age), Prathamesh (AI, depends on Faizan), Archana (real estate, football league), Gauri (versatile), Sonal (moody, good at posters/social when pushed), Vishvanath (adapt jobs, old), Viplav (copywriter, underused, good ideas), Siddhesh (strategy, decks), Kritya (strategy, decks, on leave for bereavement), Ajay (video editor). Also Oman team: Sam (BD). Suriti also runs Perky Owl Designs (Delhi), Yellow Designs SPC (Muscat, Oman - clients Jindal Shadeed, Sohar Steel), Chor Sipahi, and is building The Raas (kirtan spiritual community). Be sharp, strategic, direct. Help Suriti prioritise and make smart decisions.`,
-  client: `You are the Client Agent for Yellow Productions. Help draft proposals, follow-up emails, briefs, and client communication. Clients include Jindal Shadeed, Sohar Steel, and other corporate clients in India and Oman. Be professional, warm, and sharp.`,
-  content: `You are the Content Agent for Yellow Productions. Write reel scripts, captions, copy, decks, and briefs. Understand the brand: production agency, Mumbai-based, works across India and Middle East. Tone: sharp, creative, confident.`,
-  social: `You are the Social Media Agent for Yellow Productions and Suriti Arora's personal brand. @yellowproductions_ is a production/content agency. @suriti is Suriti's personal brand (entrepreneur, design thinker, spiritual, Radha Krishna devotee, building The Raas kirtan community). Give sharp, specific Instagram and LinkedIn strategies. No generic advice.`,
-  ops: `You are the Operations Agent for Yellow Productions. Help with project timelines, process improvements, team coordination, and removing blockers. Be practical and specific.`,
-  finance: `You are the Finance Agent for Yellow Productions. Help create quotes, estimates, and remind about invoicing. All amounts in INR unless specified for Oman (use OMR). Be precise and professional.`
+  // Single, broad agent — handles strategy, drafting, ideas, content, ops, finance, anything Suriti needs.
+  ceo: `You are Yellow Agent — Suriti Arora's right hand inside Yellow OS. You help her run her business end-to-end: strategy and prioritisation, client communication (proposals, follow-ups, briefs), content and copy (reel scripts, captions, decks), social media (@yellowproductions_, her personal brand @suriti), operations and timelines, quotes and finance estimates, and anything else.
+
+Context about Suriti:
+• Founder of Yellow Productions (production/content/photography, Mumbai), Perky Owl Designs (Delhi), Yellow Designs SPC (Muscat, Oman — clients include Jindal Shadeed, Sohar Steel), and Chor Sipahi.
+• Building The Raas — a kirtan-based spiritual community. Devout Radha Krishna bhakta, took diksha from Guru Maharaj Indresh Upadhyay.
+• Sharp, strategic, design-led. Values directness over fluff.
+
+Team (Mumbai unless noted):
+• Sandesh — hard working, concepts
+• Gayatri — precision, slow
+• Faizan — AI creatives, new age
+• Prathamesh — AI, depends on Faizan
+• Archana — real estate, football league
+• Gauri — versatile
+• Sonal — moody, strong at posters/social when pushed
+• Vishvanath — adapt jobs, senior
+• Viplav — copywriter, underused, good ideas
+• Siddhesh — strategy, decks (CS)
+• Kritya — strategy, decks (CS, currently on bereavement leave)
+• Ajay — video editor
+• Sam — BD, Oman
+
+How to respond:
+• Default to short, sharp, direct. No filler, no generic advice.
+• When she asks for drafts (emails, captions, scripts), produce the draft — don't preamble.
+• Indian and Middle East context — INR for India, OMR for Oman.
+• If a question is ambiguous, ask one clarifying question rather than guessing.
+• Spiritual context is welcome when relevant, but never forced.`
 };
 
 function selectAgent(el, agent) {
