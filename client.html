@@ -548,6 +548,19 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('header-name').textContent = 'Suriti';
       document.getElementById('login-overlay').style.display = 'none';
       loadCreatives();
+      return;
+    }
+    // Direct portal access from Team Portal/Founder OS sidebar:
+    // ?portal=pitches&user=Kritya — skips password, opens just that portal's tabs
+    const portalKey = params.get('portal');
+    if (portalKey && CLIENT_PORTALS[portalKey]) {
+      currentUser = params.get('user') || 'Team';
+      activePortal = portalKey;
+      FOLDERS = CLIENT_PORTALS[portalKey].folders;
+      applyPortalVisibility();
+      document.getElementById('header-name').textContent = currentUser;
+      document.getElementById('login-overlay').style.display = 'none';
+      loadCreatives();
     }
   } catch(e) {}
 });
