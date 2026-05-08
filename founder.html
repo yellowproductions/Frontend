@@ -488,6 +488,11 @@
     <div class="logo-title">Yellow OS</div>
     <div class="logo-sub">Founder Dashboard</div>
   </div>
+  <!-- IST clock — subtle, greyed out -->
+  <div style="margin:0 16px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div id="ist-clock-founder" style="font-family:'DM Mono',monospace;font-size:11px;color:#aaa;letter-spacing:0.04em">--:--:--</div>
+    <div id="ist-date-founder" style="font-size:10px;color:#bbb;letter-spacing:0.02em"></div>
+  </div>
 
   <div class="nav-item active" onclick="showPanel('ceo')">
     <span class="nav-icon">⚡</span> CEO
@@ -556,13 +561,12 @@
     <div class="panel-title">Good morning, Suriti ☀️</div>
 
     <!-- ===== MORNING DIGEST — what changed + what needs you today ===== -->
-    <div class="card" id="morning-digest" style="margin-bottom:18px;background:#fefbf2;border:1px solid #f0d080">
+    <div class="card" id="morning-digest" style="margin-bottom:18px;background:#fff;border:1px solid #ece6d8">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:18px">📋</span>
-          <div style="font-size:13px;font-weight:700;color:#854f0b;letter-spacing:0.04em;text-transform:uppercase">Today's Brief</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.06em;text-transform:uppercase">Today's brief</div>
         </div>
-        <span id="digest-date" style="font-size:11px;color:#a07419"></span>
+        <span id="digest-date" style="font-size:11px;color:#aaa"></span>
       </div>
       <div id="digest-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px"></div>
       <div id="digest-flags" style="margin-top:14px"></div>
@@ -1249,11 +1253,32 @@ function checkPassword() {
     loadHR();
     renderChat();
     renderRecents();
+    startISTClockFounder();
+    startChatPollingFounder();
   } else {
     document.getElementById('pwd-error').style.display = 'block';
     document.getElementById('pwd-input').value = '';
     document.getElementById('pwd-input').focus();
   }
+}
+
+// ====== IST CLOCK — visible in sidebar across all panels ======
+function startISTClockFounder() {
+  const tick = () => {
+    const fmt = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    });
+    const parts = fmt.formatToParts(new Date()).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+    const time = `${parts.hour}:${parts.minute}:${parts.second}`;
+    const dateLabel = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', timeZone:'Asia/Kolkata' });
+    const c = document.getElementById('ist-clock-founder');
+    const d = document.getElementById('ist-date-founder');
+    if (c) c.textContent = time;
+    if (d) d.textContent = dateLabel;
+  };
+  tick();
+  setInterval(tick, 1000);
 }
 
 // ====== NAV ======
@@ -1950,7 +1975,7 @@ function renderCapacity(tasks) {
 // Computes "what needs you today" from current task data. Surfaces:
 //  • Hot deadlines (due ≤2 days, not started)
 //  • Stuck tasks (>7 days no update)
-//  • Idle designers (0 open tasks)
+//  • Idle members (0 open tasks)
 //  • Overloaded designers (5+ open tasks)
 //  • Throughput this week (closed tasks)
 function renderMorningDigest(tasks) {
@@ -2013,57 +2038,55 @@ function renderMorningDigest(tasks) {
 
   // ===== Top metric tiles =====
   const tileBuilder = (label, value, subtext, color) => `
-    <div style="background:#fff;border:1px solid #ece6d8;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">${label}</div>
-      <div style="font-size:22px;font-weight:800;color:${color};line-height:1">${value}</div>
-      <div style="font-size:11px;color:#666;margin-top:4px">${subtext}</div>
+    <div style="background:#fafaf7;border:1px solid #f0e6d2;border-radius:8px;padding:11px 13px">
+      <div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:5px">${label}</div>
+      <div style="font-size:18px;font-weight:700;color:${color};line-height:1.1">${value}</div>
+      <div style="font-size:11px;color:#888;margin-top:4px;line-height:1.4">${subtext}</div>
     </div>`;
 
   grid.innerHTML = [
     tileBuilder('Need attention', overdueTasks.length + dueTodayTasks.length,
       `${overdueTasks.length} overdue · ${dueTodayTasks.length} due today`,
-      (overdueTasks.length + dueTodayTasks.length) > 0 ? '#dc2626' : '#22c55e'),
-    tileBuilder('Idle designers', idleDesigners.length,
+      (overdueTasks.length + dueTodayTasks.length) > 0 ? '#c0392b' : '#15803d'),
+    tileBuilder('Idle members', idleDesigners.length,
       idleDesigners.length ? idleDesigners.slice(0,3).join(', ') + (idleDesigners.length > 3 ? ` +${idleDesigners.length-3}` : '') : 'all loaded',
-      idleDesigners.length > 0 ? '#22c55e' : '#666'),
+      idleDesigners.length > 0 ? '#15803d' : '#999'),
     tileBuilder('Overloaded', overloaded.length,
       overloaded.length ? overloaded.slice(0,2).map(o => `${o.name} (${o.count})`).join(', ') : 'no one stretched',
-      overloaded.length > 0 ? '#f59e0b' : '#666'),
+      overloaded.length > 0 ? '#a07419' : '#999'),
     tileBuilder('Closed this week', closedThisWeek,
       'tasks marked Done · Approved · Closed', '#3b82f6'),
   ].join('');
 
-  // ===== Predictive flags (under tiles) =====
+  // ===== Predictive flags (under tiles) — subtle, dot-indicators not emoji circles =====
   const flagItems = [];
+  const flagBuilder = (dotColor, bg, border, color, body) => `
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:${bg};border:1px solid ${border};border-radius:6px;margin-bottom:6px">
+      <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};margin-top:7px;flex-shrink:0"></span>
+      <div style="flex:1;font-size:12.5px;color:${color};line-height:1.5">${body}</div>
+    </div>`;
+
   if (hotDeadlines.length) {
-    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:8px">
-      <span style="font-size:14px">🔴</span>
-      <div style="flex:1;font-size:12.5px;color:#7f1d1d"><strong>${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
-      <span style="font-size:11px;color:#9b3030">${hotDeadlines.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee} · due ${t.Date}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <em>+${hotDeadlines.length-3} more</em>` : ''}</span></div>
-    </div>`);
+    flagItems.push(flagBuilder('#dc2626', '#fefafa', '#fde0e0', '#7a3535',
+      `<strong style="font-weight:600">${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
+      <span style="font-size:11px;color:#9a6868">${hotDeadlines.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee} · due ${t.Date}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <em>+${hotDeadlines.length-3} more</em>` : ''}</span>`));
   }
   if (stuckTasks.length) {
-    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fefbf2;border:1px solid #fde68a;border-radius:8px;margin-bottom:8px">
-      <span style="font-size:14px">🟡</span>
-      <div style="flex:1;font-size:12.5px;color:#854f0b"><strong>${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
-      <span style="font-size:11px;color:#a07419">${stuckTasks.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <em>+${stuckTasks.length-3} more</em>` : ''}</span></div>
-    </div>`);
+    flagItems.push(flagBuilder('#d4a64a', '#fdfaf2', '#f4e8c8', '#7a5e1f',
+      `<strong style="font-weight:600">${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
+      <span style="font-size:11px;color:#a08660">${stuckTasks.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <em>+${stuckTasks.length-3} more</em>` : ''}</span>`));
   }
   if (overloaded.length) {
-    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#fef9ee;border:1px solid #fcd34d;border-radius:8px;margin-bottom:8px">
-      <span style="font-size:14px">🟠</span>
-      <div style="flex:1;font-size:12.5px;color:#854f0b"><strong>Capacity stretched</strong> — ${overloaded.map(o => `<em>${o.name}</em> (${o.count} open)`).join(', ')}. Consider reassigning or holding new briefs.</div>
-    </div>`);
+    flagItems.push(flagBuilder('#c97a3a', '#fdf8f3', '#f0d8c0', '#7a4f2e',
+      `<strong style="font-weight:600">Capacity stretched</strong> — ${overloaded.map(o => `<em>${o.name}</em> (${o.count} open)`).join(', ')}. Consider reassigning or holding new briefs.`));
   }
   if (idleDesigners.length && (overdueTasks.length || dueTodayTasks.length)) {
-    flagItems.push(`<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:8px">
-      <span style="font-size:14px">🟢</span>
-      <div style="flex:1;font-size:12.5px;color:#15803d"><strong>${idleDesigners.length} designer${idleDesigners.length>1?'s':''} sitting idle</strong> while ${overdueTasks.length + dueTodayTasks.length} task${(overdueTasks.length + dueTodayTasks.length)>1?'s':''} need attention. Reassign?<br>
-      <span style="font-size:11px;color:#16803d">Idle: ${idleDesigners.join(', ')}</span></div>
-    </div>`);
+    flagItems.push(flagBuilder('#56a87a', '#f8fcf8', '#d8e8d8', '#3d6e51',
+      `<strong style="font-weight:600">${idleDesigners.length} member${idleDesigners.length>1?'s':''} sitting idle</strong> while ${overdueTasks.length + dueTodayTasks.length} task${(overdueTasks.length + dueTodayTasks.length)>1?'s':''} need attention. Reassign?<br>
+      <span style="font-size:11px;color:#5a8068">Idle: ${idleDesigners.join(', ')}</span>`));
   }
   if (!flagItems.length) {
-    flagItems.push(`<div style="text-align:center;padding:14px;color:#15803d;font-size:13px;font-weight:500">✓ Nothing flagged. Smooth day ahead.</div>`);
+    flagItems.push(`<div style="text-align:center;padding:14px;color:#999;font-size:12.5px">Nothing flagged. Smooth day ahead.</div>`);
   }
   flags.innerHTML = flagItems.join('');
 }
@@ -3215,6 +3238,13 @@ function playPingFounder() {
   } catch(e) {}
 }
 
+// Founder OS — chat polls continuously (8s) regardless of panel state
+function startChatPollingFounder() {
+  if (chatPollInterval) clearInterval(chatPollInterval);
+  loadChat();
+  chatPollInterval = setInterval(loadChat, 8 * 1000);
+}
+
 function toggleChat() {
   const panel = document.getElementById('chat-panel');
   const isOpen = panel.style.right === '0px';
@@ -3224,7 +3254,7 @@ function toggleChat() {
     panel.style.right = '-420px';
     if (homeDot) homeDot.style.display = '';
     if (chatFab) chatFab.style.display = '';
-    if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+    // Don't kill polling — we want notifications even with chat closed
   } else {
     panel.style.right = '0px';
     if (homeDot) homeDot.style.display = 'none';
@@ -3233,7 +3263,6 @@ function toggleChat() {
     lastSeenChatTimestamp = Date.now();
     try { localStorage.setItem('yv-chat-lastseen-Suriti', String(lastSeenChatTimestamp)); } catch(e) {}
     updateChatUnread();
-    chatPollInterval = setInterval(loadChat, 20 * 1000);
     setTimeout(() => document.getElementById('chat-input')?.focus(), 300);
   }
 }
@@ -3266,6 +3295,13 @@ async function loadChat() {
     chatFirstLoad = false;
     chatMessages = fetched;
     renderChat();
+
+    // While chat is open, auto-mark seen on every poll so badge stays at 0
+    const panel = document.getElementById('chat-panel');
+    if (panel && panel.style.right === '0px') {
+      lastSeenChatTimestamp = Date.now();
+      try { localStorage.setItem('yv-chat-lastseen-Suriti', String(lastSeenChatTimestamp)); } catch(e) {}
+    }
     updateChatUnread();
   } catch(e) {}
 }
@@ -3596,7 +3632,7 @@ async function markFounderReminderDone(rowKey) {
 // Initial load + periodic refresh
 loadChat();
 loadFounderReminders();
-setInterval(() => { loadChat(); loadFounderReminders(); }, 60 * 1000);
+setInterval(() => { loadFounderReminders(); }, 60 * 1000);
 
 </script>
 </div><!-- end main-app -->
