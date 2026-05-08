@@ -264,7 +264,6 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="user-role" id="sidebar-role">—</div>
   </div>
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
-  <div class="nav-item" onclick="showPanel('agent')"><span>✨</span> Ideas Agent</div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
@@ -354,21 +353,38 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="panel active" id="panel-tasks">
     <div class="panel-title">My Tasks</div>
 
-    <div style="background:#fdfaf3;border:1px solid #f0e6d2;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#6b5113;display:flex;justify-content:space-between;align-items:center;gap:10px">
-      <div>Post your design for review.</div>
-      <a href="studio.html" target="_blank" style="background:#FEBC06;color:#000;text-decoration:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;white-space:nowrap;font-family:'Poppins',sans-serif">Open Studio →</a>
+    <!-- 🎯 TODAY'S FOCUS — top 3-5 most urgent tasks (overdue first, then today, then upcoming) -->
+    <div class="card" id="card-focus-today" style="margin-bottom:14px;border:1px solid #f0d080;background:#fefbf2;display:none;box-shadow:0 1px 2px rgba(0,0,0,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">🎯</span>
+          <div style="margin:0;color:#854f0b;font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Focus Today</div>
+        </div>
+        <span style="font-size:11px;color:#a07419" id="focus-summary"></span>
+      </div>
+      <div id="focus-list"></div>
     </div>
 
-    <!-- PENDING / IN PROGRESS — always visible -->
-    <!-- ADD QUICK TASK — for ad-hoc client requests or self-assigned tasks -->
-    <div class="card" style="margin-bottom:14px">
+    <!-- Studio + Add task row — compact, side by side -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:stretch">
+      <a href="studio.html" target="_blank" style="flex:1;background:#fff;border:1px solid #e6dfd0;color:#1a1a1a;text-decoration:none;font-size:13px;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-family:'Poppins',sans-serif">
+        <span style="color:#666">Post your design for review</span>
+        <span style="background:#FEBC06;color:#000;font-weight:700;font-size:12px;padding:5px 12px;border-radius:6px;font-family:'Poppins',sans-serif">Open Studio →</span>
+      </a>
+      <button onclick="toggleQuickTaskForm()" id="quick-task-toggle" style="background:#fff;border:1px solid #e6dfd0;color:#1a1a1a;font-size:13px;padding:10px 14px;border-radius:8px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600;white-space:nowrap">
+        ➕ Add a Task
+      </button>
+    </div>
+
+    <!-- ADD QUICK TASK — collapsed by default, expands on click -->
+    <div class="card" id="quick-task-form" style="margin-bottom:14px;display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="card-title" style="margin:0">➕ Add a Task</div>
+        <div class="card-title" style="margin:0;font-size:13px">New Task</div>
         <span id="quick-task-hint" style="font-size:11px;color:var(--muted)">For ad-hoc / direct client requests</span>
       </div>
       <div id="quick-task-row" style="display:grid;grid-template-columns:120px 1fr 1.5fr 90px;gap:8px;align-items:end">
         <div>
-          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Date</label>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Due Date</label>
           <input type="date" id="quick-task-date" style="font-size:12px;padding:7px 8px;width:100%">
         </div>
         <div>
@@ -405,7 +421,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 
     <div class="card" id="card-open-tasks">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="card-title" style="margin:0;color:var(--yellow)">⚠️ This month</div>
+        <div style="margin:0;font-size:12px;color:#666;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">This month</div>
         <span style="font-size:11px;color:var(--muted)">Open tasks · past months in archive below</span>
       </div>
       <div id="tasks-open"><div class="empty-state">Loading...</div></div>
@@ -1624,58 +1640,139 @@ async function addQuickTask() {
 
 // ====== TASKS ======
 const STATUS_SELECT = {
-  'Pending':     'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-  'In Progress': 'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-  'Done':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-  'On Hold':     'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+  'Pending':         'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
+  'In Progress':     'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
+  'Awaiting Review': 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
+  'Awaiting Client': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
+  'Approved':        'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
+  'Closed':          'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+  'On Hold':         'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
+  'Done':            'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
 };
+
+// Statuses considered "fully done" — excluded from overdue, archived from active list
+const DONE_STATUSES = ['Done', 'Approved', 'Closed'];
+// Statuses considered "open / in active workflow" — show in this month's list
+const OPEN_STATUSES = ['Pending', 'In Progress', 'Awaiting Review', 'Awaiting Client', 'On Hold'];
+// Statuses where designer needs to ACT — surface in Focus Today
+const FOCUS_STATUSES = ['Pending', 'In Progress', 'On Hold'];
+
+// 🎯 Render the Focus Today panel — top 5 urgent (overdue → today → upcoming)
+function renderFocusToday(items, overdueCount, todayCount) {
+  const card = document.getElementById('card-focus-today');
+  const list = document.getElementById('focus-list');
+  const summary = document.getElementById('focus-summary');
+  if (!card || !list) return;
+  if (!items.length) { card.style.display = 'none'; return; }
+
+  card.style.display = 'block';
+  const today = new Date().toISOString().split('T')[0];
+
+  // Summary line
+  const bits = [];
+  if (overdueCount > 0) bits.push(`<span style="color:#dc2626;font-weight:700">${overdueCount} overdue</span>`);
+  if (todayCount > 0) bits.push(`<span style="color:#854f0b;font-weight:700">${todayCount} due today</span>`);
+  summary.innerHTML = bits.join(' · ') || 'next up';
+
+  list.innerHTML = items.map((t, i) => {
+    const isOverdue = t.Date && t.Date < today;
+    const isToday = t.Date === today;
+    const daysOverdue = isOverdue ? Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24)) : 0;
+    const daysAhead = (t.Date && t.Date > today) ? Math.floor((new Date(t.Date) - new Date(today)) / (1000*60*60*24)) : 0;
+    const tag = isOverdue
+      ? `<span style="color:#dc2626;font-size:11px;font-weight:600;flex-shrink:0">${daysOverdue}d overdue</span>`
+      : isToday
+      ? `<span style="color:#854f0b;font-size:11px;font-weight:600;flex-shrink:0">today</span>`
+      : `<span style="color:#a07419;font-size:11px;font-weight:600;flex-shrink:0">in ${daysAhead}d</span>`;
+    const status = t.Status || 'Pending';
+    const statusStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
+    const title = t.Title || t.Task || '—';
+    const isLast = i === items.length - 1;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};font-size:13px">
+      ${tag}
+      <span style="flex:1;color:#1a1a1a;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span>
+      <span style="${statusStyle};font-size:10px;padding:2px 9px;border-radius:20px;flex-shrink:0">${status}</span>
+    </div>`;
+  }).join('');
+}
+
+// Toggle the Add Task form (collapsed by default)
+function toggleQuickTaskForm() {
+  const form = document.getElementById('quick-task-form');
+  const btn = document.getElementById('quick-task-toggle');
+  if (form.style.display === 'none' || !form.style.display) {
+    form.style.display = 'block';
+    btn.textContent = '✕ Cancel';
+    btn.style.background = '#f5f5f4';
+    setTimeout(() => document.getElementById('quick-task-title')?.focus(), 50);
+  } else {
+    form.style.display = 'none';
+    btn.textContent = '➕ Add a Task';
+    btn.style.background = '#fff';
+  }
+}
 
 function renderTaskRows(tasks, startIdx) {
   if (!tasks.length) return '<div class="empty-state">No tasks here.</div>';
   const today = new Date().toISOString().split('T')[0];
 
   return `
-    <div style="display:grid;grid-template-columns:30px 1fr 130px 1fr 1fr 70px;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">
-      <span>#</span><span>Task</span><span>Status</span><span>Final file</span><span>Open file (source)</span><span>Save</span>
+    <div style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600">
+      <span></span><span>Task</span><span>Status</span><span>Final file</span><span>Open file</span><span></span>
     </div>
     ${tasks.map((t, i) => {
       const idx = startIdx + i;
       const status = t.Status || 'Pending';
       const isToday = t.Date === today;
-      const isOverdue = t.Date && t.Date < today && status !== 'Done';
+      const isOverdue = t.Date && t.Date < today && !DONE_STATUSES.includes(status);
+      const isDoneNoFile = DONE_STATUSES.includes(status) && !(t['Preview Link'] || t['Open File Link']);
       const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
-      const dateBadge = isToday
-        ? `<span style="background:#E9B84A;color:#000;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px">TODAY</span>`
+      const daysOverdue = isOverdue ? Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24)) : 0;
+      // Single, calm date marker — not a loud badge
+      const dateText = isToday
+        ? `<span style="color:#854f0b;font-size:11px;font-weight:600;margin-left:6px">today</span>`
         : isOverdue
-        ? `<span style="background:#fee2e2;color:#c0392b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px;border:1px solid #fca5a5">OVERDUE</span>`
-        : `<span style="font-size:10px;color:var(--muted);margin-left:6px">${t.Date||''}</span>`;
+        ? `<span style="color:#dc2626;font-size:11px;font-weight:600;margin-left:6px">${daysOverdue}d overdue</span>`
+        : (t.Date ? `<span style="color:#999;font-size:11px;margin-left:6px">due ${t.Date.slice(5)}</span>` : '');
+      // File pending — only when truly missing
+      const filePendingChip = isDoneNoFile
+        ? `<span style="color:#a07419;font-size:11px;font-weight:600;margin-left:6px">· file pending</span>`
+        : '';
       const titleText = t.Title || t.Task || '—';
       const descText = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
+      // Quiet overdue treatment — left border only, no background tint
+      const rowStyle = isOverdue
+        ? 'box-shadow:inset 3px 0 0 #dc2626;'
+        : '';
       return `
-      <div style="display:grid;grid-template-columns:30px 1fr 130px 1fr 1fr 70px;gap:8px;align-items:start;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px;">
-        <span style="color:var(--muted);font-size:12px;padding-top:2px">${idx+1}</span>
+      <div style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
+        <span style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
         <div style="min-width:0;overflow-wrap:anywhere">
-          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-            <span style="font-weight:500">${titleText}</span>${dateBadge}
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0">
+            <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${dateText}${filePendingChip}
           </div>
-          ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
+          ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
           ${updateLines.length ? `<div style="margin-top:6px;border-left:2px solid #f0d080;padding-left:8px">
             ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace;overflow-wrap:anywhere">📝 ${l}</div>`).join('')}
           </div>` : ''}
         </div>
         <div style="min-width:0">
-          <select id="status-dropdown-${idx}" style="font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
+          <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
-            <option ${status==='Done'?'selected':''}>Done</option>
+            <option ${status==='Awaiting Review'?'selected':''}>Awaiting Review</option>
+            <option ${status==='Awaiting Client'?'selected':''}>Awaiting Client</option>
+            <option ${status==='Approved'?'selected':''}>Approved</option>
+            <option ${status==='Closed'?'selected':''}>Closed</option>
             <option ${status==='On Hold'?'selected':''}>On Hold</option>
+            ${status==='Done'?'<option selected>Done</option>':''}
           </select>
         </div>
-        <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:12px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:12px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')">Save</button>
+        <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
+        <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
+        <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')" style="font-size:11px;padding:5px 12px">Save</button>
       </div>`;
     }).join('')}`;
 }
@@ -1713,19 +1810,33 @@ async function loadTasks() {
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = today.substring(0, 7); // YYYY-MM
 
-    // Sort all tasks: today first, then most recent date
+    // Sort: overdue (oldest first) → today → upcoming (nearest first) → undated
     const sorted = [...all].sort((a, b) => {
-      const aT = a.Date === today ? 0 : 1;
-      const bT = b.Date === today ? 0 : 1;
-      if (aT !== bT) return aT - bT;
-      return new Date(b.Date) - new Date(a.Date);
+      const aDate = a.Date || '';
+      const bDate = b.Date || '';
+      const aIsOverdue = aDate && aDate < today && !DONE_STATUSES.includes(a.Status || 'Pending');
+      const bIsOverdue = bDate && bDate < today && !DONE_STATUSES.includes(b.Status || 'Pending');
+      if (aIsOverdue && !bIsOverdue) return -1;
+      if (!aIsOverdue && bIsOverdue) return 1;
+      // both overdue or both not — sort by date ascending (earliest first = most urgent)
+      if (aDate && !bDate) return -1;
+      if (!aDate && bDate) return 1;
+      return aDate.localeCompare(bDate);
     });
+
+    // ===== 🎯 FOCUS TODAY — top 5 most urgent tasks =====
+    const openSorted = sorted.filter(t => FOCUS_STATUSES.includes(t.Status || 'Pending'));
+    const overdueTasks = openSorted.filter(t => t.Date && t.Date < today);
+    const todayTasks   = openSorted.filter(t => t.Date === today);
+    const upcomingTasks = openSorted.filter(t => t.Date && t.Date > today).slice(0, 3);
+    const focusItems = [...overdueTasks, ...todayTasks, ...upcomingTasks].slice(0, 5);
+    renderFocusToday(focusItems, overdueTasks.length, todayTasks.length);
 
     // Split: current-month OPEN tasks shown at top, everything else grouped into month folders (incl. done)
     const currentOpen = sorted.filter(t => {
       const s = t.Status || 'Pending';
       const m = (t.Date || '').substring(0, 7);
-      return m === currentMonth && (s === 'Pending' || s === 'In Progress' || s === 'On Hold');
+      return m === currentMonth && OPEN_STATUSES.includes(s);
     });
     const archived = sorted.filter(t => !currentOpen.includes(t));
 
