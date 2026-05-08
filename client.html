@@ -506,29 +506,15 @@ const DESIGNER_EMAILS = {
   Ajay:'ajay@yellowproductions.co.in'
 };
 
-// Multi-client portal config — each password unlocks ONLY that client's tabs.
+// Multi-client portal config — passwords removed (handled by backend now).
+// Each portal-key maps to its tabs/folders. Backend assigns scope on login.
 const CLIENT_PORTALS = {
-  jindal: {
-    password: 'Jindal2026',
-    brand: 'Jindal Group',
-    folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm']
-  },
-  kotak: {
-    password: 'Kotak2026',
-    brand: 'Kotak',
-    folders: ['kotak']
-  },
-  adhoc: {
-    password: 'Adhoc2026',
-    brand: 'Adhoc',
-    folders: ['adhoc']
-  },
-  pitches: {
-    password: 'Pitches2026',
-    brand: 'Pitches & Ideas',
-    folders: ['pitches']
-  }
+  jindal:  { brand: 'Jindal Group',     folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm'] },
+  kotak:   { brand: 'Kotak',            folders: ['kotak']    },
+  adhoc:   { brand: 'Adhoc',            folders: ['adhoc']    },
+  pitches: { brand: 'Pitches & Ideas',  folders: ['pitches']  }
 };
+const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 let activePortal = null;
 let FOLDERS = []; // populated on login based on active portal
 
@@ -557,6 +543,23 @@ window.addEventListener('DOMContentLoaded', () => {
       currentUser = params.get('user') || 'Team';
       activePortal = portalKey;
       FOLDERS = CLIENT_PORTALS[portalKey].folders;
+      applyPortalVisibility();
+      document.getElementById('header-name').textContent = currentUser;
+      document.getElementById('login-overlay').style.display = 'none';
+      loadCreatives();
+      return;
+    }
+
+    // Restore from saved 7-day session
+    const auth = JSON.parse(localStorage.getItem('yc-auth') || 'null');
+    if (auth && auth.token && auth.expires > Date.now()) {
+      currentUser = auth.user;
+      activePortal = auth.scope;
+      if (activePortal === 'all') {
+        FOLDERS = Object.values(CLIENT_PORTALS).flatMap(p => p.folders);
+      } else if (CLIENT_PORTALS[activePortal]) {
+        FOLDERS = CLIENT_PORTALS[activePortal].folders;
+      } else { FOLDERS = []; }
       applyPortalVisibility();
       document.getElementById('header-name').textContent = currentUser;
       document.getElementById('login-overlay').style.display = 'none';
@@ -607,40 +610,55 @@ function toast(msg) {
   setTimeout(() => el.style.display = 'none', 3500);
 }
 
-// Founder master password — unlocks all portals (same view as ?founder=1)
-const FOUNDER_MASTER_PASSWORD = 'Yellow@1234';
-
-function doLogin() {
+async function doLogin() {
   const name = document.getElementById('login-name').value.trim();
   const pwd  = document.getElementById('login-input').value.trim();
   const errEl = document.getElementById('login-error');
   if (!name) { alert('Please enter your name.'); return; }
+  if (!pwd)  { errEl.style.display = 'block'; return; }
 
-  // Master password → unlock all
-  if (pwd === FOUNDER_MASTER_PASSWORD) {
+  try {
+    const res = await fetch(BACKEND_AUTH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'client', username: name, password: pwd })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      errEl.style.display = 'block';
+      document.getElementById('login-input').value = '';
+      return;
+    }
+
     errEl.style.display = 'none';
-    currentUser = name;
-    activePortal = 'all';
-    FOLDERS = Object.values(CLIENT_PORTALS).flatMap(p => p.folders);
+    currentUser = data.user;
+    activePortal = data.scope; // 'all' (master) or 'jindal'/'kotak'/etc
+    if (activePortal === 'all') {
+      FOLDERS = Object.values(CLIENT_PORTALS).flatMap(p => p.folders);
+    } else if (CLIENT_PORTALS[activePortal]) {
+      FOLDERS = CLIENT_PORTALS[activePortal].folders;
+    } else {
+      FOLDERS = [];
+    }
     applyPortalVisibility();
-    document.getElementById('header-name').textContent = name;
+    document.getElementById('header-name').textContent = currentUser;
     document.getElementById('login-overlay').style.display = 'none';
+
+    // Save 7-day session
+    try {
+      localStorage.setItem('yc-auth', JSON.stringify({
+        user: currentUser,
+        token: data.token,
+        scope: activePortal,
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000
+      }));
+    } catch(e) {}
+
     loadCreatives();
-    return;
+  } catch(e) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Login service unavailable — try again.';
   }
-
-  // Match password against any portal
-  const matchedKey = Object.keys(CLIENT_PORTALS).find(k => CLIENT_PORTALS[k].password === pwd);
-  if (!matchedKey) { errEl.style.display = 'block'; document.getElementById('login-input').value = ''; return; }
-
-  errEl.style.display = 'none';
-  currentUser = name;
-  activePortal = matchedKey;
-  FOLDERS = CLIENT_PORTALS[matchedKey].folders;
-  applyPortalVisibility();
-  document.getElementById('header-name').textContent = name;
-  document.getElementById('login-overlay').style.display = 'none';
-  loadCreatives();
 }
 
 function doLogout() {
