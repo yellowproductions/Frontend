@@ -1225,7 +1225,9 @@ async function callAI(systemPrompt, userMessage) {
 let chatSessions = [];
 let currentSessionId = null;
 try { chatSessions = JSON.parse(localStorage.getItem('yos-chat-sessions') || '[]'); } catch(e) {}
-try { currentSessionId = localStorage.getItem('yos-current-session') || null; } catch(e) {}
+// Always start with a clean chat space on page load.
+// Past chats remain accessible from the Recents sidebar.
+currentSessionId = null;
 
 // One-time migration from old per-agent format
 (function migrateOldChats() {
@@ -1681,11 +1683,15 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
   const items = [];
 
   if (newOnes.length) {
-    const byPerson = {};
-    newOnes.forEach(t => { byPerson[t.Assignee] = (byPerson[t.Assignee] || 0) + 1; });
-    const summary = Object.entries(byPerson)
-      .map(([n, c]) => `${n} (${c})`).join(', ');
-    items.push(`<div style="font-size:13px;color:#6b5113;line-height:1.5"><strong style="color:#000">📌 ${newOnes.length} new task${newOnes.length>1?'s':''} added by team:</strong> ${summary}</div>`);
+    const titlesList = newOnes.slice(0, 5).map(t => {
+      const title = t.Title || (t.Task || '').substring(0, 50) || '—';
+      return `<div style="font-size:11px;color:#444;line-height:1.6;margin-top:2px">→ <strong>${title}</strong> · <span style="color:var(--yellow)">${t.Assignee}</span> · ${t.Date || '—'}</div>`;
+    }).join('');
+    const more = newOnes.length > 5 ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">+ ${newOnes.length - 5} more</div>` : '';
+    items.push(`<div style="font-size:13px;color:#6b5113;line-height:1.5">
+      <strong style="color:#000">📌 ${newOnes.length} new task${newOnes.length>1?'s':''} added by team</strong>
+      ${titlesList}${more}
+    </div>`);
   }
 
   cleared.forEach(c => {
@@ -1694,10 +1700,10 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
 
   const banner = document.createElement('div');
   banner.id = 'team-notif-banner';
-  banner.style.cssText = 'background:#fff8e1;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;animation:slideIn 0.3s ease';
+  banner.style.cssText = 'background:#fff8e1;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px';
   banner.innerHTML = `
-    <div style="flex:1;display:flex;flex-direction:column;gap:6px">${items.join('')}</div>
-    <button id="dismiss-team-notif" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap">Got it ✓</button>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">${items.join('')}</div>
+    <button id="dismiss-team-notif" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;flex-shrink:0">Got it ✓</button>
   `;
   // Inject at top of Tasks panel
   const panel = document.getElementById('panel-tasks');
@@ -1706,6 +1712,8 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
     banner.remove();
     if (onDismiss) onDismiss();
   };
+  // Stash for the renderer to apply NEW badges
+  window._newTeamTaskIds = new Set(newOnes.map(taskId));
 }
 
 function renderTasks(tasks) {
@@ -2069,13 +2077,31 @@ async function loadHR() {
     const todayAtt = attendance.filter(r => r.Date === today);
     // Dedupe — same person marking attendance multiple times still shows once
     const presentNames = [...new Set(todayAtt.map(r => r.Assignee))];
-    const absentNames = TEAM_LIST.filter(n => !presentNames.includes(n));
 
-    let attHtml = '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--green);margin-bottom:6px">PRESENT</div><div class="present-list">';
+    // Who's on approved leave today? Leave row stores leave date in Title (or Date)
+    const todayLeaves = leaves.filter(l => {
+      if (l.Status !== 'Approved' && l.Status !== 'approved') return false;
+      const leaveDate = normalizeDate(l.Title) || normalizeDate(l.Date);
+      return leaveDate === today;
+    });
+    const onLeaveNames = [...new Set(todayLeaves.map(l => l.Assignee))];
+
+    // Categorise the rest
+    const unmarkedNames = TEAM_LIST.filter(n => !presentNames.includes(n) && !onLeaveNames.includes(n));
+
+    let attHtml = '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--green);margin-bottom:6px;font-weight:600;letter-spacing:0.05em">PRESENT (' + presentNames.length + ')</div><div class="present-list">';
     if(presentNames.length) presentNames.forEach(n => attHtml += `<span class="person-chip chip-green">${n}</span>`);
     else attHtml += '<span style="color:var(--muted);font-size:12px">None yet</span>';
-    attHtml += '</div></div><div><div style="font-size:11px;color:var(--muted);margin-bottom:6px">NOT MARKED</div><div class="absent-list">';
-    absentNames.forEach(n => attHtml += `<span class="person-chip chip-red">${n}</span>`);
+    attHtml += '</div></div>';
+
+    if (onLeaveNames.length) {
+      attHtml += '<div style="margin-bottom:8px"><div style="font-size:11px;color:#c0392b;margin-bottom:6px;font-weight:600;letter-spacing:0.05em">ON LEAVE (' + onLeaveNames.length + ')</div><div class="present-list">';
+      onLeaveNames.forEach(n => attHtml += `<span class="person-chip" style="background:#fee2e2;color:#c0392b;border:1px solid #fca5a5;font-weight:600">${n}</span>`);
+      attHtml += '</div></div>';
+    }
+
+    attHtml += '<div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.05em">NOT MARKED (' + unmarkedNames.length + ')</div><div class="absent-list">';
+    unmarkedNames.forEach(n => attHtml += `<span class="person-chip chip-red">${n}</span>`);
     attHtml += '</div></div>';
     document.getElementById('attendance-today').innerHTML = attHtml;
 
