@@ -187,9 +187,23 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   }
   
   /* Main app */
-  .sidebar { display: none !important; }
+  .sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 280px !important;
+    max-width: 80vw;
+    height: 100vh;
+    z-index: 9500;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.12);
+  }
+  body.menu-open .sidebar { transform: translateX(0); }
+  body.menu-open #mobile-menu-backdrop { display: block !important; }
   body { display: block !important; overflow-y: auto !important; }
-  .main { padding: 16px !important; padding-bottom: 80px !important; width: 100% !important; }
+  .main { padding: 16px !important; padding-top: 60px !important; padding-bottom: 80px !important; width: 100% !important; }
   input, select, textarea { font-size: 16px !important; }
 }
 </style>
@@ -350,6 +364,12 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <button onclick="sendChat()" id="chat-send-btn" style="background:#FEBC06;color:#1a1a1a;border:none;border-radius:20px;padding:9px 20px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;flex-shrink:0">Send</button>
   </div>
 </div>
+
+<!-- MOBILE: hamburger menu button + backdrop (only visible on phones) -->
+<button id="mobile-menu-btn" onclick="toggleMobileMenu()" style="display:none;position:fixed;top:14px;left:14px;z-index:9501;width:40px;height:40px;border-radius:8px;background:#fff;border:1px solid #e6dfd0;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.10);padding:0">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div id="mobile-menu-backdrop" onclick="toggleMobileMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9499"></div>
 
 <!-- MAIN -->
 <div class="main">
@@ -688,6 +708,9 @@ function proceedToApp(name) {
   loadTasks();
   loadReminders();
   loadAttendance();
+
+  // Mobile: enable hamburger menu
+  setupMobileMenu();
   if(name === 'Viplav') {
     document.getElementById('review-nav').style.display = 'flex';
     loadReviews();
@@ -715,6 +738,37 @@ function doLogout() {
   document.getElementById('login-password').value = '';
   document.getElementById('review-nav').style.display = 'none';
 }
+
+// =================== MOBILE MENU ===================
+function toggleMobileMenu() {
+  document.body.classList.toggle('menu-open');
+}
+function closeMobileMenu() {
+  document.body.classList.remove('menu-open');
+}
+function setupMobileMenu() {
+  // Show hamburger button on mobile (it's already display:none by default,
+  // we use inline style + media query to control visibility)
+  const btn = document.getElementById('mobile-menu-btn');
+  if (btn && window.innerWidth <= 768) btn.style.display = 'flex';
+
+  // Auto-close drawer when any nav item is tapped — feels native
+  document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+    item.addEventListener('click', closeMobileMenu);
+  });
+  // Also close when logout button is tapped (so it doesn't linger)
+  document.querySelectorAll('.sidebar button').forEach(b => {
+    b.addEventListener('click', closeMobileMenu);
+  });
+}
+
+// Re-evaluate hamburger visibility on resize (e.g. landscape rotate)
+window.addEventListener('resize', () => {
+  const btn = document.getElementById('mobile-menu-btn');
+  if (!btn || !currentUser) return;
+  btn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+  if (window.innerWidth > 768) document.body.classList.remove('menu-open');
+});
 
 // ====== IDEAS AGENT ======
 const AGENT_BACKEND = 'https://yellowbackend.onrender.com/api/claude';
