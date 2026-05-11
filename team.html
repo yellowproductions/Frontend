@@ -655,6 +655,25 @@ function onMonsterName() {
 // Team passwords are no longer stored client-side. Auth is handled by the backend.
 // Local cache stores: { user, token, expires } valid for 7 days from last successful login.
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
+const BACKEND_NOTIFY = 'https://yellowbackend.onrender.com/api/notify';
+
+// Send a Telegram notification to one person or "team". Fire-and-forget — never blocks UI.
+// Backend will silently skip people who haven't registered their Telegram chat ID yet.
+function notifyTelegram(to, message) {
+  if (!to || !message) return;
+  try {
+    const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
+    if (!auth?.token) return; // can't notify without auth — user not logged in
+    fetch(BACKEND_NOTIFY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + auth.token
+      },
+      body: JSON.stringify({ to, message })
+    }).catch(() => {}); // swallow errors — notifications are best-effort
+  } catch(e) {}
+}
 
 async function doLogin() {
   const name = document.getElementById('login-select').value;
@@ -1516,6 +1535,18 @@ async function sendChat() {
       body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
     });
     setTimeout(loadChat, 1500);
+
+    // ===== Telegram notify for @mentions =====
+    // Detect @Name patterns and notify each mentioned person.
+    // Special: @team notifies everyone registered.
+    const mentions = (messageBody.match(/@(\w+)/g) || []).map(m => m.slice(1));
+    const uniqueMentions = [...new Set(mentions)];
+    uniqueMentions.forEach(name => {
+      // Skip self-mentions, backend also dedupes
+      if (name === currentUser) return;
+      const msg = `💬 <b>${currentUser}</b> mentioned you in Yellow Verse\n\n${messageBody}\n\n<a href="https://theyellowverse.com/team.html">Open chat →</a>`;
+      notifyTelegram(name === 'team' ? 'team' : name, msg);
+    });
   } catch(e) {
     chatMessages.pop();
     renderChat();
@@ -1770,6 +1801,13 @@ async function addQuickTask() {
       method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
       body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
     });
+
+    // Telegram notify: only when CS assigns to someone else (not self-added)
+    if (assignTo !== currentUser) {
+      const msg = `🆕 <b>New task assigned</b> by ${currentUser}\n\n<b>${title}</b>${desc ? `\n${desc}` : ''}\n📅 Due: ${date}\n\n<a href="https://theyellowverse.com/team.html">Open Yellow Verse →</a>`;
+      notifyTelegram(assignTo, msg);
+    }
+
     const successLabel = assignTo !== currentUser ? `✓ Sent to ${assignTo}` : '✓ Added';
     btn.textContent = successLabel; btn.style.background = '#22c55e'; btn.style.color = '#fff';
     titleEl.value = ''; descEl.value = '';
