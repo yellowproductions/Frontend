@@ -529,9 +529,12 @@ async function submitUpload(){
             body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
           });
         }
-        // Tell Viplav a new file landed in his review queue
-        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${CLIENT_NAMES[client]||client}${isRework ? '\n🔁 Rework' : ''}\n\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
-        notifyTelegram('Viplav', reviewMsg);
+        // Tell ALL reviewers (Viplav, Kritya, Siddhesh, Suriti) — first-available wins.
+        // Whoever has bandwidth grabs it from the shared queue.
+        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${CLIENT_NAMES[client]||client}${isRework ? '\n🔁 Rework' : ''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
+        ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
+          notifyTelegram(reviewer, reviewMsg);
+        });
       }
       successCount++;
     } catch(e) {
