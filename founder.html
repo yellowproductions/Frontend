@@ -737,13 +737,19 @@
   <div class="panel" id="panel-hr">
     <div class="panel-title">HR — People & Attendance</div>
 
-    <!-- Today's Attendance — at the top so you see who's in first -->
+    <!-- 1. Today's Attendance — see who's in -->
     <div class="card" style="margin-bottom:18px">
       <div class="card-title">Today's Attendance</div>
       <div id="attendance-today"><div class="empty-state" style="padding:20px">Loading...</div></div>
     </div>
 
-    <!-- 📊 TEAM CAPACITY — at a glance, who has bandwidth -->
+    <!-- 2. Leave Requests — needs your action first -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">Leave Requests</div>
+      <div id="leave-requests"><div class="empty-state" style="padding:20px">Loading...</div></div>
+    </div>
+
+    <!-- 3. Team Capacity — who has bandwidth -->
     <div class="card" style="margin-bottom:18px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="card-title" style="margin:0">Team Capacity</div>
@@ -752,18 +758,13 @@
       <div id="capacity-list"><div class="empty-state" style="padding:14px">Loading...</div></div>
     </div>
 
-    <div class="hr-grid">
-      <div class="card">
-        <div class="card-title">Leave Requests</div>
-        <div id="leave-requests"><div class="empty-state" style="padding:20px">Loading...</div></div>
+    <!-- 4. Daily Performance — attendance color + tasks closed per day -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div class="card-title" style="margin:0">Daily Performance</div>
+        <input type="month" id="hr-month-filter" onchange="loadHR()" style="width:160px">
       </div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-          <div class="card-title" style="margin:0">Attendance Log</div>
-          <input type="month" id="hr-month-filter" onchange="loadHR()" style="width:160px">
-        </div>
-        <div id="attendance-log"><div class="empty-state">Loading…</div></div>
-      </div>
+      <div id="output-list"><div class="empty-state" style="padding:14px">Loading...</div></div>
     </div>
   </div>
 
@@ -2179,6 +2180,133 @@ async function deleteProspect(encodedTitle, date) {
 
 // =================== 📊 TEAM CAPACITY VIEW ===================
 // Sorted list: idle/light first → loaded last. At-a-glance "who can take a brief?"
+// ===== DAILY PERFORMANCE — attendance status (color) + tasks closed (number) per day =====
+// One row per active member. Each cell = one day of the month.
+//   • Cell background color = attendance status that day
+//   • Number in the cell = tasks closed that day
+//   • Tiny day number top-left for reference
+function renderWorkOutput(allRows) {
+  const wrap = document.getElementById('output-list');
+  if (!wrap) return;
+
+  const DONE = ['Done', 'Approved', 'Closed', 'done', 'approved', 'closed'];
+  const monthFilter = document.getElementById('hr-month-filter')?.value || (new Date()).toISOString().substring(0, 7);
+  const [yr, mo] = monthFilter.split('-').map(Number);
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+  const monthPrefix = `${yr}-${String(mo).padStart(2,'0')}`;
+  const SYSTEM_LIVE_DATE = '2026-05-10';
+  const todayDate = new Date();
+
+  const attendance = allRows.filter(r => r.Type === 'attendance');
+
+  // Background + foreground colors per status
+  const dayBg = {
+    'Present':  '#dcfce7', 'Late': '#fce7f3', 'Half Day': '#fed7aa',
+    'Absent':   '#fee2e2', 'On Leave': '#dbeafe', 'Off': '#f3f4f6', 'No data': '#fafaf7'
+  };
+  const dayFg = {
+    'Present':  '#15803d', 'Late': '#be185d', 'Half Day': '#9a3412',
+    'Absent':   '#b91c1c', 'On Leave': '#1e40af', 'Off': '#9ca3af', 'No data': '#cccccc'
+  };
+
+  const stats = ACTIVE_TEAM.map(name => {
+    const cells = [];
+    let totalClosed = 0, present = 0, late = 0, half = 0, absent = 0, leave = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dateObj = new Date(yr, mo - 1, d);
+      const isFuture = dateObj > todayDate;
+      const isPreLaunch = dateStr < SYSTEM_LIVE_DATE;
+      let status;
+
+      if (isFuture || isPreLaunch) {
+        status = 'No data';
+      } else if (!isWorkingDay(name, dateObj)) {
+        status = 'Off';
+      } else {
+        const lv = getApprovedLeaveForDate(name, dateStr, allRows);
+        if (lv) { status = 'On Leave'; leave++; }
+        else {
+          const att = attendance.find(r => r.Date === dateStr && r.Assignee === name);
+          if (att) {
+            status = att.Status || 'Present';
+            if (status === 'Present') present++;
+            else if (status === 'Late') late++;
+            else if (status === 'Half Day') half++;
+            else if (status === 'Absent') absent++;
+          } else {
+            status = 'Absent'; absent++;
+          }
+        }
+      }
+
+      // Tasks closed this day for this person
+      const closedToday = allRows.filter(r =>
+        r.Type === 'task' &&
+        r.Assignee === name &&
+        DONE.includes(r.Status || '') &&
+        (r.Date || '') === dateStr
+      ).length;
+      totalClosed += closedToday;
+
+      cells.push({ day: d, status, closed: closedToday, dateStr });
+    }
+    return { name, cells, totalClosed, present, late, half, absent, leave };
+  });
+
+  // Sort by output desc — top performers up top
+  stats.sort((a, b) => b.totalClosed - a.totalClosed);
+
+  // Legend at top
+  const legendItems = [
+    ['Present','#dcfce7','#15803d'], ['Late','#fce7f3','#be185d'],
+    ['Half Day','#fed7aa','#9a3412'], ['Absent','#fee2e2','#b91c1c'],
+    ['On Leave','#dbeafe','#1e40af'], ['Off','#f3f4f6','#9ca3af']
+  ];
+  const legend = `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:8px 4px 14px;font-size:11px;color:#666;border-bottom:1px solid var(--border);margin-bottom:12px">
+    ${legendItems.map(([k,bg,fg]) => `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:3px;background:${bg};border:1px solid ${fg}20;display:inline-block"></span><span style="color:${fg}">${k}</span></span>`).join('')}
+    <span style="display:inline-flex;align-items:center;gap:5px;color:#666"><span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">3</span>= 3 tasks closed that day</span>
+  </div>`;
+
+  wrap.innerHTML = legend + stats.map(s => {
+    const cellsHtml = s.cells.map(c => {
+      // Default colors come from attendance status
+      let bg = dayBg[c.status];
+      let fg = dayFg[c.status];
+      // BUT — if this is a No data / Off day yet they still closed work, show that
+      // clearly with a light-green tint. The fact that work got done overrides "we
+      // don't know about attendance" — closure data is real data.
+      if ((c.status === 'No data' || c.status === 'Off') && c.closed > 0) {
+        bg = '#dcfce7';   // light green
+        fg = '#15803d';   // dark green
+      }
+      return `
+        <div title="${c.dateStr} · ${c.status}${c.closed ? ' · ' + c.closed + ' closed' : ''}"
+             style="width:32px;height:36px;background:${bg};border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;flex-shrink:0">
+          <span style="font-size:7px;color:${fg};opacity:0.55;font-weight:600;line-height:1;font-family:'DM Mono',monospace">${c.day}</span>
+          <span style="font-size:13px;font-weight:700;color:${fg};line-height:1.2">${c.closed || ''}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `<div style="padding:14px 4px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <span style="font-weight:600;font-size:14px">${s.name}</span>
+        <span style="font-size:11px;color:#666;display:flex;gap:12px;flex-wrap:wrap">
+          <span style="color:#15803d;font-weight:700;font-size:13px">${s.totalClosed} closed</span>
+          ${s.present ? `<span style="color:#15803d">${s.present} present</span>` : ''}
+          ${s.late ? `<span style="color:#be185d">${s.late} late</span>` : ''}
+          ${s.half ? `<span style="color:#9a3412">${s.half} half day</span>` : ''}
+          ${s.absent ? `<span style="color:#b91c1c">${s.absent} absent</span>` : ''}
+          ${s.leave ? `<span style="color:#1e40af">${s.leave} leave</span>` : ''}
+        </span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${cellsHtml}</div>
+    </div>`;
+  }).join('') || '<div class="empty-state" style="padding:14px">No data.</div>';
+}
+
 function renderCapacity(tasks) {
   const wrap = document.getElementById('capacity-list');
   if (!wrap) return;
@@ -2284,12 +2412,30 @@ function renderMorningDigest(tasks) {
     if (!t.Date || t.Date >= weekStartStr) return false; // recent task, not stuck
     const updates = (t.Update || '').trim();
     if (!updates) return true; // no updates ever → stuck if old
-    // Check if any update line has a recent [MM-DD] prefix
+    // Check if any update line has a recent date prefix.
+    // We accept both legacy [MM-DD] and new [DD-MM] formats — auto-detect which is which.
     const recentUpdate = updates.split('\n').some(line => {
-      const m = line.match(/\[(\d{2})-(\d{2})\]/);
+      const m = line.match(/\[(\d{1,2})-(\d{1,2})\]/);
       if (!m) return false;
-      const lineDate = `${today.getFullYear()}-${m[1]}-${m[2]}`;
-      return lineDate >= weekStartStr;
+      const a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+      // If first > 12 it must be DD; if second > 12 it must be MM (swap).
+      // Otherwise (both ≤ 12) — try both interpretations and take the most recent reasonable one.
+      const tryDate = (mm, dd) => {
+        if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+        return `${today.getFullYear()}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+      };
+      let lineDate = null;
+      if (a > 12)      lineDate = tryDate(b, a);                       // [DD-MM]
+      else if (b > 12) lineDate = tryDate(a, b);                       // [MM-DD] legacy
+      else {
+        // Ambiguous — both ≤ 12. Try both and prefer the one that's ≤ today (i.e. has actually happened).
+        const dmFirst = tryDate(b, a);  // new format DD-MM
+        const mdFirst = tryDate(a, b);  // legacy MM-DD
+        if (dmFirst && dmFirst <= todayStr) lineDate = dmFirst;
+        else if (mdFirst && mdFirst <= todayStr) lineDate = mdFirst;
+        else lineDate = dmFirst || mdFirst;
+      }
+      return lineDate && lineDate >= weekStartStr;
     });
     return !recentUpdate;
   });
@@ -2353,14 +2499,20 @@ function renderMorningDigest(tasks) {
     </div>`;
 
   if (hotDeadlines.length) {
+    const ids = hotDeadlines.map(t => taskId(t));
     flagItems.push(flagBuilder('#dc2626', '#fefafa', '#fde0e0', '#7a3535',
-      `<strong style="font-weight:600">${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
-      <span style="font-size:11px;color:#9a6868">${hotDeadlines.slice(0,3).map(t => `<a href="#" onclick="event.preventDefault();jumpToTask('${encodeURIComponent(t.Task || '')}','${t.Assignee || ''}')" style="color:inherit;text-decoration:underline;text-decoration-color:#d4a8a8;text-underline-offset:2px;cursor:pointer"><em>${t.Title || t.Task}</em></a> · ${t.Assignee} · due ${formatDateDM(t.Date)}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <a href="#" onclick="event.preventDefault();showPanel('tasks');" style="color:inherit;text-decoration:underline;cursor:pointer"><em>+${hotDeadlines.length-3} more →</em></a>` : ''}</span>`));
+      `<a href="#" onclick="event.preventDefault();showFilteredTasks('Hot deadlines',${JSON.stringify(ids).replace(/"/g,'&quot;')})" style="color:inherit;text-decoration:none;cursor:pointer;display:block">
+        <strong style="font-weight:600;border-bottom:1px dashed #c0a0a0">${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
+        <span style="font-size:11px;color:#9a6868">${hotDeadlines.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee} · due ${formatDateDM(t.Date)}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <em>+${hotDeadlines.length-3} more →</em>` : ' &nbsp;|&nbsp; <em>see all →</em>'}</span>
+      </a>`));
   }
   if (stuckTasks.length) {
+    const ids = stuckTasks.map(t => taskId(t));
     flagItems.push(flagBuilder('#d4a64a', '#fdfaf2', '#f4e8c8', '#7a5e1f',
-      `<strong style="font-weight:600">${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
-      <span style="font-size:11px;color:#a08660">${stuckTasks.slice(0,3).map(t => `<a href="#" onclick="event.preventDefault();jumpToTask('${encodeURIComponent(t.Task || '')}','${t.Assignee || ''}')" style="color:inherit;text-decoration:underline;text-decoration-color:#d4c198;text-underline-offset:2px;cursor:pointer"><em>${t.Title || t.Task}</em></a> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <a href="#" onclick="event.preventDefault();showPanel('tasks');" style="color:inherit;text-decoration:underline;cursor:pointer"><em>+${stuckTasks.length-3} more →</em></a>` : ''}</span>`));
+      `<a href="#" onclick="event.preventDefault();showFilteredTasks('Stuck tasks',${JSON.stringify(ids).replace(/"/g,'&quot;')})" style="color:inherit;text-decoration:none;cursor:pointer;display:block">
+        <strong style="font-weight:600;border-bottom:1px dashed #c0b078">${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
+        <span style="font-size:11px;color:#a08660">${stuckTasks.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <em>+${stuckTasks.length-3} more →</em>` : ' &nbsp;|&nbsp; <em>see all →</em>'}</span>
+      </a>`));
   }
   if (overloaded.length) {
     flagItems.push(flagBuilder('#c97a3a', '#fdf8f3', '#f0d8c0', '#7a4f2e',
@@ -2462,7 +2614,10 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
   banner.style.cssText = 'background:#fff8e1;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px';
   banner.innerHTML = `
     <div style="flex:1;display:flex;flex-direction:column;gap:8px">${items.join('')}</div>
-    <button id="dismiss-team-notif" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;flex-shrink:0">Got it ✓</button>
+    <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+      <button id="dismiss-team-notif" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap">Got it ✓</button>
+      ${newOnes.length ? `<button id="mark-mine-notif" title="These tasks are mine — don't show in 'added by team' anymore" style="background:transparent;border:1px solid #c0c0c0;color:#666;border-radius:6px;padding:5px 12px;font-size:10px;font-weight:500;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap">These are mine</button>` : ''}
+    </div>
   `;
   // Inject at top of Tasks panel
   const panel = document.getElementById('panel-tasks');
@@ -2471,6 +2626,27 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
     banner.remove();
     if (onDismiss) onDismiss();
   };
+  // "These are mine" — patches each task on the server with Notes: 'added by Suriti'
+  // and adds them to the local known set. Permanent fix for legacy tasks Suriti added
+  // before the auto-marker was deployed.
+  const mineBtn = document.getElementById('mark-mine-notif');
+  if (mineBtn) {
+    mineBtn.onclick = async () => {
+      mineBtn.disabled = true; mineBtn.textContent = 'Marking…';
+      for (const t of newOnes) {
+        try {
+          await fetch(SHEETDB_URL, {
+            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+            body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: t.Task, data: { Notes: 'added by Suriti' } })
+          });
+          const local = allTasks.find(x => x.Task === t.Task && x.Assignee === t.Assignee && x.Date === t.Date);
+          if (local) local.Notes = 'added by Suriti';
+        } catch(e) {}
+      }
+      banner.remove();
+      if (onDismiss) onDismiss();
+    };
+  }
   // Stash for the renderer to apply NEW badges
   window._newTeamTaskIds = new Set(newOnes.map(taskId));
 }
@@ -2479,8 +2655,25 @@ function renderTasks(tasks) {
   const el = document.getElementById('tasks-list');
   if(!tasks.length) { el.innerHTML = '<div class="empty-state">No tasks found.</div>'; return; }
 
+  // If a filter is active (e.g. clicked "10 hot deadlines"), only show those tasks
+  let workingTasks = tasks;
+  let filterBanner = '';
+  if (_taskFilterIds && _taskFilterIds.size > 0) {
+    workingTasks = tasks.filter(t => _taskFilterIds.has(taskId(t)));
+    filterBanner = `<div style="background:#fff8e1;border:1px solid #f0d080;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <span style="font-size:13px;color:#854f0b">
+        <strong>Showing only:</strong> ${_taskFilterLabel} · ${workingTasks.length} task${workingTasks.length===1?'':'s'}
+      </span>
+      <button onclick="clearTaskFilter()" style="background:transparent;border:1px solid #d4a017;color:#92640a;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif">× Clear filter</button>
+    </div>`;
+    if (workingTasks.length === 0) {
+      el.innerHTML = filterBanner + '<div class="empty-state">No tasks match this filter.</div>';
+      return;
+    }
+  }
+
   const grouped = {};
-  tasks.forEach((t, idx) => {
+  workingTasks.forEach((t, idx) => {
     const d = t.Date || 'No date';
     if(!grouped[d]) grouped[d] = [];
     grouped[d].push({...t, _idx: idx});
@@ -2501,10 +2694,11 @@ function renderTasks(tasks) {
   const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
   let html = '';
 
-  // Active Today: any open task created today OR with an update timestamped today
+  // Active Today: any open task created today OR with an update timestamped today.
+  // Skip this entirely when a filter is active — user explicitly wants ONLY the filtered tasks.
   const todayStr = new Date().toISOString().split('T')[0];
   const todayMonthDay = todayStr.substring(5); // "MM-DD"
-  const activeToday = tasks.filter(t => {
+  const activeToday = _taskFilterIds ? [] : tasks.filter(t => {
     if (t.Status === 'Done') return false;
     if (t.Date === todayStr) return true;
     if ((t.Update || '').includes(`[${todayMonthDay}]`)) return true;
@@ -2635,7 +2829,7 @@ function renderTasks(tasks) {
       </div>`;
     }
   });
-  el.innerHTML = html;
+  el.innerHTML = filterBanner + html;
 }
 
 function toggleMonth(monthKey) {
@@ -2730,6 +2924,23 @@ function jumpToTask(encodedTask, assignee) {
     }, 200);
   }, 100);
 }
+
+// Click "X hot deadlines" / "X stuck tasks" → show ONLY those tasks in Tasks panel
+let _taskFilterIds = null;   // null = no filter; Set of task IDs = filtered
+let _taskFilterLabel = '';
+
+function showFilteredTasks(label, taskIds) {
+  _taskFilterIds = new Set(taskIds);
+  _taskFilterLabel = label;
+  showPanel('tasks');
+  setTimeout(() => renderTasks(allTasks), 100);
+}
+
+function clearTaskFilter() {
+  _taskFilterIds = null;
+  _taskFilterLabel = '';
+  renderTasks(allTasks);
+}
 // Encoded `task` text comes from the row's data-attr; decode before sending the patch.
 async function reassignTask(encodedTask, oldAssignee, date, newAssignee) {
   const taskText = decodeURIComponent(encodedTask);
@@ -2822,6 +3033,16 @@ async function addTask() {
       body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
     allTasks.push(row);
+
+    // Belt + braces: also silently mark this in the local "known" set so the
+    // pinned "added by team" banner never flags Suriti's own additions, even
+    // before her next page reload reads the Notes marker.
+    try {
+      const known = JSON.parse(localStorage.getItem('yos-known-team-tasks') || '[]');
+      known.push(taskId(row));
+      localStorage.setItem('yos-known-team-tasks', JSON.stringify(known));
+    } catch(e) {}
+
     renderTasks(allTasks);
     document.getElementById('task-title').value = '';
     document.getElementById('task-name').value = '';
@@ -2895,7 +3116,7 @@ async function loadHR() {
       return `<div style="margin-bottom:12px">
         <div style="font-size:10px;color:${p.fg};margin-bottom:6px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">${p.label} · ${items.length}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${items.map(r => `<span style="background:${p.bg};color:${p.fg};font-size:12px;padding:4px 11px;border-radius:14px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+          ${items.map(r => `<span onclick="openAttendanceOverride('${r.name}','${r.status}')" title="Click to change status" style="background:${p.bg};color:${p.fg};font-size:12px;padding:4px 11px;border-radius:14px;font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:transform 0.1s" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
             <span>${p.icon}</span>${r.name}${r.time ? `<span style="font-weight:500;opacity:0.7;font-family:'DM Mono',monospace;font-size:10px;margin-left:4px">${r.time}</span>` : ''}
           </span>`).join('')}
         </div>
@@ -2909,6 +3130,9 @@ async function loadHR() {
 
     if (!attHtml) attHtml = '<div class="empty-state" style="padding:14px">No team members loaded.</div>';
     document.getElementById('attendance-today').innerHTML = attHtml;
+
+    // Render Work Output panel (productivity)
+    renderWorkOutput(data);
 
     // Leave requests
     const pending = leaves.filter(r => r.Status === 'Pending');
@@ -2931,109 +3155,69 @@ async function loadHR() {
     }
     document.getElementById('leave-requests').innerHTML = leaveHtml;
 
-    // ===== Attendance Log — full month heatmap + stats bar =====
-    const monthFilter = document.getElementById('hr-month-filter')?.value || today.substring(0, 7);
-    const [yr, mo] = monthFilter.split('-').map(Number);
-    const daysInMonth = new Date(yr, mo, 0).getDate();
-    const todayDate = new Date();
-
-    // Color palette for the heatmap squares
-    const dayColor = {
-      'Present':  '#86efac',  // light green
-      'Late':     '#f9a8d4',  // light pink
-      'Half Day': '#fdba74',  // light orange
-      'Absent':   '#fca5a5',  // light red
-      'On Leave': '#93c5fd',  // light blue
-      'Off':      '#e5e7eb',  // gray (weekend / non-working)
-      'No data':  '#fafaf7'   // very faint
-    };
-
-    // For each active team member, build their month timeline
-    const logHtml = ACTIVE_TEAM.map(name => {
-      const days = [];
-      const counts = { Present:0, Late:0, 'Half Day':0, Absent:0, 'On Leave':0, Off:0, NoData:0 };
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const dateObj = new Date(yr, mo - 1, d);
-        const isFuture = dateObj > todayDate;
-        let status;
-
-        if (isFuture) {
-          status = 'No data';
-          counts.NoData++;
-        } else if (!isWorkingDay(name, dateObj)) {
-          status = 'Off';
-          counts.Off++;
-        } else {
-          // Check approved leave first
-          const leave = getApprovedLeaveForDate(name, dateStr, data);
-          if (leave) { status = 'On Leave'; counts['On Leave']++; }
-          else {
-            // Check attendance row
-            const att = attendance.find(r => r.Date === dateStr && r.Assignee === name);
-            if (att) {
-              status = att.Status || 'Present';
-              if (counts[status] !== undefined) counts[status]++;
-            } else {
-              status = 'Absent';
-              counts.Absent++;
-            }
-          }
-        }
-        days.push({ d, status, dateStr });
-      }
-
-      // Stats — only count working days that are not in the future
-      const workingDays = counts.Present + counts.Late + counts['Half Day'] + counts.Absent + counts['On Leave'];
-      const onTimePct  = workingDays ? Math.round((counts.Present / workingDays) * 100) : 0;
-      const latePct    = workingDays ? Math.round((counts.Late / workingDays) * 100) : 0;
-      const halfPct    = workingDays ? Math.round((counts['Half Day'] / workingDays) * 100) : 0;
-      const absentPct  = workingDays ? Math.round((counts.Absent / workingDays) * 100) : 0;
-      const leavePct   = workingDays ? Math.round((counts['On Leave'] / workingDays) * 100) : 0;
-
-      const squaresHtml = days.map(day =>
-        `<span title="${day.dateStr} · ${day.status}" style="width:14px;height:14px;border-radius:3px;background:${dayColor[day.status]};display:inline-block;flex-shrink:0"></span>`
-      ).join('');
-
-      const barHtml = workingDays ? `
-        <div style="display:flex;width:100%;height:6px;border-radius:4px;overflow:hidden;margin-top:8px;background:#f0f0f0">
-          ${counts.Present   ? `<span title="${counts.Present} present" style="background:#22c55e;width:${onTimePct}%"></span>` : ''}
-          ${counts.Late      ? `<span title="${counts.Late} late" style="background:#ec4899;width:${latePct}%"></span>` : ''}
-          ${counts['Half Day'] ? `<span title="${counts['Half Day']} half day" style="background:#f97316;width:${halfPct}%"></span>` : ''}
-          ${counts.Absent    ? `<span title="${counts.Absent} absent" style="background:#dc2626;width:${absentPct}%"></span>` : ''}
-          ${counts['On Leave'] ? `<span title="${counts['On Leave']} on leave" style="background:#3b82f6;width:${leavePct}%"></span>` : ''}
-        </div>` : '';
-
-      return `<div style="padding:14px 4px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <span style="font-weight:600;font-size:13px">${name}</span>
-          <span style="font-size:11px;color:#666;display:flex;gap:10px;flex-wrap:wrap">
-            <span style="color:#15803d;font-weight:600">${counts.Present} on-time</span>
-            ${counts.Late      ? `<span style="color:#be185d;font-weight:600">${counts.Late} late</span>` : ''}
-            ${counts['Half Day'] ? `<span style="color:#9a3412;font-weight:600">${counts['Half Day']} half day</span>` : ''}
-            ${counts.Absent    ? `<span style="color:#b91c1c;font-weight:600">${counts.Absent} absent</span>` : ''}
-            ${counts['On Leave'] ? `<span style="color:#1e40af;font-weight:600">${counts['On Leave']} leave</span>` : ''}
-          </span>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${squaresHtml}</div>
-        ${barHtml}
-      </div>`;
-    }).join('');
-
-    // Legend
-    const legend = `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:10px 4px 16px;font-size:11px;color:#666;border-bottom:1px solid var(--border);margin-bottom:8px">
-      ${Object.entries({Present:'#22c55e',Late:'#ec4899','Half Day':'#f97316',Absent:'#dc2626','On Leave':'#3b82f6',Off:'#d1d5db'}).map(([k,c]) =>
-        `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:${c};display:inline-block"></span>${k}</span>`
-      ).join('')}
-    </div>`;
-
-    document.getElementById('attendance-log').innerHTML = legend + (logHtml || '<div class="empty-state">No data.</div>');
+    // (Attendance Log + Work Output have been merged into a single "Daily Performance" panel.
+    // See renderWorkOutput(data) — called above.)
 
     window._leaveData = leaves;
 
   } catch(e) {
     document.getElementById('attendance-today').innerHTML = '<div class="empty-state">Error loading data.</div>';
+  }
+}
+
+// Suriti can manually override any team member's attendance status for today.
+// If they've already marked → patch their existing row. If not → create one.
+async function openAttendanceOverride(name, currentStatus) {
+  const options = ['Present', 'Late', 'Half Day', 'Absent', 'On Leave'];
+  const prompt = `Change ${name}'s status for today (currently: ${currentStatus})\n\n` +
+    options.map((s, i) => `${i+1}. ${s}`).join('\n') +
+    `\n\nEnter 1-${options.length}:`;
+  const choice = window.prompt(prompt);
+  if (!choice) return;
+  const idx = parseInt(choice, 10) - 1;
+  if (idx < 0 || idx >= options.length) return;
+  const newStatus = options[idx];
+  if (newStatus === currentStatus) return;
+
+  const today = getISTDate();
+
+  try {
+    if (newStatus === 'On Leave') {
+      // Add an approved leave row for today (single-day leave)
+      const row = { Date: today, Task: today, Assignee: name, Status: 'Approved', Type: 'leave', Notes: 'override by Suriti' };
+      await fetch(SHEETDB_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+        body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
+      });
+    } else {
+      // Find existing attendance row for today
+      const data = window._allRowsCache || [];
+      const existing = data.find(r => r.Type === 'attendance' && r.Assignee === name && r.Date === today);
+      if (existing) {
+        // Patch existing row's status
+        await fetch(SHEETDB_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({
+            action: 'patch',
+            sheet: 'Type:tasks',
+            matchColumn: 'Task',
+            matchValue: existing.Task,
+            data: { Status: newStatus, Notes: 'override by Suriti' }
+          })
+        });
+      } else {
+        // Create a new attendance row with the override time = "manual"
+        const row = { Date: today, Title: '—', Task: 'manual-' + name + '-' + today, Assignee: name, Status: newStatus, Notes: 'override by Suriti', Type: 'attendance' };
+        await fetch(SHEETDB_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
+        });
+      }
+    }
+    // Refresh HR after sheet commits
+    setTimeout(loadHR, 1500);
+  } catch(e) {
+    alert('Could not update status: ' + e.message);
   }
 }
 
