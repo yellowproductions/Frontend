@@ -288,7 +288,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
       <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
       <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
-      <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
+      <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
     </select>
     <input type="password" id="login-password" placeholder="Password..." onkeydown="if(event.key==='Enter')doLogin()">
     <div class="m-err" id="login-error">Wrong password!</div>
@@ -1572,7 +1572,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri'];
 
 function onChatInput(e) {
   const input = e.target;
@@ -1917,7 +1917,7 @@ function renderTaskRows(tasks, startIdx) {
         ? `<span style="color:#854f0b;font-size:11px;font-weight:600;margin-left:6px">today</span>`
         : isOverdue
         ? `<span style="color:#dc2626;font-size:11px;font-weight:600;margin-left:6px">${daysOverdue}d overdue</span>`
-        : (t.Date ? `<span style="color:#999;font-size:11px;margin-left:6px">due ${t.Date.slice(5)}</span>` : '');
+        : (t.Date ? `<span style="color:#999;font-size:11px;margin-left:6px">due ${t.Date.substring(8,10)}/${t.Date.substring(5,7)}</span>` : '');
       // File pending — only when truly missing
       const filePendingChip = isDoneNoFile
         ? `<span style="color:#a07419;font-size:11px;font-weight:600;margin-left:6px">· file pending</span>`
@@ -1926,6 +1926,20 @@ function renderTaskRows(tasks, startIdx) {
       const descText = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
+
+      // Update line prefix: legacy is [MM-DD], new format is [DD-MM]. Display both as [DD/MM].
+      const formatUpdateLine = (line) => {
+        const m = line.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
+        if (!m) return line;
+        let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+        // If first part > 12 → must be DD-MM. If second part > 12 → must be MM-DD (swap).
+        // If both ≤ 12 → ambiguous; assume the new format (DD-MM).
+        const isMMDD = b > 12 && a <= 12;
+        const dd = isMMDD ? b : a;
+        const mm = isMMDD ? a : b;
+        return `[${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}] ${m[3]}`;
+      };
+
       // Quiet overdue treatment — left border only, no background tint
       const rowStyle = isOverdue
         ? 'box-shadow:inset 3px 0 0 #dc2626;'
@@ -1938,8 +1952,9 @@ function renderTaskRows(tasks, startIdx) {
             <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${dateText}${filePendingChip}
           </div>
           ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
-          ${updateLines.length ? `<div style="margin-top:6px;border-left:2px solid #f0d080;padding-left:8px">
-            ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace;overflow-wrap:anywhere">📝 ${l}</div>`).join('')}
+          ${updateLines.length ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
+            <div style="font-size:9px;color:#92702e;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:4px">Latest from Suriti</div>
+            ${updateLines.map(l => `<div style="font-size:12px;color:#1a1a1a;line-height:1.5;font-weight:500;overflow-wrap:anywhere">${formatUpdateLine(l)}</div>`).join('')}
           </div>` : ''}
         </div>
         <div class="task-cell" data-label="Status" style="min-width:0">
@@ -2198,20 +2213,77 @@ async function saveTask(idx, encodedTask) {
 // Office team — come in 10:30 AM. WFH everyone else — start 9:30 AM.
 const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Prathamesh'];
 
+// Users on sleep — hidden from login, attendance, idle calc, capacity, notifications
+const INACTIVE_USERS = ['Sam'];
+function isInactive(name) { return INACTIVE_USERS.includes(name); }
+
+// Per-user working days (0=Sun ... 6=Sat). Default is Mon–Fri.
+// Saturdays are added universally on 1st/3rd/5th occurrences of the month.
+const WORK_SCHEDULES = {
+  Archana: [0, 1, 2, 3, 4],   // Sun–Thu
+};
+const WORKING_SATURDAYS = [1, 3, 5]; // 1st, 3rd, 5th Saturday of the month
+
+function getWorkDays(name) { return WORK_SCHEDULES[name] || [1, 2, 3, 4, 5]; }
+
+// Is `date` a working day for this person?
+function isWorkingDay(name, date) {
+  if (isInactive(name)) return false;
+  const dow = date.getDay();
+  if (getWorkDays(name).includes(dow)) return true;
+  // Saturday rule: 1st/3rd/5th Saturday of the month = working day for everyone
+  if (dow === 6) {
+    const nth = Math.ceil(date.getDate() / 7);
+    if (WORKING_SATURDAYS.includes(nth)) return true;
+  }
+  return false;
+}
+
+// Find an approved leave row covering this date for this person
+function getApprovedLeaveForDate(name, dateStr, allRows) {
+  return allRows.find(r =>
+    r.Type === 'leave' &&
+    r.Assignee === name &&
+    (r.Status === 'Approved' || r.Status === 'approved') &&
+    r.Date <= dateStr &&
+    (r.Task || r.Date) >= dateStr   // Task col stores the end-date
+  ) || null;
+}
+
 // Returns the schedule rules for the current user
 function getSchedule(name) {
   const isOffice = OFFICE_TEAM.includes(name);
   return isOffice
-    ? { type: 'OFFICE', start: '10:30 AM', onTimeBy: 10*60 + 45, lateBy: 12*60 + 30 } // grace 15 min, half-day after 12:30
-    : { type: 'WFH',    start: '9:30 AM',  onTimeBy:  9*60 + 45, lateBy: 11*60 + 30 }; // grace 15 min, half-day after 11:30
+    ? { type: 'OFFICE', start: '10:30 AM', onTimeBy: 10*60 + 45 }  // grace 15 min
+    : { type: 'WFH',    start: '9:30 AM',  onTimeBy:  9*60 + 45 }; // grace 15 min
 }
 
+// Universal time cutoffs (apply to everyone regardless of schedule)
+const ABSENT_AFTER_MIN  = 11 * 60 + 30; // 11:30 AM IST — no mark by now = Absent
+const HALFDAY_AFTER_MIN = 13 * 60 + 30; // 1:30 PM IST — marking after = Half Day
+
 // Compute attendance status from minutes-of-day (in IST)
+// - up to scheduled+grace → Present
+// - up to 11:30 AM → Late
+// - after 11:30 AM → Half Day (you can still mark, but it's half day)
 function computeAttendanceStatus(name, totalMin) {
   const s = getSchedule(name);
-  if (totalMin <= s.onTimeBy)  return 'Present';
-  if (totalMin <= s.lateBy)    return 'Late';
+  if (totalMin <= s.onTimeBy)        return 'Present';
+  if (totalMin <= ABSENT_AFTER_MIN)  return 'Late';
   return 'Half Day';
+}
+
+// Returns the displayed status for someone today, considering all factors:
+// Inactive / Off / On Leave / [marked status] / Absent / Not marked
+function resolveTodayStatus(name, attendanceRowToday, allRows, currentMinNow) {
+  if (isInactive(name)) return 'Inactive';
+  const today = new Date();
+  if (!isWorkingDay(name, today)) return 'Off';
+  if (getApprovedLeaveForDate(name, getISTNow().date, allRows)) return 'On Leave';
+  if (attendanceRowToday) return attendanceRowToday.Status || 'Present';
+  // No mark — derive from current time
+  if (currentMinNow > ABSENT_AFTER_MIN) return 'Absent';
+  return 'Not marked';
 }
 
 // Returns IST date+time pieces — works regardless of viewer's actual timezone
@@ -2253,10 +2325,13 @@ function setAttendancePill(status) {
   const pill = document.getElementById('att-status-pill');
   if (!pill) return;
   const palette = {
-    'Present':    '#86b59c',
-    'Late':       '#c9a26b',
-    'Half Day':   '#c89572',
-    'Absent':     '#c98787',
+    'Present':    '#86b59c',  // sage
+    'Late':       '#d864a3',  // dusty pink
+    'Half Day':   '#c89572',  // dusty orange
+    'Absent':     '#c95757',  // red
+    'On Leave':   '#7a8ec0',  // dusty blue
+    'Off':        '#bbb',     // weekend / not a workday
+    'Inactive':   '#ddd',     // sleeping
     'Not marked': '#bbb'
   };
   pill.style.color = palette[status] || palette['Not marked'];
@@ -2274,45 +2349,75 @@ async function loadAttendance() {
       r.Type === 'attendance' && r.Assignee === currentUser && r.Date === today
     );
 
-    const statusEl = document.getElementById('att-today-status');
+    const statusEl   = document.getElementById('att-today-status');
     const scheduleEl = document.getElementById('att-schedule-info');
-    const btnEl = document.getElementById('mark-btn');
-    const schedule = getSchedule(currentUser);
+    const btnEl      = document.getElementById('mark-btn');
+    const schedule   = getSchedule(currentUser);
+
+    // Display palettes
+    const palette = {
+      'Present':  { color:'#15803d', icon:'✓', label:'Present',  bg:'#dcfce7' },
+      'Late':     { color:'#be185d', icon:'⏰', label:'Late',     bg:'#fce7f3' },
+      'Half Day': { color:'#9a3412', icon:'🟡', label:'Half day', bg:'#fed7aa' },
+      'Absent':   { color:'#b91c1c', icon:'✕',  label:'Absent',   bg:'#fee2e2' },
+      'On Leave': { color:'#1e40af', icon:'📍', label:'On Leave', bg:'#dbeafe' },
+      'Off':      { color:'#666',    icon:'🌴', label:'Off',      bg:'#f3f4f6' },
+      'Inactive': { color:'#999',    icon:'💤', label:'Inactive', bg:'#f5f5f5' }
+    };
 
     if (scheduleEl) {
       scheduleEl.innerHTML = `<strong>${schedule.type}</strong> · starts ${schedule.start} IST · 15 min grace`;
     }
 
-    if (todayAtt.length) {
-      // Already marked — show their status
+    // Resolve today's effective status using all the rules
+    const effectiveStatus = resolveTodayStatus(currentUser, todayAtt[0], data, ist.totalMin);
+
+    // === ON LEAVE today — show that, hide button ===
+    if (effectiveStatus === 'On Leave') {
+      const p = palette['On Leave'];
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} On leave today</span>`;
+      if (btnEl) btnEl.style.display = 'none';
+      setAttendancePill('On Leave');
+    }
+    // === OFF (weekend / non-working day) — show that, hide button ===
+    else if (effectiveStatus === 'Off') {
+      const p = palette['Off'];
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Off today — enjoy.</span>`;
+      if (btnEl) btnEl.style.display = 'none';
+      setAttendancePill('Off');
+    }
+    // === ALREADY MARKED — show marked status ===
+    else if (todayAtt.length) {
       const status = todayAtt[0].Status || 'Present';
       const time = todayAtt[0].Title || '';
-      const palette = {
-        'Present':  { color:'#15803d', icon:'✓', label:'Present' },
-        'Late':     { color:'#a07419', icon:'⚠',  label:'Late'    },
-        'Half Day': { color:'#9a3412', icon:'🟡', label:'Half day'}
-      };
       const p = palette[status] || palette['Present'];
       if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} ${p.label}</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill(status);
-    } else {
-      // Not marked yet — preview what they'd be IF they marked now
-      const projectedStatus = computeAttendanceStatus(currentUser, ist.totalMin);
-      const palette = {
-        'Present':  '#15803d',
-        'Late':     '#a07419',
-        'Half Day': '#9a3412'
-      };
-      if (statusEl) statusEl.innerHTML = `<span style="color:#888;font-weight:500;font-size:14px">Not marked yet</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">Marking now will be logged as <span style="color:${palette[projectedStatus]};font-weight:700">${projectedStatus}</span></span>`;
+    }
+    // === ABSENT (past 11:30 AM, no mark) — show as absent but still allow mark = Half Day ===
+    else if (effectiveStatus === 'Absent') {
+      const p = palette['Absent'];
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Marked absent</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">You missed the 11:30 AM cutoff. Marking now will log a <span style="color:#9a3412;font-weight:700">Half day</span>.</span>`;
       if (btnEl) {
         btnEl.style.display = 'inline-block';
-        btnEl.textContent = `✅ Mark Attendance (${projectedStatus})`;
+        btnEl.textContent = `✅ Mark Attendance (Half day)`;
+      }
+      setAttendancePill('Absent');
+    }
+    // === NOT MARKED YET — preview projected status ===
+    else {
+      const projectedStatus = computeAttendanceStatus(currentUser, ist.totalMin);
+      const p = palette[projectedStatus];
+      if (statusEl) statusEl.innerHTML = `<span style="color:#888;font-weight:500;font-size:14px">Not marked yet</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">Marking now will be logged as <span style="color:${p.color};font-weight:700">${p.label}</span></span>`;
+      if (btnEl) {
+        btnEl.style.display = 'inline-block';
+        btnEl.textContent = `✅ Mark Attendance (${p.label})`;
       }
       setAttendancePill('Not marked');
     }
 
-    // History
+    // History — only this user's marked rows
     const history = data.filter(r =>
       r.Type === 'attendance' && r.Assignee === currentUser
     ).sort((a,b) => new Date(b.Date) - new Date(a.Date)).slice(0, 14);
@@ -2320,11 +2425,6 @@ async function loadAttendance() {
     document.getElementById('attendance-history').innerHTML = history.length
       ? history.map(r => {
           const status = r.Status || 'Present';
-          const palette = {
-            'Present':  { bg:'#dcfce7', color:'#15803d' },
-            'Late':     { bg:'#fef9ee', color:'#a07419' },
-            'Half Day': { bg:'#fed7aa', color:'#9a3412' }
-          };
           const p = palette[status] || palette['Present'];
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
             <div style="display:flex;align-items:center;gap:10px">
