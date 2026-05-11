@@ -280,6 +280,20 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 <script>
 const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
+
+// Telegram notify helper — uses auth token from team portal login (shared localStorage)
+function notifyTelegram(to, message) {
+  if (!to || !message) return;
+  try {
+    const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
+    if (!auth?.token) return; // silent — designer hasn't logged into team portal
+    fetch(BACKEND + '/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth.token },
+      body: JSON.stringify({ to, message })
+    }).catch(() => {});
+  } catch(e) {}
+}
 const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm',kotak:'Kotak',adhoc:'Adhoc',pitches:'Pitches & Ideas'};
 
 // Where each client's source/open files live in Dropbox
@@ -515,6 +529,9 @@ async function submitUpload(){
             body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
           });
         }
+        // Tell Viplav a new file landed in his review queue
+        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${CLIENT_NAMES[client]||client}${isRework ? '\n🔁 Rework' : ''}\n\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
+        notifyTelegram('Viplav', reviewMsg);
       }
       successCount++;
     } catch(e) {
