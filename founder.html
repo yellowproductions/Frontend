@@ -737,6 +737,12 @@
   <div class="panel" id="panel-hr">
     <div class="panel-title">HR — People & Attendance</div>
 
+    <!-- Today's Attendance — at the top so you see who's in first -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-title">Today's Attendance</div>
+      <div id="attendance-today"><div class="empty-state" style="padding:20px">Loading...</div></div>
+    </div>
+
     <!-- 📊 TEAM CAPACITY — at a glance, who has bandwidth -->
     <div class="card" style="margin-bottom:18px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -748,21 +754,16 @@
 
     <div class="hr-grid">
       <div class="card">
-        <div class="card-title">Today's Attendance</div>
-        <div id="attendance-today"><div class="empty-state" style="padding:20px">Loading...</div></div>
-      </div>
-      <div class="card">
         <div class="card-title">Leave Requests</div>
         <div id="leave-requests"><div class="empty-state" style="padding:20px">Loading...</div></div>
       </div>
-    </div>
-
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="card-title" style="margin:0">Attendance Log</div>
-        <input type="date" id="hr-date-filter" onchange="loadHR()" style="width:150px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+          <div class="card-title" style="margin:0">Attendance Log</div>
+          <input type="month" id="hr-month-filter" onchange="loadHR()" style="width:160px">
+        </div>
+        <div id="attendance-log"><div class="empty-state">Loading…</div></div>
       </div>
-      <div id="attendance-log"><div class="empty-state">Select a date to view log.</div></div>
     </div>
   </div>
 
@@ -1300,6 +1301,86 @@ const TEAM = {
 };
 
 const TEAM_LIST = Object.keys(TEAM);
+
+// =================== ATTENDANCE RULES ===================
+const INACTIVE_USERS = ['Sam'];  // hidden from attendance/idle/capacity until reactivated
+function isInactive(name) { return INACTIVE_USERS.includes(name); }
+
+// Active team = everyone except inactive — use this list everywhere instead of TEAM_LIST
+const ACTIVE_TEAM = TEAM_LIST.filter(n => !isInactive(n));
+
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Prathamesh'];
+const WORK_SCHEDULES = {
+  Archana: [0, 1, 2, 3, 4],   // Sun–Thu
+};
+const WORKING_SATURDAYS = [1, 3, 5];
+
+function getWorkDays(name) { return WORK_SCHEDULES[name] || [1, 2, 3, 4, 5]; }
+function isWorkingDay(name, date) {
+  if (isInactive(name)) return false;
+  const dow = date.getDay();
+  if (getWorkDays(name).includes(dow)) return true;
+  if (dow === 6) {
+    const nth = Math.ceil(date.getDate() / 7);
+    if (WORKING_SATURDAYS.includes(nth)) return true;
+  }
+  return false;
+}
+function getApprovedLeaveForDate(name, dateStr, allRows) {
+  return allRows.find(r =>
+    r.Type === 'leave' &&
+    r.Assignee === name &&
+    (r.Status === 'Approved' || r.Status === 'approved') &&
+    r.Date <= dateStr &&
+    (r.Task || r.Date) >= dateStr
+  ) || null;
+}
+// Returns final displayed status: Present | Late | Half Day | Absent | On Leave | Off | Inactive
+const ABSENT_AFTER_MIN_FOS = 11 * 60 + 30; // 11:30 AM IST
+function resolveTodayStatusFOS(name, attendanceRowToday, allRows, currentMinNow, todayStr) {
+  if (isInactive(name)) return 'Inactive';
+  const today = new Date();
+  if (!isWorkingDay(name, today)) return 'Off';
+  if (getApprovedLeaveForDate(name, todayStr, allRows)) return 'On Leave';
+  if (attendanceRowToday) return attendanceRowToday.Status || 'Present';
+  if (currentMinNow > ABSENT_AFTER_MIN_FOS) return 'Absent';
+  return 'Not marked';
+}
+
+// IST current time as minutes-from-midnight
+function getISTMinutes() {
+  const fmt = new Intl.DateTimeFormat('en-IN', { timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:false });
+  const parts = fmt.formatToParts(new Date()).reduce((a,p)=>{a[p.type]=p.value;return a},{});
+  return parseInt(parts.hour,10)*60 + parseInt(parts.minute,10);
+}
+function getISTDate() {
+  const fmt = new Intl.DateTimeFormat('en-IN', { timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit' });
+  const parts = fmt.formatToParts(new Date()).reduce((a,p)=>{a[p.type]=p.value;return a},{});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+// Google Sheets cells formatted as time come back as full Date strings ("Sat Dec 30 1899 09:30:00 GMT...").
+// This function extracts just HH:MM regardless of format.
+function formatAttTime(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s;        // already "09:30"
+  const m = s.match(/(\d{2}):(\d{2})/);            // extract first HH:MM
+  if (m) return `${m[1]}:${m[2]}`;
+  return '';
+}
+
+// Format YYYY-MM-DD as DD/MM (Indian/UK convention)
+function formatDateDM(iso) {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}` : iso;
+}
+function formatDateDMY(iso) {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
 
 // ====== AUTH (backend-based) ======
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
@@ -2106,9 +2187,14 @@ function renderCapacity(tasks) {
   const OPEN = ['Pending','In Progress','Awaiting Review','Awaiting Client','On Hold'];
   const ACTIONABLE = ['Pending','In Progress','On Hold'];
 
-  // Build per-person stats
-  const TEAM = (typeof TEAM_LIST !== 'undefined' ? TEAM_LIST : []);
-  const stats = TEAM.map(name => {
+  // Today's data for resolving each person's day status
+  const allData = window._allRowsCache || tasks;
+  const istNow3 = getISTMinutes();
+  const todayMarked = {};
+  allData.filter(r => r.Type === 'attendance' && r.Date === today).forEach(r => { todayMarked[r.Assignee] = r; });
+
+  // Build per-person stats — only ACTIVE members (Sam excluded)
+  const stats = ACTIVE_TEAM.map(name => {
     const myTasks = tasks.filter(t => t.Assignee === name && OPEN.includes(t.Status || 'Pending'));
     const overdue = myTasks.filter(t => t.Date && t.Date < today && ACTIONABLE.includes(t.Status || 'Pending')).length;
     let oldestAge = 0;
@@ -2117,32 +2203,37 @@ function renderCapacity(tasks) {
       const age = Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24));
       if (age > oldestAge) oldestAge = age;
     });
-    return { name, count: myTasks.length, overdue, oldestAge };
+    const dayStatus = resolveTodayStatusFOS(name, todayMarked[name], allData, istNow3, today);
+    return { name, count: myTasks.length, overdue, oldestAge, dayStatus };
   });
 
-  // Sort: idle (0 tasks) first, then ascending count, then by overdue ascending
+  // Sort: working+idle first, then by count, then by overdue
   stats.sort((a, b) => {
     if (a.count !== b.count) return a.count - b.count;
     return a.overdue - b.overdue;
   });
 
-  // Render rows
-  wrap.innerHTML = `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 110px;gap:10px;padding:6px 4px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;border-bottom:1px solid var(--border)">
+  wrap.innerHTML = `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 140px;gap:10px;padding:6px 4px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;border-bottom:1px solid var(--border)">
     <span>Designer</span><span>Open</span><span>Overdue</span><span>Oldest task</span><span>Status</span>
   </div>` + stats.map(s => {
     let statusLabel, statusColor, statusBg;
-    if (s.count === 0) { statusLabel = '🟢 Idle · ready'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
-    else if (s.count <= 2) { statusLabel = '🟢 Light'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
-    else if (s.count <= 4) { statusLabel = '🟡 Medium'; statusColor = '#854f0b'; statusBg = '#fefbf2'; }
-    else if (s.count <= 6) { statusLabel = '🟠 Heavy'; statusColor = '#9a3412'; statusBg = '#fff7ed'; }
-    else { statusLabel = '🔴 Overloaded'; statusColor = '#7f1d1d'; statusBg = '#fef2f2'; }
+
+    // Day-status overrides task-load status: if they're off/absent/on-leave, show that instead
+    if (s.dayStatus === 'On Leave')      { statusLabel = '📍 On Leave';   statusColor = '#1e40af'; statusBg = '#dbeafe'; }
+    else if (s.dayStatus === 'Off')      { statusLabel = '🌴 Off';        statusColor = '#666';    statusBg = '#f3f4f6'; }
+    else if (s.dayStatus === 'Absent')   { statusLabel = '✕ Absent';      statusColor = '#b91c1c'; statusBg = '#fee2e2'; }
+    else if (s.count === 0)              { statusLabel = '🟢 Idle · ready'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 2)               { statusLabel = '🟢 Light';      statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 4)               { statusLabel = '🟡 Medium';     statusColor = '#854f0b'; statusBg = '#fefbf2'; }
+    else if (s.count <= 6)               { statusLabel = '🟠 Heavy';      statusColor = '#9a3412'; statusBg = '#fff7ed'; }
+    else                                  { statusLabel = '🔴 Overloaded'; statusColor = '#7f1d1d'; statusBg = '#fef2f2'; }
 
     const oldestText = s.oldestAge > 0 ? `${s.oldestAge}d old` : '—';
     const overdueText = s.overdue > 0
       ? `<span style="color:#dc2626;font-weight:600">${s.overdue}</span>`
       : `<span style="color:#999">0</span>`;
 
-    return `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 110px;gap:10px;padding:9px 4px;font-size:13px;border-bottom:1px solid #f5ecd6;align-items:center">
+    return `<div style="display:grid;grid-template-columns:1fr 90px 100px 120px 140px;gap:10px;padding:9px 4px;font-size:13px;border-bottom:1px solid #f5ecd6;align-items:center">
       <span style="font-weight:600">${s.name}</span>
       <span style="color:${s.count === 0 ? '#999' : '#1a1a1a'};font-weight:${s.count === 0 ? '400' : '600'}">${s.count}</span>
       <span>${overdueText}</span>
@@ -2210,9 +2301,23 @@ function renderMorningDigest(tasks) {
     if (!byPerson[t.Assignee]) byPerson[t.Assignee] = 0;
     byPerson[t.Assignee]++;
   });
-  const idleDesigners = (typeof TEAM_LIST !== 'undefined' ? TEAM_LIST : Object.keys(byPerson))
-    .filter(n => !byPerson[n] || byPerson[n] === 0);
-  const overloaded = Object.entries(byPerson).filter(([n,c]) => c >= 5).map(([n,c]) => ({ name:n, count:c }));
+
+  // Idle calculation — only people who SHOULD be working today AND have no open tasks
+  // Exclude: inactive (Sam), off-day (e.g. Archana on Friday), on approved leave, absent.
+  // To know absent/leave we need today's data — read from window cache populated by loadHR.
+  const todayStr2 = getISTDate();
+  const istNow2 = getISTMinutes();
+  const allData = window._allRowsCache || tasks; // best-effort cache; fallback to task list
+  const todayMarkedFor = {};
+  allData.filter(r => r.Type === 'attendance' && r.Date === todayStr2).forEach(r => { todayMarkedFor[r.Assignee] = r; });
+  const idleDesigners = ACTIVE_TEAM.filter(n => {
+    if (byPerson[n] > 0) return false;                                  // has open tasks → not idle
+    const todayStatus = resolveTodayStatusFOS(n, todayMarkedFor[n], allData, istNow2, todayStr2);
+    // Don't count someone as idle if they're not even expected to be working
+    if (['Inactive','Off','On Leave','Absent'].includes(todayStatus)) return false;
+    return true;
+  });
+  const overloaded = Object.entries(byPerson).filter(([n,c]) => c >= 5 && !isInactive(n)).map(([n,c]) => ({ name:n, count:c }));
 
   // Throughput — tasks closed in last 7 days (using Date as proxy if no closed-date)
   const closedThisWeek = tasks.filter(t => DONE.includes(t.Status) && t.Date && t.Date >= weekStartStr).length;
@@ -2250,12 +2355,12 @@ function renderMorningDigest(tasks) {
   if (hotDeadlines.length) {
     flagItems.push(flagBuilder('#dc2626', '#fefafa', '#fde0e0', '#7a3535',
       `<strong style="font-weight:600">${hotDeadlines.length} hot deadline${hotDeadlines.length>1?'s':''}</strong> — due within 2 days, still not started or in progress<br>
-      <span style="font-size:11px;color:#9a6868">${hotDeadlines.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee} · due ${t.Date}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <em>+${hotDeadlines.length-3} more</em>` : ''}</span>`));
+      <span style="font-size:11px;color:#9a6868">${hotDeadlines.slice(0,3).map(t => `<a href="#" onclick="event.preventDefault();jumpToTask('${encodeURIComponent(t.Task || '')}','${t.Assignee || ''}')" style="color:inherit;text-decoration:underline;text-decoration-color:#d4a8a8;text-underline-offset:2px;cursor:pointer"><em>${t.Title || t.Task}</em></a> · ${t.Assignee} · due ${formatDateDM(t.Date)}`).join(' &nbsp;|&nbsp; ')}${hotDeadlines.length > 3 ? ` &nbsp;|&nbsp; <a href="#" onclick="event.preventDefault();showPanel('tasks');" style="color:inherit;text-decoration:underline;cursor:pointer"><em>+${hotDeadlines.length-3} more →</em></a>` : ''}</span>`));
   }
   if (stuckTasks.length) {
     flagItems.push(flagBuilder('#d4a64a', '#fdfaf2', '#f4e8c8', '#7a5e1f',
       `<strong style="font-weight:600">${stuckTasks.length} stuck task${stuckTasks.length>1?'s':''}</strong> — no updates in the last 7 days<br>
-      <span style="font-size:11px;color:#a08660">${stuckTasks.slice(0,3).map(t => `<em>${t.Title || t.Task}</em> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <em>+${stuckTasks.length-3} more</em>` : ''}</span>`));
+      <span style="font-size:11px;color:#a08660">${stuckTasks.slice(0,3).map(t => `<a href="#" onclick="event.preventDefault();jumpToTask('${encodeURIComponent(t.Task || '')}','${t.Assignee || ''}')" style="color:inherit;text-decoration:underline;text-decoration-color:#d4c198;text-underline-offset:2px;cursor:pointer"><em>${t.Title || t.Task}</em></a> · ${t.Assignee}`).join(' &nbsp;|&nbsp; ')}${stuckTasks.length > 3 ? ` &nbsp;|&nbsp; <a href="#" onclick="event.preventDefault();showPanel('tasks');" style="color:inherit;text-decoration:underline;cursor:pointer"><em>+${stuckTasks.length-3} more →</em></a>` : ''}</span>`));
   }
   if (overloaded.length) {
     flagItems.push(flagBuilder('#c97a3a', '#fdf8f3', '#f0d8c0', '#7a4f2e',
@@ -2281,8 +2386,12 @@ function checkTeamNotifications(tasks) {
   try { knownSet = JSON.parse(localStorage.getItem('yos-known-team-tasks') || '[]'); } catch(e) {}
   try { lastCounts = JSON.parse(localStorage.getItem('yos-last-open-counts') || '{}'); } catch(e) {}
 
-  // Notification 1: NEW ad-hoc tasks (added by anyone other than Suriti)
-  const teamTasks = tasks.filter(t => t.Assignee && t.Assignee !== FOUNDER);
+  // Notification 1: NEW ad-hoc tasks added by the TEAM (not by Suriti herself)
+  const teamTasks = tasks.filter(t =>
+    t.Assignee &&
+    t.Assignee !== FOUNDER &&
+    !(/added by suriti/i.test(t.Notes || ''))   // ignore tasks Suriti added from Founder OS
+  );
   const knownIds = new Set(knownSet);
   const newOnes = teamTasks.filter(t => !knownIds.has(taskId(t)));
 
@@ -2450,7 +2559,12 @@ function renderTasks(tasks) {
         <div class="fos-task-row" style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div>${title || desc || '—'}
-              <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
+              <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
+                title="Reassign — pick a different person"
+                style="margin-left:8px;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:12px;background:#fff8e1;border:1px solid #f0d080;color:#854f0b;font-weight:700;cursor:pointer">
+                <option value="${t.Assignee||''}" selected>${t.Assignee||'— assign —'}</option>
+                ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
+              </select>
             </div>
             ${showDesc ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow-wrap:anywhere;word-break:break-word">${desc}</div>` : ''}
             ${updatesHtml}
@@ -2543,7 +2657,9 @@ async function addUpdate(encodedTask, inputEl) {
   const taskKey = decodeURIComponent(encodedTask);
   const t = allTasks.find(x => x.Task === taskKey);
   if (!t) return;
-  const today = new Date().toISOString().split('T')[0].substring(5); // MM-DD
+  // Use DD-MM (day first) — matches Indian convention; team portal already parses [DD-MM] or [MM-DD]
+  const todayISO = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = todayISO.substring(8) + '-' + todayISO.substring(5,7); // DD-MM
   const existing = (t.Update || '').trim();
   const appended = (existing ? existing + '\n' : '') + `[${today}] ${text}`;
 
@@ -2585,6 +2701,61 @@ async function updateTaskLink(task, assignee, date, link) {
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) t['Preview Link'] = link;
   } catch(e) { console.log('Error updating link'); }
+}
+
+// Click a task name in Today's Brief → jump to Tasks panel, search for it, highlight briefly
+function jumpToTask(encodedTask, assignee) {
+  const taskText = decodeURIComponent(encodedTask || '');
+  showPanel('tasks');
+  // Wait for panel to render, then search and scroll to highlight
+  setTimeout(() => {
+    const search = document.getElementById('task-search');
+    if (search) {
+      // Search by task title (first 30 chars are usually enough to find it)
+      search.value = (taskText.split(' | ')[0] || taskText).substring(0, 30);
+      if (typeof filterTasks === 'function') filterTasks();
+    }
+    // Find the matching row and gently flash it
+    setTimeout(() => {
+      const rows = document.querySelectorAll('#tasks-list .fos-task-row');
+      for (const row of rows) {
+        if (row.textContent.includes(taskText.substring(0, 30)) && row.textContent.includes(assignee)) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.style.transition = 'background 0.3s';
+          row.style.background = '#fff5cc';
+          setTimeout(() => { row.style.background = ''; }, 1800);
+          break;
+        }
+      }
+    }, 200);
+  }, 100);
+}
+// Encoded `task` text comes from the row's data-attr; decode before sending the patch.
+async function reassignTask(encodedTask, oldAssignee, date, newAssignee) {
+  const taskText = decodeURIComponent(encodedTask);
+  if (!newAssignee || newAssignee === oldAssignee) return;
+  if (!confirm(`Reassign "${taskText.substring(0,60)}" from ${oldAssignee || '—'} to ${newAssignee}?`)) {
+    renderTasks(allTasks); // bounce dropdown back to original
+    return;
+  }
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch',
+        sheet: 'Type:tasks',
+        matchColumn: 'Task',
+        matchValue: taskText,
+        data: { Assignee: newAssignee, Notes: `reassigned from ${oldAssignee} by Suriti` }
+      })
+    });
+    const t = allTasks.find(t => t.Task === taskText && t.Assignee === oldAssignee && t.Date === date);
+    if (t) { t.Assignee = newAssignee; t.Notes = `reassigned from ${oldAssignee} by Suriti`; }
+    renderTasks(allTasks);
+    renderCapacity(allTasks);
+  } catch(e) { alert('Error reassigning: ' + e.message); }
 }
 
 async function deleteTask(task, assignee, date) {
@@ -2639,8 +2810,9 @@ async function addTask() {
 
   // Title is the short label (shown in dropdowns, lists). Task is the full description (optional).
   // If only Title is filled, Task = Title so existing matching keeps working.
+  // Notes marker lets the "added by team" pinned card filter out Suriti's own additions.
   const taskText = task || title;
-  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Status: 'Pending', 'Preview Link': '', Type: 'task' };
+  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Status: 'Pending', Notes: 'added by Suriti', 'Preview Link': '', Type: 'task' };
 
   try {
     await fetch(SHEETDB_URL, {
@@ -2674,44 +2846,68 @@ async function loadHR() {
     const raw = await res.json();
     const data = raw.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
 
+    // Make full row list available to renderMorningDigest's idle calculation
+    window._allRowsCache = data;
+
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');
 
-    // Build a per-person status map from today's records.
-    // Iterating in sheet order = the LATER row overwrites the earlier one,
-    // so whichever was added most recently wins (e.g. marked present, then later applied for leave → "On leave").
-    const personStatus = {};
-    data.forEach((r, idx) => {
-      if (r.Type === 'attendance' && r.Date === today && r.Assignee) {
-        personStatus[r.Assignee] = { type: 'present', idx };
-      } else if (r.Type === 'leave' && r.Assignee && (r.Status === 'Approved' || r.Status === 'approved')) {
-        const leaveDate = normalizeDate(r.Title) || normalizeDate(r.Date);
-        if (leaveDate === today) {
-          personStatus[r.Assignee] = { type: 'leave', idx };
-        }
-      }
-    });
+    // Build {name → attendance row} for today
+    const todayMarkedBy = {};
+    attendance.filter(r => r.Date === today).forEach(r => { todayMarkedBy[r.Assignee] = r; });
 
-    const presentNames = Object.keys(personStatus).filter(n => personStatus[n].type === 'present');
-    const onLeaveNames = Object.keys(personStatus).filter(n => personStatus[n].type === 'leave');
+    // Compute status for every ACTIVE team member (Sam etc. excluded automatically)
+    const istNow = getISTMinutes();
+    const rows = ACTIVE_TEAM.map(name => ({
+      name,
+      status: resolveTodayStatusFOS(name, todayMarkedBy[name], data, istNow, today),
+      time: formatAttTime(todayMarkedBy[name]?.Title || '')
+    }));
 
-    // Categorise the rest
-    const unmarkedNames = TEAM_LIST.filter(n => !presentNames.includes(n) && !onLeaveNames.includes(n));
+    // Bucket by status for visual grouping
+    const buckets = {
+      'Present':    [],
+      'Late':       [],
+      'Half Day':   [],
+      'Absent':     [],
+      'On Leave':   [],
+      'Off':        [],
+      'Not marked': [],
+    };
+    rows.forEach(r => { (buckets[r.status] || buckets['Not marked']).push(r); });
 
-    let attHtml = '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--green);margin-bottom:6px;font-weight:600;letter-spacing:0.05em">PRESENT (' + presentNames.length + ')</div><div class="present-list">';
-    if(presentNames.length) presentNames.forEach(n => attHtml += `<span class="person-chip chip-green">${n}</span>`);
-    else attHtml += '<span style="color:var(--muted);font-size:12px">None yet</span>';
-    attHtml += '</div></div>';
+    // Palette
+    const palette = {
+      'Present':    { bg:'#dcfce7', fg:'#15803d', label:'Present',    icon:'✓' },
+      'Late':       { bg:'#fce7f3', fg:'#be185d', label:'Late',       icon:'⏰' },
+      'Half Day':   { bg:'#fed7aa', fg:'#9a3412', label:'Half day',   icon:'🟡' },
+      'Absent':     { bg:'#fee2e2', fg:'#b91c1c', label:'Absent',     icon:'✕'  },
+      'On Leave':   { bg:'#dbeafe', fg:'#1e40af', label:'On Leave',   icon:'📍' },
+      'Off':        { bg:'#f3f4f6', fg:'#666',    label:'Off',        icon:'🌴' },
+      'Not marked': { bg:'#f5f5f5', fg:'#888',    label:'Not marked', icon:'…' }
+    };
 
-    if (onLeaveNames.length) {
-      attHtml += '<div style="margin-bottom:8px"><div style="font-size:11px;color:#c0392b;margin-bottom:6px;font-weight:600;letter-spacing:0.05em">ON LEAVE (' + onLeaveNames.length + ')</div><div class="present-list">';
-      onLeaveNames.forEach(n => attHtml += `<span class="person-chip" style="background:#fee2e2;color:#c0392b;border:1px solid #fca5a5;font-weight:600">${n}</span>`);
-      attHtml += '</div></div>';
-    }
+    // Section helper — only renders if non-empty (keeps the panel clean)
+    const section = (statusKey) => {
+      const items = buckets[statusKey];
+      if (!items.length) return '';
+      const p = palette[statusKey];
+      return `<div style="margin-bottom:12px">
+        <div style="font-size:10px;color:${p.fg};margin-bottom:6px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">${p.label} · ${items.length}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${items.map(r => `<span style="background:${p.bg};color:${p.fg};font-size:12px;padding:4px 11px;border-radius:14px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+            <span>${p.icon}</span>${r.name}${r.time ? `<span style="font-weight:500;opacity:0.7;font-family:'DM Mono',monospace;font-size:10px;margin-left:4px">${r.time}</span>` : ''}
+          </span>`).join('')}
+        </div>
+      </div>`;
+    };
 
-    attHtml += '<div><div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:0.05em">NOT MARKED (' + unmarkedNames.length + ')</div><div class="absent-list">';
-    unmarkedNames.forEach(n => attHtml += `<span class="person-chip chip-red">${n}</span>`);
-    attHtml += '</div></div>';
+    // Render in priority order (most important first)
+    let attHtml = section('Present') + section('Late') + section('Half Day') +
+                  section('Absent') + section('On Leave') + section('Off') +
+                  section('Not marked');
+
+    if (!attHtml) attHtml = '<div class="empty-state" style="padding:14px">No team members loaded.</div>';
     document.getElementById('attendance-today').innerHTML = attHtml;
 
     // Leave requests
@@ -2735,23 +2931,104 @@ async function loadHR() {
     }
     document.getElementById('leave-requests').innerHTML = leaveHtml;
 
-    // Attendance log for filter date — dedupe by Assignee
-    const logRaw = attendance.filter(r => r.Date === filterDate);
-    const seen = new Set();
-    const logData = logRaw.filter(r => {
-      if (seen.has(r.Assignee)) return false;
-      seen.add(r.Assignee);
-      return true;
-    });
-    if(logData.length) {
-      document.getElementById('attendance-log').innerHTML = logData.map(r =>
-        `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span>${r.Assignee}</span>
-          <span class="status-badge status-done">${r.Status}</span>
-        </div>`).join('');
-    } else {
-      document.getElementById('attendance-log').innerHTML = '<div class="empty-state">No data for this date.</div>';
-    }
+    // ===== Attendance Log — full month heatmap + stats bar =====
+    const monthFilter = document.getElementById('hr-month-filter')?.value || today.substring(0, 7);
+    const [yr, mo] = monthFilter.split('-').map(Number);
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    const todayDate = new Date();
+
+    // Color palette for the heatmap squares
+    const dayColor = {
+      'Present':  '#86efac',  // light green
+      'Late':     '#f9a8d4',  // light pink
+      'Half Day': '#fdba74',  // light orange
+      'Absent':   '#fca5a5',  // light red
+      'On Leave': '#93c5fd',  // light blue
+      'Off':      '#e5e7eb',  // gray (weekend / non-working)
+      'No data':  '#fafaf7'   // very faint
+    };
+
+    // For each active team member, build their month timeline
+    const logHtml = ACTIVE_TEAM.map(name => {
+      const days = [];
+      const counts = { Present:0, Late:0, 'Half Day':0, Absent:0, 'On Leave':0, Off:0, NoData:0 };
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dateObj = new Date(yr, mo - 1, d);
+        const isFuture = dateObj > todayDate;
+        let status;
+
+        if (isFuture) {
+          status = 'No data';
+          counts.NoData++;
+        } else if (!isWorkingDay(name, dateObj)) {
+          status = 'Off';
+          counts.Off++;
+        } else {
+          // Check approved leave first
+          const leave = getApprovedLeaveForDate(name, dateStr, data);
+          if (leave) { status = 'On Leave'; counts['On Leave']++; }
+          else {
+            // Check attendance row
+            const att = attendance.find(r => r.Date === dateStr && r.Assignee === name);
+            if (att) {
+              status = att.Status || 'Present';
+              if (counts[status] !== undefined) counts[status]++;
+            } else {
+              status = 'Absent';
+              counts.Absent++;
+            }
+          }
+        }
+        days.push({ d, status, dateStr });
+      }
+
+      // Stats — only count working days that are not in the future
+      const workingDays = counts.Present + counts.Late + counts['Half Day'] + counts.Absent + counts['On Leave'];
+      const onTimePct  = workingDays ? Math.round((counts.Present / workingDays) * 100) : 0;
+      const latePct    = workingDays ? Math.round((counts.Late / workingDays) * 100) : 0;
+      const halfPct    = workingDays ? Math.round((counts['Half Day'] / workingDays) * 100) : 0;
+      const absentPct  = workingDays ? Math.round((counts.Absent / workingDays) * 100) : 0;
+      const leavePct   = workingDays ? Math.round((counts['On Leave'] / workingDays) * 100) : 0;
+
+      const squaresHtml = days.map(day =>
+        `<span title="${day.dateStr} · ${day.status}" style="width:14px;height:14px;border-radius:3px;background:${dayColor[day.status]};display:inline-block;flex-shrink:0"></span>`
+      ).join('');
+
+      const barHtml = workingDays ? `
+        <div style="display:flex;width:100%;height:6px;border-radius:4px;overflow:hidden;margin-top:8px;background:#f0f0f0">
+          ${counts.Present   ? `<span title="${counts.Present} present" style="background:#22c55e;width:${onTimePct}%"></span>` : ''}
+          ${counts.Late      ? `<span title="${counts.Late} late" style="background:#ec4899;width:${latePct}%"></span>` : ''}
+          ${counts['Half Day'] ? `<span title="${counts['Half Day']} half day" style="background:#f97316;width:${halfPct}%"></span>` : ''}
+          ${counts.Absent    ? `<span title="${counts.Absent} absent" style="background:#dc2626;width:${absentPct}%"></span>` : ''}
+          ${counts['On Leave'] ? `<span title="${counts['On Leave']} on leave" style="background:#3b82f6;width:${leavePct}%"></span>` : ''}
+        </div>` : '';
+
+      return `<div style="padding:14px 4px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <span style="font-weight:600;font-size:13px">${name}</span>
+          <span style="font-size:11px;color:#666;display:flex;gap:10px;flex-wrap:wrap">
+            <span style="color:#15803d;font-weight:600">${counts.Present} on-time</span>
+            ${counts.Late      ? `<span style="color:#be185d;font-weight:600">${counts.Late} late</span>` : ''}
+            ${counts['Half Day'] ? `<span style="color:#9a3412;font-weight:600">${counts['Half Day']} half day</span>` : ''}
+            ${counts.Absent    ? `<span style="color:#b91c1c;font-weight:600">${counts.Absent} absent</span>` : ''}
+            ${counts['On Leave'] ? `<span style="color:#1e40af;font-weight:600">${counts['On Leave']} leave</span>` : ''}
+          </span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${squaresHtml}</div>
+        ${barHtml}
+      </div>`;
+    }).join('');
+
+    // Legend
+    const legend = `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:10px 4px 16px;font-size:11px;color:#666;border-bottom:1px solid var(--border);margin-bottom:8px">
+      ${Object.entries({Present:'#22c55e',Late:'#ec4899','Half Day':'#f97316',Absent:'#dc2626','On Leave':'#3b82f6',Off:'#d1d5db'}).map(([k,c]) =>
+        `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:${c};display:inline-block"></span>${k}</span>`
+      ).join('')}
+    </div>`;
+
+    document.getElementById('attendance-log').innerHTML = legend + (logHtml || '<div class="empty-state">No data.</div>');
 
     window._leaveData = leaves;
 
@@ -3714,7 +3991,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri'];
 
 function onChatInput(e) {
   const input = e.target;
