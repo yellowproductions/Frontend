@@ -691,7 +691,7 @@
 
     <div class="card">
       <div class="card-title">Add Task</div>
-      <div class="form-row" style="display:grid;grid-template-columns:130px 200px 1fr 150px 100px;gap:10px">
+      <div class="form-row" style="display:grid;grid-template-columns:130px 1fr 1fr 160px 160px 100px;gap:10px">
         <div>
           <label>Date</label>
           <input type="date" id="task-date">
@@ -705,13 +705,25 @@
           <input type="text" id="task-name" placeholder="Full brief — context, refs, anything important">
         </div>
         <div>
+          <label>Client</label>
+          <select id="task-client" onchange="onClientChange('task-client','task-client-custom')">
+            <option value="">— Select —</option>
+            <option value="Jindal">Jindal Group</option>
+            <option value="Kotak">Kotak</option>
+            <option value="Pitches">Pitches</option>
+            <option value="Adhoc">Adhoc</option>
+            <option value="__other__">Other... (→ Adhoc)</option>
+          </select>
+          <input type="text" id="task-client-custom" placeholder="Type client name" style="display:none;margin-top:4px">
+        </div>
+        <div>
           <label>Assignee</label>
           <select id="task-assignee">
             <option value="">Select person</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
-            <option>Siddhesh</option><option>Kritya</option><option>Ajay</option><option>Sam</option>
+            <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
           </select>
         </div>
         <div style="display:flex;gap:6px;align-items:flex-end">
@@ -1043,10 +1055,10 @@
   <!-- REVIEW PANEL -->
   <div class="panel" id="panel-review">
     <div class="panel-title">Creative Review Queue</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Creatives sent by Viplav. Designer → Viplav → Client. Statuses pull live from the sheet.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Shared queue — you, Viplav, Kritya, and Siddhesh can all approve or send back. First to act wins.</p>
 
     <div class="card">
-      <div class="card-title">All Creatives</div>
+      <div class="card-title">Pending Review</div>
       <div id="review-list"><div class="empty-state">Loading...</div></div>
     </div>
   </div>
@@ -2716,6 +2728,7 @@ function renderTasks(tasks) {
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;gap:10px">
           <div style="flex:1;min-width:0">
             <span style="font-weight:600">${t.Title || t.Task || '—'}</span>
+            ${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:9px;font-weight:600;padding:1px 7px;border-radius:8px;margin-left:6px;border:1px solid #bfdbfe">${t.Client}</span>` : ''}
             <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
             ${isNew ? '<span style="background:#FEBC06;color:#000;font-size:9px;font-weight:800;padding:1px 7px;border-radius:20px;margin-left:6px">NEW</span>' : ''}
             ${lastUpdate ? `<div style="font-size:11px;color:#444;font-family:'DM Mono',monospace;margin-top:3px">📝 ${lastUpdate}</div>` : ''}
@@ -2753,6 +2766,7 @@ function renderTasks(tasks) {
         <div class="fos-task-row" style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div>${title || desc || '—'}
+              ${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;border:1px solid #bfdbfe">🏷 ${t.Client}</span>` : ''}
               <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
                 title="Reassign — pick a different person"
                 style="margin-left:8px;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:12px;background:#fff8e1;border:1px solid #f0d080;color:#854f0b;font-weight:700;cursor:pointer">
@@ -3012,18 +3026,43 @@ function filterTasks() {
   renderTasks(filtered);
 }
 
+// Toggle visibility of the custom client text input when "Other..." is picked
+function onClientChange(selectId, customInputId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(customInputId);
+  if (!sel || !inp) return;
+  if (sel.value === '__other__') {
+    inp.style.display = 'block';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+    inp.value = '';
+  }
+}
+
+// Returns the final client name from a dropdown + custom-text-input pair.
+// If user picked "Other..." and typed "Marico" → returns "Marico" (routed to Adhoc on display).
+// If user picked "Jindal" from the list → returns "Jindal".
+function resolveClient(selectId, customInputId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(customInputId);
+  if (!sel) return '';
+  if (sel.value === '__other__') return (inp?.value || '').trim();
+  return sel.value || '';
+}
+
 async function addTask() {
   const date = document.getElementById('task-date').value;
   const title = document.getElementById('task-title').value.trim();
   const task = document.getElementById('task-name').value.trim();
   const assignee = document.getElementById('task-assignee').value;
+  const client = resolveClient('task-client', 'task-client-custom');
   if(!title || !assignee) { alert('Please fill title and assignee.'); return; }
 
   // Title is the short label (shown in dropdowns, lists). Task is the full description (optional).
-  // If only Title is filled, Task = Title so existing matching keeps working.
   // Notes marker lets the "added by team" pinned card filter out Suriti's own additions.
   const taskText = task || title;
-  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Status: 'Pending', Notes: 'added by Suriti', 'Preview Link': '', Type: 'task' };
+  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Client: client, Status: 'Pending', Notes: 'added by Suriti', 'Preview Link': '', Type: 'task' };
 
   try {
     await fetch(SHEETDB_URL, {
@@ -3035,8 +3074,7 @@ async function addTask() {
     allTasks.push(row);
 
     // Belt + braces: also silently mark this in the local "known" set so the
-    // pinned "added by team" banner never flags Suriti's own additions, even
-    // before her next page reload reads the Notes marker.
+    // pinned "added by team" banner never flags Suriti's own additions.
     try {
       const known = JSON.parse(localStorage.getItem('yos-known-team-tasks') || '[]');
       known.push(taskId(row));
@@ -3046,6 +3084,10 @@ async function addTask() {
     renderTasks(allTasks);
     document.getElementById('task-title').value = '';
     document.getElementById('task-name').value = '';
+    // Reset client field
+    document.getElementById('task-client').value = '';
+    const customInp = document.getElementById('task-client-custom');
+    if (customInp) { customInp.style.display = 'none'; customInp.value = ''; }
 
     const btn = document.querySelector('[onclick="addTask()"]');
     if(btn) { btn.textContent = '✅ Added!'; setTimeout(() => btn.textContent = 'Add Task', 2000); }
@@ -3420,37 +3462,80 @@ async function renderReview() {
   try {
     const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
     const raw = await res.json();
-    const creatives = raw
-      .filter(r => r.Type === 'creative' && r.Task && r.Task.includes('|'))
+    const all = raw
+      .filter(r => (r.Type === 'creative' || r.Status === 'Pending Review' || r.Status === 'Pending Viplav') && r.Task && r.Task.includes('|'))
       .map(r => ({ ...r, Date: normalizeDate(r.Date) }))
       .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
 
-    if (!creatives.length) {
-      el.innerHTML = '<div class="empty-state">No creatives yet. Once Viplav reviews uploads, they\'ll appear here.</div>';
-      return;
+    // Split into pending queue (needs action) and history
+    const pending = all.filter(r => r.Status === 'Pending Review' || r.Status === 'Pending Viplav');
+    const history = all.filter(r => !(r.Status === 'Pending Review' || r.Status === 'Pending Viplav'));
+
+    window._reviewItems = pending; // stash for approve/reject lookup
+
+    // ===== PENDING QUEUE (interactive) =====
+    let html = '';
+    if (!pending.length) {
+      html += '<div class="empty-state" style="padding:24px">🎉 Nothing pending. The team will be notified when something new lands here.</div>';
+    } else {
+      html += pending.map((item, idx) => {
+        const parts = item.Task.split('|');
+        const cName = parts[0].trim();
+        const designer = parts[1] ? parts[1].trim() : 'Unknown';
+        const fileUrl = item['Preview Link'] || '';
+        const clientLabel = CLIENT_LABELS[item.Assignee] || item.Assignee || '—';
+        const isImage = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(fileUrl);
+        const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
+
+        return `<div style="border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;background:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-size:15px;font-weight:700">${cName}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">Pending Review</span>
+              <span style="font-size:10px;color:#666">Reviewing as <strong>Suriti</strong></span>
+            </div>
+          </div>
+          ${fileUrl ? `
+            ${isImage ? `<img src="${previewUrl}" style="max-width:100%;max-height:340px;border-radius:8px;display:block;margin-bottom:10px;cursor:pointer" onclick="window.open('${fileUrl}','_blank')" onerror="this.style.display='none'">` : ''}
+            <a href="${fileUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">🔗 Open File</a>
+          ` : '<div style="font-size:12px;color:#999;margin-bottom:10px">No preview link saved</div>'}
+          <div style="margin-top:12px">
+            <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:block;margin-bottom:6px">Notes / Feedback (optional)</label>
+            <textarea id="founder-note-${idx}" placeholder="Add feedback for designer or client..." style="width:100%;min-height:60px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'Poppins',sans-serif;font-size:13px"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-green btn-sm" onclick="founderSubmitReview(${idx}, 'approve')">✅ Approve → Send to Client</button>
+            <button class="btn btn-orange btn-sm" onclick="founderSubmitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
+          </div>
+        </div>`;
+      }).join('');
     }
 
-    el.innerHTML = `
-      <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
-        <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span><span></span>
-      </div>
-      ${creatives.map(c => {
-        const parts = c.Task.split('|');
-        const fallbackName = (parts[0] || '').trim();
-        const designer = (parts[1] || '').trim();
-        const name = c.Title || fallbackName;
-        const clientLabel = CLIENT_LABELS[c.Assignee] || c.Assignee || '—';
-        const pill = STATUS_PILLS[c.Status] || { label: c.Status || 'Unknown', bg: '#f5f5f4', color: '#666', border: '#ddd' };
-        const notes = (c.Notes || '').trim();
-        const linkBtn = c['Preview Link']
-          ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
-          : '<span style="color:var(--muted);font-size:11px">—</span>';
-        const safeTask = encodeURIComponent(c.Task);
-        return `
-          <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
+    // ===== HISTORY (read-only) =====
+    if (history.length) {
+      html += `<div style="margin-top:24px"><div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Recent History · ${history.length}</div>
+        <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
+          <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span><span></span>
+        </div>
+        ${history.slice(0, 30).map(c => {
+          const parts = c.Task.split('|');
+          const fallbackName = (parts[0] || '').trim();
+          const designer = (parts[1] || '').trim();
+          const name = c.Title || fallbackName;
+          const clientLabel = CLIENT_LABELS[c.Assignee] || c.Assignee || '—';
+          const pill = STATUS_PILLS[c.Status] || { label: c.Status || 'Unknown', bg: '#f5f5f4', color: '#666', border: '#ddd' };
+          const notes = (c.Notes || '').trim();
+          const linkBtn = c['Preview Link']
+            ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
+            : '<span style="color:var(--muted);font-size:11px">—</span>';
+          const safeTask = encodeURIComponent(c.Task);
+          return `<div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
             <div>
               <div style="font-weight:600">${name}</div>
-              ${notes ? `<div style="font-size:11px;color:#991b1b;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
+              ${notes ? `<div style="font-size:11px;color:#666;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
             </div>
             <span style="color:var(--muted);font-size:12px">${designer}</span>
             <span style="font-size:12px">${clientLabel}</span>
@@ -3459,9 +3544,51 @@ async function renderReview() {
             ${linkBtn}
             <button onclick="deleteReview('${safeTask}', '${(name || '').replace(/'/g, "\\'")}')" title="Delete from sheet" style="background:transparent;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:4px" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">🗑️</button>
           </div>`;
-      }).join('')}`;
+        }).join('')}
+      </div>`;
+    }
+
+    el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div class="empty-state">Could not load creatives.</div>';
+  }
+}
+
+// Suriti's approve/send-back action — mirrors the team-portal flow + tags her name
+async function founderSubmitReview(idx, action) {
+  const item = (window._reviewItems || [])[idx];
+  if (!item) return;
+  const parts = item.Task.split('|');
+  const cName = parts[0].trim();
+  const designer = parts[1] ? parts[1].trim() : '';
+  const note = (document.getElementById('founder-note-' + idx)?.value || '').trim();
+
+  if (action === 'sendback' && !note) { alert('Please add feedback before sending back.'); return; }
+  if (!confirm(action === 'approve' ? `Approve "${cName}" and send to client?` : `Send "${cName}" back to ${designer}?`)) return;
+
+  const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
+  const stamp = action === 'approve' ? 'approved by Suriti' : `sent back by Suriti: ${note}`;
+
+  try {
+    fetch(SHEETDB_URL, {
+      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task,
+        data: { Status: newStatus, Notes: stamp }
+      })
+    });
+
+    // Telegram ping to designer
+    if (designer) {
+      const msg = action === 'approve'
+        ? `✅ <b>Creative approved</b> by Suriti\n\n<b>${cName}</b> · sent to client`
+        : `🔁 <b>Creative sent back</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nFeedback: ${note}\n\n<a href="https://theyellowverse.com/studio.html">Re-upload via Studio →</a>`;
+      notifyTelegram(designer, msg);
+    }
+
+    setTimeout(renderReview, 800);
+  } catch(e) {
+    alert('Could not save. Try again.');
   }
 }
 
