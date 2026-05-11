@@ -3098,9 +3098,6 @@ async function addTask() {
 
 // ====== HR ======
 async function loadHR() {
-  // Render capacity using already-loaded tasks (don't double-fetch)
-  if (typeof allTasks !== 'undefined' && allTasks) renderCapacity(allTasks);
-
   const today = new Date().toISOString().split('T')[0];
   const filterDate = document.getElementById('hr-date-filter')?.value || today;
 
@@ -3111,6 +3108,11 @@ async function loadHR() {
 
     // Make full row list available to renderMorningDigest's idle calculation
     window._allRowsCache = data;
+
+    // Now render capacity using the FRESH data — task rows for counts,
+    // _allRowsCache (set above) for attendance lookups.
+    const taskRows = data.filter(r => r.Type === 'task');
+    renderCapacity(taskRows);
 
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');
