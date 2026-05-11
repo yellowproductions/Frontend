@@ -268,7 +268,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" data-portal="jindal" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
+      <button class="tab-btn active" onclick="switchTab('assets',this)">📋 Assets</button>
+      <button class="tab-btn" onclick="switchTab('live-tasks',this); loadClientTasks();">📊 Live Tasks</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
@@ -276,10 +278,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">🏦 Kotak</button>
       <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">📁 Adhoc</button>
       <button class="tab-btn" data-portal="pitches" onclick="switchTab('pitches',this)">💡 Pitches & Ideas</button>
-      <button class="tab-btn" onclick="switchTab('assets',this)">📋 Assets</button>
     </div>
 
-        <div id="tab-jindal-steel" class="tab-content active" data-portal="jindal">
+        <div id="tab-jindal-steel" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📐</div>
@@ -477,8 +478,22 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
 
+    <!-- LIVE TASKS TAB — clients see what's being worked on for them -->
+    <div id="tab-live-tasks" class="tab-content">
+      <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:18px;font-weight:700;margin-bottom:4px">Live Tasks</div>
+          <div style="font-size:13px;color:var(--muted)">All tasks currently being worked on for you.</div>
+        </div>
+        <button class="btn btn-yellow btn-sm" onclick="loadClientTasks()">↻ Refresh</button>
+      </div>
+      <div id="client-tasks-wrap">
+        <div class="empty-state">Loading tasks...</div>
+      </div>
+    </div>
+
     <!-- ASSETS TAB -->
-    <div id="tab-assets" class="tab-content">
+    <div id="tab-assets" class="tab-content active">
       <div style="margin-bottom:20px">
         <div style="font-size:18px;font-weight:700;margin-bottom:4px">All Assets</div>
         <div style="font-size:13px;color:var(--muted)">Quick access to all approved creatives and open files across projects.</div>
@@ -508,11 +523,12 @@ const DESIGNER_EMAILS = {
 
 // Multi-client portal config — passwords removed (handled by backend now).
 // Each portal-key maps to its tabs/folders. Backend assigns scope on login.
+// `clientNames` is the list of Client values (as typed in task forms) that belong to this portal.
 const CLIENT_PORTALS = {
-  jindal:  { brand: 'Jindal Group',     folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm'] },
-  kotak:   { brand: 'Kotak',            folders: ['kotak']    },
-  adhoc:   { brand: 'Adhoc',            folders: ['adhoc']    },
-  pitches: { brand: 'Pitches & Ideas',  folders: ['pitches']  }
+  jindal:  { brand: 'Jindal Group',     folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm'], clientNames: ['Jindal'] },
+  kotak:   { brand: 'Kotak',            folders: ['kotak'],    clientNames: ['Kotak'] },
+  adhoc:   { brand: 'Adhoc',            folders: ['adhoc'],    clientNames: ['Adhoc'], isAdhoc: true },
+  pitches: { brand: 'Pitches & Ideas',  folders: ['pitches'],  clientNames: ['Pitches'] }
 };
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 let activePortal = null;
@@ -706,6 +722,122 @@ async function loadCreatives() {
   renderAll();
 }
 
+// Load live tasks for this client — filtered by Client column matching this portal
+async function loadClientTasks() {
+  const wrap = document.getElementById('client-tasks-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="empty-state">Loading...</div>';
+
+  try {
+    const res = await fetch(SHEETDB + '?sheet=Type:tasks');
+    const data = await res.json();
+    const allRows = Array.isArray(data) ? data : [];
+
+    // Decide which Client values this portal sees:
+    //   • Specific portal (Jindal/Kotak/Pitches): match its clientNames list
+    //   • Adhoc: match anything that doesn't belong to other portals (catch-all)
+    //   • Founder ('all'): match everything
+    const namedPortalNames = new Set();
+    Object.values(CLIENT_PORTALS).forEach(p => {
+      if (!p.isAdhoc) (p.clientNames || []).forEach(n => namedPortalNames.add(n));
+    });
+
+    const matchesThisPortal = (clientValue) => {
+      if (!clientValue) return false;
+      if (activePortal === 'all') return true;                                  // founder view
+      const portal = CLIENT_PORTALS[activePortal];
+      if (!portal) return false;
+      if (portal.isAdhoc) {
+        // Adhoc catches any client not claimed by another portal
+        return !namedPortalNames.has(clientValue);
+      }
+      return (portal.clientNames || []).includes(clientValue);
+    };
+
+    const clientTasks = allRows.filter(r =>
+      r.Type === 'task' &&
+      r.Client &&
+      matchesThisPortal(r.Client)
+    );
+
+    if (!clientTasks.length) {
+      wrap.innerHTML = '<div class="empty-state">No tasks tagged for this portal yet.</div>';
+      return;
+    }
+
+    // Group by status for clearer scanning
+    const STATUS_ORDER = ['Pending','In Progress','Awaiting Review','Awaiting Client','Approved','Closed','Done','On Hold'];
+    const STATUS_STYLE = {
+      'Pending':         { bg:'#fef3c7', fg:'#854f0b' },
+      'In Progress':     { bg:'#dbeafe', fg:'#1e40af' },
+      'Awaiting Review': { bg:'#ede9fe', fg:'#5b21b6' },
+      'Awaiting Client': { bg:'#fce7f3', fg:'#9d174d' },
+      'Approved':        { bg:'#ccfbf1', fg:'#0f766e' },
+      'Closed':          { bg:'#dcfce7', fg:'#15803d' },
+      'Done':            { bg:'#dcfce7', fg:'#15803d' },
+      'On Hold':         { bg:'#f3f4f6', fg:'#6b7280' }
+    };
+
+    // Bucket tasks by status
+    const byStatus = {};
+    clientTasks.forEach(t => {
+      const s = t.Status || 'Pending';
+      if (!byStatus[s]) byStatus[s] = [];
+      byStatus[s].push(t);
+    });
+
+    // Render in priority order (open work first, closed last)
+    const sections = STATUS_ORDER.filter(s => byStatus[s]).map(status => {
+      const items = byStatus[status];
+      const style = STATUS_STYLE[status] || { bg:'#f3f4f6', fg:'#666' };
+
+      const rows = items.map(t => {
+        // Latest update line (if any) — give client visibility into recent progress
+        const updates = (t.Update || '').trim().split('\n').filter(l => l.trim());
+        const latestUpdate = updates[updates.length - 1] || '';
+        const dueDate = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
+        // Show delivered files if the task has them (auto-linked on creative approval)
+        const previewLink = t['Preview Link'] || '';
+        const openFileLink = t['Open File Link'] || '';
+        const linksHtml = (previewLink || openFileLink) ? `
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            ${previewLink ? `<a href="${previewLink}" target="_blank" style="background:#dcfce7;color:#15803d;text-decoration:none;font-size:11px;padding:5px 11px;border-radius:14px;font-weight:600;border:1px solid #86efac">📷 View JPEG</a>` : ''}
+            ${openFileLink ? `<a href="${openFileLink}" target="_blank" style="background:#dbeafe;color:#1e40af;text-decoration:none;font-size:11px;padding:5px 11px;border-radius:14px;font-weight:600;border:1px solid #93c5fd">📂 Open File</a>` : ''}
+          </div>
+        ` : '';
+
+        return `<div style="padding:14px;border-bottom:1px solid var(--border);background:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:240px">
+              <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:4px">${t.Title || t.Task || '—'}</div>
+              ${t.Task && t.Title && t.Task !== t.Title ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;line-height:1.5">${t.Task}</div>` : ''}
+              <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:4px">
+                <span><strong style="color:#444">Due:</strong> ${dueDate}</span>
+                <span><strong style="color:#444">Client:</strong> ${t.Client}</span>
+              </div>
+              ${linksHtml}
+              ${latestUpdate ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
+                <div style="font-size:9px;color:#92702e;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:3px">Latest update</div>
+                <div style="font-size:12px;color:#1a1a1a;line-height:1.4">${latestUpdate}</div>
+              </div>` : ''}
+            </div>
+            <span style="background:${style.bg};color:${style.fg};font-size:11px;padding:4px 11px;border-radius:14px;font-weight:600;white-space:nowrap">${status}</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<div style="margin-bottom:18px">
+        <div style="font-size:11px;color:${style.fg};font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;padding-left:4px">${status} · ${items.length}</div>
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">${rows}</div>
+      </div>`;
+    }).join('');
+
+    wrap.innerHTML = sections || '<div class="empty-state">No tasks yet.</div>';
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-state">Could not load tasks.</div>';
+  }
+}
+
 
 function renderAssets() {
   const wrap = document.getElementById('assets-table-wrap');
@@ -791,10 +923,100 @@ function renderAll() {
   renderAssets();
 }
 
+// Format any messy date value as DD/MM (Indian convention)
+// Handles: "2026-05-07", "Thu May 07 2026 00:00:00 GMT+0530...", "05/07/2026"
+function fmtDM(raw) {
+  if (!raw) return '—';
+  // Already in DD/MM or matches that pattern
+  if (/^\d{2}\/\d{2}$/.test(String(raw).trim())) return raw;
+  let d;
+  try {
+    d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+  } catch (e) { return raw; }
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// Pull the "client approved on YYYY-MM-DD" timestamp out of the Notes column.
+// Returns ISO date string or null if not found / not approved here.
+function getApprovedDate(item) {
+  const notes = item.Notes || '';
+  const m = notes.match(/client approved on (\d{4}-\d{2}-\d{2})/i);
+  if (m) return m[1];
+  return null;
+}
+
+// Is this approved creative more than 2 days old? If so, hide its visual card.
+// (The Dropbox file stays — only the visible "Approved" card disappears from the folder view.)
+function isStaleApproved(item) {
+  if (item.Status !== 'Approved' && item.Status !== 'Client Approved') return false;
+  const stampDate = getApprovedDate(item);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 2);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  if (stampDate) return stampDate < cutoffStr;
+  // No stamp (legacy approved item) — fall back to item.Date as best-effort
+  // Try to parse it. If we can't extract a YYYY-MM-DD, treat as stale (hide).
+  let fallback;
+  try {
+    const d = new Date(item.Date);
+    if (!isNaN(d.getTime())) fallback = d.toISOString().split('T')[0];
+  } catch(e) {}
+  if (!fallback) return true;
+  return fallback < cutoffStr;
+}
+
+// When a creative is approved, find the matching task and stamp its
+// Preview Link + Open File Link so it shows up in the Live Tasks tab.
+// Match heuristic: same designer name + task title overlaps creative name.
+async function autoLinkCreativeToTask(creative, designerName) {
+  // Fetch ALL task rows (we don't have them in client portal state)
+  const res = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+  const rows = await res.json();
+  if (!Array.isArray(rows)) return;
+
+  const parts = creative.Task.split('|');
+  const creativeName = (parts[0] || '').trim().toLowerCase();
+  if (!creativeName || !designerName) return;
+
+  // Look for an open task assigned to this designer whose title overlaps
+  // the creative name. We accept matches in either direction.
+  const candidates = rows.filter(r => {
+    if (r.Type !== 'task') return false;
+    if (r.Assignee !== designerName) return false;
+    const title = (r.Title || r.Task || '').toLowerCase();
+    if (!title) return false;
+    return creativeName.includes(title) || title.includes(creativeName);
+  });
+
+  if (!candidates.length) return;
+
+  // Pick the most recent one (highest Date wins)
+  candidates.sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+  const target = candidates[0];
+
+  // Patch its Preview Link + Open File Link. Don't overwrite an existing
+  // open-file link — preserve whatever's there.
+  const patch = { 'Preview Link': creative['Preview Link'] || '' };
+  if (creative['Open File Link'] && !target['Open File Link']) {
+    patch['Open File Link'] = creative['Open File Link'];
+  }
+  fetch(SHEETDB, {
+    method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    body: JSON.stringify({
+      action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
+      matchValue: target.Task, data: patch
+    })
+  });
+}
+
 function renderFolder(folder) {
   const items = allCreatives.filter(c => c.Assignee === folder);
   const pending  = items.filter(c => c.Status === 'Client Review');
-  const approved = items.filter(c => c.Status === 'Approved' || c.Status === 'Client Approved');
+  // Hide approved cards more than 2 days past client approval. File stays in
+  // Dropbox — only the visual "Approved" card is removed from view.
+  const approved = items.filter(c =>
+    (c.Status === 'Approved' || c.Status === 'Client Approved') && !isStaleApproved(c)
+  );
 
   // Count badge
   const countEl = document.getElementById(`count-pending-${folder}`);
@@ -866,11 +1088,13 @@ function renderApprovedCard(item) {
   const parts    = item.Task.split('|');
   const cName    = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : 'Yellow Productions';
+  // Prefer the date stamped at client-approval time over the original upload date
+  const approvedDate = getApprovedDate(item) || item.Date;
   return `<div class="creative-card" style="border-color:#a9dfb0;background:#f9fef9">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:14px;font-weight:700">${cName}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">${designer} · Approved ${item.Date}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${designer} · Approved ${fmtDM(approvedDate)}</div>
       </div>
       <span class="status-pill pill-approved">✅ Approved</span>
     </div>
@@ -922,23 +1146,27 @@ async function submitAction(uid, folder, idx, action) {
   const designerName = parts[1] ? parts[1].trim() : '';
   const designerEmail= DESIGNER_EMAILS[designerName];
   const fileDropboxPath = item['Preview Link'] || null; // Dropbox path stored here if uploaded via Quick Upload
+  const todayISO     = new Date().toISOString().split('T')[0];
 
   try {
     // Map client action → sheet status
-    // Approve → Status: Approved (file moves to client's permanent folder)
-    // Reject  → Status: Sent Back (designer sees in Changes tab + feedback in Notes)
-    // Comment → Status stays Client Review, feedback added to Notes
     const statusMap = {
       'Approved': 'Approved',
       'Rejected': 'Sent Back',
       'Comment':  'Client Review'
     };
     const newStatus = statusMap[action] || action;
-    const patchData = action === 'Comment' || action === 'Rejected'
-      ? { Status: newStatus, Notes: comment }
-      : { Status: newStatus };
 
-    // Use text/plain + no-cors so Apps Script accepts the POST without CORS preflight
+    // On approval — stamp Notes with date so we can auto-hide after 2 days
+    let patchData;
+    if (action === 'Approved') {
+      patchData = { Status: newStatus, Notes: `client approved on ${todayISO}` };
+    } else if (action === 'Comment' || action === 'Rejected') {
+      patchData = { Status: newStatus, Notes: comment };
+    } else {
+      patchData = { Status: newStatus };
+    }
+
     fetch(SHEETDB, {
       method: 'POST',
       headers: {'Content-Type':'text/plain'},
@@ -950,8 +1178,20 @@ async function submitAction(uid, folder, idx, action) {
     item.Status = newStatus;
     if (patchData.Notes) item.Notes = patchData.Notes;
     if (action === 'Rejected') {
-      // Remove from the client's view immediately
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
+    }
+
+    // ==== AUTO-LINK approved creative → matching task ====
+    // When a creative is approved, push its preview + open-file links onto the matching
+    // task row so the client portal Live Tasks tab can show them inline.
+    // Matching heuristic: same designer (Assignee on task = parts[1] on creative)
+    // AND task title overlaps creative name (one contains the other, case-insensitive).
+    if (action === 'Approved') {
+      try {
+        autoLinkCreativeToTask(item, designerName);
+      } catch(e) {
+        console.log('Auto-link to task skipped:', e.message);
+      }
     }
 
     // On approval — move file in Dropbox to client's permanent Creatives folder
