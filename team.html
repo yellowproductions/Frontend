@@ -205,6 +205,37 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   body { display: block !important; overflow-y: auto !important; }
   .main { padding: 16px !important; padding-top: 60px !important; padding-bottom: 80px !important; width: 100% !important; }
   input, select, textarea { font-size: 16px !important; }
+
+  /* TASK ROWS — stack vertically on phone (otherwise columns are too narrow and chars wrap one per line) */
+  .task-row-header { display: none !important; }
+  .task-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding: 14px 8px !important;
+  }
+  .task-row .task-num { display: none !important; }
+  .task-row .task-cell { width: 100% !important; }
+  .task-row .task-cell[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .task-row input.task-cell { font-size: 14px !important; padding: 9px 12px !important; }
+  .task-row select { font-size: 14px !important; padding: 9px 14px !important; }
+  .task-row .btn { padding: 10px 16px !important; font-size: 13px !important; }
+
+  /* ADD-A-TASK form: also stack vertically */
+  #quick-task-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  #quick-task-row > div, #quick-task-row > button { width: 100% !important; }
 }
 </style>
 </head>
@@ -1832,7 +1863,7 @@ function renderTaskRows(tasks, startIdx) {
   const today = new Date().toISOString().split('T')[0];
 
   return `
-    <div style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600">
+    <div class="task-row-header" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600">
       <span></span><span>Task</span><span>Status</span><span>Final file</span><span>Open file</span><span></span>
     </div>
     ${tasks.map((t, i) => {
@@ -1862,9 +1893,9 @@ function renderTaskRows(tasks, startIdx) {
         ? 'box-shadow:inset 3px 0 0 #dc2626;'
         : '';
       return `
-      <div style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
-        <span style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
-        <div style="min-width:0;overflow-wrap:anywhere">
+      <div class="task-row" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
+        <span class="task-num" style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
+        <div class="task-title-cell" style="min-width:0;overflow-wrap:anywhere">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0">
             <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${dateText}${filePendingChip}
           </div>
@@ -1873,7 +1904,7 @@ function renderTaskRows(tasks, startIdx) {
             ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace;overflow-wrap:anywhere">📝 ${l}</div>`).join('')}
           </div>` : ''}
         </div>
-        <div style="min-width:0">
+        <div class="task-cell" data-label="Status" style="min-width:0">
           <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
@@ -1885,9 +1916,9 @@ function renderTaskRows(tasks, startIdx) {
             ${status==='Done'?'<option selected>Done</option>':''}
           </select>
         </div>
-        <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <button class="btn btn-yellow btn-sm" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')" style="font-size:11px;padding:5px 12px">Save</button>
+        <input class="task-cell" data-label="Final file" type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
+        <input class="task-cell" data-label="Open file" type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
+        <button class="btn btn-yellow btn-sm task-cell" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')" style="font-size:11px;padding:5px 12px">Save</button>
       </div>`;
     }).join('')}`;
 }
