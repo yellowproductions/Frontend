@@ -401,14 +401,19 @@
   input, select, textarea { font-size: 16px !important; }
 
   /* Stack task rows vertically — desktop columns are too narrow on phone */
-  .task-row {
+  .task-row, .fos-task-row {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 8px !important;
+    gap: 10px !important;
     padding: 14px 8px !important;
   }
-  .task-row > * { width: 100% !important; }
+  .task-row > *, .fos-task-row > * { width: 100% !important; }
+  .fos-task-row input, .fos-task-row select {
+    font-size: 14px !important;
+    padding: 9px 12px !important;
+  }
+  .fos-task-row button { padding: 8px 14px !important; font-size: 13px !important; }
 
   /* HR + Insta + Agent grids — stack on phone */
   .hr-grid, .insta-grid, .agent-grid {
@@ -2427,7 +2432,7 @@ function renderTasks(tasks) {
           </div>` : '';
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
+        <div class="fos-task-row" style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div>${title || desc || '—'}
               <span style="color:var(--yellow);font-size:10px;font-family:'DM Mono',monospace;margin-left:6px;font-weight:700">${t.Assignee||''}</span>
