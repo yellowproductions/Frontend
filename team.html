@@ -1067,12 +1067,94 @@ function restoreAgentHistory() {
   } catch(e) {}
 }
 
-// ====== NOTIFICATIONS: BELL + SOUND + AUTO-REFRESH ======
-let knownTaskIds = new Set();      // tracks tasks we've already seen
-let knownChangeIds = new Set();    // tracks rejected creatives we've already seen
-let unseenItems = [];              // [{type, title, when}]
-let pendingReminders = [];         // [{rowKey, from, message, date}]
-let firstLoadDone = false;
+// ====== NOTIFICATIONS: ACTION INBOX ======
+// Bell shows ONLY items that need action from currentUser:
+//   1. Tasks newly assigned BY SOMEONE ELSE (filtered by Notes "assigned by..." marker)
+//   2. Creatives sent back to me for rework
+//   3. Pending reviews (for reviewers: Viplav/Kritya/Siddhesh)
+//   4. Pending reminders (always actionable)
+// Each item is clickable → switches to the relevant panel.
+// Once an item is clicked OR "Mark all seen" is pressed, it's added to a dismissed set
+// that persists across reloads so the same item doesn't keep nagging.
+let pendingReminders = [];
+let dismissedNotifIds = new Set();
+try {
+  const stored = JSON.parse(localStorage.getItem('yv-dismissed-notifs') || '[]');
+  dismissedNotifIds = new Set(stored);
+} catch(e) {}
+
+function persistDismissed() {
+  try {
+    localStorage.setItem('yv-dismissed-notifs', JSON.stringify([...dismissedNotifIds]));
+  } catch(e) {}
+}
+
+// Build the action inbox fresh from current state on every render
+function buildInboxItems() {
+  const items = [];
+
+  // 1. Reminders — always actionable
+  pendingReminders.forEach(r => {
+    items.push({
+      id: 'reminder:' + (r.rowKey || ''),
+      kind: 'reminder',
+      icon: '📬',
+      label: 'Reminder',
+      title: r.message,
+      sub: 'from ' + r.from + ' · ' + (r.date || ''),
+      data: r
+    });
+  });
+
+  // 2. Tasks newly assigned by someone else (filter out self-added)
+  const myTasks = (window._allTasks || []).filter(t =>
+    t.Type === 'task' && t.Assignee === currentUser
+  );
+  myTasks.forEach(t => {
+    const notes = (t.Notes || '').trim();
+    if (!/^assigned by /i.test(notes)) return;     // ignore self-added
+    if (/^(done|approved|closed)$/i.test(t.Status || '')) return; // ignore completed
+    const id = 'task:' + (t.Date || '') + '|' + (t.Title || t.Task || '');
+    if (dismissedNotifIds.has(id)) return;
+    const assigner = (notes.match(/^assigned by (\S+)/i) || [])[1] || 'team';
+    items.push({
+      id, kind: 'task', icon: '📌', label: 'New task',
+      title: t.Title || (t.Task || '').substring(0, 60),
+      sub: 'by ' + assigner + (t.Client ? ' · ' + t.Client : ''),
+      target: 'tasks'
+    });
+  });
+
+  // 3. Sent-back creatives needing rework (mine)
+  const myChanges = (window._allChanges || []).filter(c => c.designer === currentUser);
+  myChanges.forEach(c => {
+    const id = 'change:' + (c.Date || '') + '|' + (c.Task || '');
+    if (dismissedNotifIds.has(id)) return;
+    items.push({
+      id, kind: 'change', icon: '🔁', label: 'Rework needed',
+      title: ((c.Task || '').split('|')[0] || '').trim() + ' — feedback waiting',
+      sub: c.Notes || '',
+      target: 'changes'
+    });
+  });
+
+  // 4. Pending reviews (for reviewers only)
+  if (typeof REVIEWERS !== 'undefined' && REVIEWERS.includes(currentUser)) {
+    (window.reviewItems || []).forEach(r => {
+      const id = 'review:' + (r.Date || '') + '|' + (r.Task || '');
+      if (dismissedNotifIds.has(id)) return;
+      const parts = (r.Task || '').split('|');
+      items.push({
+        id, kind: 'review', icon: '🎨', label: 'Pending review',
+        title: (parts[0] || '').trim(),
+        sub: 'by ' + (parts[1] || '').trim(),
+        target: 'review'
+      });
+    });
+  }
+
+  return items;
+}
 
 async function loadReminders() {
   try {
@@ -1101,6 +1183,17 @@ async function markReminderDone(rowKey) {
     updateBellBadge();
     openNotifPanel(true); // re-render
   } catch(e) {}
+}
+
+// Click handler: dismiss the item and jump to the relevant panel
+function openNotifItem(itemId, target) {
+  dismissedNotifIds.add(itemId);
+  persistDismissed();
+  document.getElementById('notif-panel').style.display = 'none';
+  if (target && typeof showPanel === 'function') {
+    showPanel(target);
+  }
+  updateBellBadge();
 }
 
 function soundEnabled() {
@@ -1147,7 +1240,8 @@ function showNotifCluster() {
 function updateBellBadge() {
   const badge = document.getElementById('notif-badge');
   if (!badge) return;
-  const total = unseenItems.length + pendingReminders.length;
+  const items = buildInboxItems();
+  const total = items.length;
   if (total > 0) {
     badge.textContent = total > 99 ? '99+' : total;
     badge.style.display = 'flex';
@@ -1159,44 +1253,63 @@ function updateBellBadge() {
 function openNotifPanel(forceShow) {
   const panel = document.getElementById('notif-panel');
   const list = document.getElementById('notif-list');
+  const items = buildInboxItems();
+
+  // Color scheme per item kind
+  const kindStyle = {
+    reminder: { color: '#854f0b', bg: '#fdf6e0' },
+    task:     { color: '#854f0b', bg: '#fff8e1' },
+    change:   { color: '#9a3412', bg: '#ffedd5' },
+    review:   { color: '#5b21b6', bg: '#ede9fe' }
+  };
+
   let html = '';
+  if (!items.length) {
+    html = '<div style="padding:24px 16px;font-size:12px;color:var(--muted);text-align:center">All clear ✨<br><span style="font-size:11px;margin-top:6px;display:block">You\'ll see notifications when someone assigns you a task, sends back rework, or when a creative needs your review.</span></div>';
+  } else {
+    html = items.map(item => {
+      const style = kindStyle[item.kind] || { color: '#444', bg: '#f7f7f3' };
+      const safeTitle = (item.title || '').replace(/</g, '&lt;');
+      const safeSub = (item.sub || '').replace(/</g, '&lt;');
 
-  // SECTION 1: Reminders (persistent — until marked done)
-  if (pendingReminders.length > 0) {
-    html += '<div style="padding:10px 16px 6px;font-size:10px;color:#854f0b;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;background:#fdf6e0">📬 Reminders</div>';
-    html += pendingReminders.map(r => `
-      <div style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:start">
-        <div style="flex:1;min-width:0">
-          <div style="color:#1a1a1a;line-height:1.4;word-wrap:break-word">${(r.message||'').replace(/</g,'&lt;')}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px">from ${r.from} · ${r.date || '—'}</div>
+      // Reminders have their own "Done" button — keep the existing flow
+      if (item.kind === 'reminder') {
+        return `<div style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:start">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+              <span style="font-size:14px">${item.icon}</span>
+              <strong style="font-size:10px;color:${style.color};text-transform:uppercase;letter-spacing:0.06em">${item.label}</strong>
+            </div>
+            <div style="color:#1a1a1a;line-height:1.4;word-wrap:break-word;margin-left:22px">${safeTitle}</div>
+            ${safeSub ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;margin-left:22px">${safeSub}</div>` : ''}
+          </div>
+          <button onclick="markReminderDone('${(item.data.rowKey||'').replace(/'/g,"\\'")}')" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0">✓ Done</button>
+        </div>`;
+      }
+
+      // Everything else: clickable row that jumps to target panel
+      const safeId = item.id.replace(/'/g, "\\'");
+      return `<div onclick="openNotifItem('${safeId}','${item.target}')" style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='#fafaf7'" onmouseout="this.style.background='#fff'">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-size:14px">${item.icon}</span>
+          <strong style="font-size:10px;color:${style.color};text-transform:uppercase;letter-spacing:0.06em">${item.label}</strong>
         </div>
-        <button onclick="markReminderDone('${(r.rowKey||'').replace(/'/g,"\\'")}')" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0">✓ Done</button>
-      </div>
-    `).join('');
+        <div style="color:#1a1a1a;line-height:1.4;margin-left:22px">${safeTitle}</div>
+        ${safeSub ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;margin-left:22px">${safeSub}</div>` : ''}
+      </div>`;
+    }).join('');
   }
 
-  // SECTION 2: Recent activity (new tasks + changes — clearable)
-  if (unseenItems.length > 0) {
-    html += '<div style="padding:10px 16px 6px;font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;background:#f7f7f3">Recent activity</div>';
-    html += unseenItems.map(n => `
-      <div style="padding:12px 16px;border-bottom:1px solid #f0eeea;font-size:13px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-          <span style="font-size:14px">${n.type === 'task' ? '📌' : '🔄'}</span>
-          <strong style="font-size:11px;color:${n.type === 'task' ? '#854f0b' : '#991b1b'};text-transform:uppercase;letter-spacing:0.05em">${n.type === 'task' ? 'New Task' : 'Changes Needed'}</strong>
-        </div>
-        <div style="color:#1a1a1a;line-height:1.4;margin-left:22px">${n.title}</div>
-      </div>
-    `).join('');
-  }
-
-  if (!html) html = '<div style="padding:24px 16px;font-size:12px;color:var(--muted);text-align:center">All clear ✨</div>';
   list.innerHTML = html;
-
   if (forceShow !== false) panel.style.display = panel.style.display === 'block' && !forceShow ? 'none' : 'block';
 }
 
 function markAllSeen() {
-  unseenItems = [];
+  // Dismiss every currently-shown item permanently
+  buildInboxItems().forEach(item => {
+    if (item.kind !== 'reminder') dismissedNotifIds.add(item.id);
+  });
+  persistDismissed();
   updateBellBadge();
   document.getElementById('notif-panel').style.display = 'none';
 }
@@ -1210,36 +1323,27 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Compare new task list with known set; flag new items + play sound
+// Cache the latest task + changes data so buildInboxItems can read it on demand.
+// Also play a ping when something genuinely NEW arrives (vs cached data).
+let _lastInboxIds = new Set();
 function detectNewItems(allMyTasks, allMyChanges) {
-  const taskKey = t => `T:${t.Date || ''}|${t.Title || t.Task || ''}`;
-  const changeKey = c => `C:${c.Date || ''}|${c.Task || ''}`;
+  // Stash for buildInboxItems
+  window._allTasks = allMyTasks;
+  window._allChanges = (allMyChanges || []).map(c => ({
+    ...c,
+    designer: ((c.Task || '').split('|')[1] || '').trim()
+  }));
 
-  if (firstLoadDone) {
-    // Detect new tasks
-    allMyTasks.forEach(t => {
-      const k = taskKey(t);
-      if (!knownTaskIds.has(k)) {
-        unseenItems.push({ type: 'task', title: t.Title || (t.Task || '').substring(0, 60), when: Date.now() });
-      }
-    });
-    // Detect new changes (Sent Back)
-    allMyChanges.forEach(c => {
-      const k = changeKey(c);
-      if (!knownChangeIds.has(k)) {
-        unseenItems.push({ type: 'change', title: (c.Task || '').split('|')[0].trim() + ' — feedback waiting', when: Date.now() });
-      }
-    });
-    if (unseenItems.length > 0) {
-      playPing();
-      updateBellBadge();
-    }
+  // Compute current inbox IDs and see if anything new appeared
+  const currentItems = buildInboxItems();
+  const currentIds = new Set(currentItems.map(i => i.id));
+  const trulyNew = [...currentIds].filter(id => !_lastInboxIds.has(id));
+  if (trulyNew.length > 0 && _lastInboxIds.size > 0) {
+    // Skip the ping on the very first load (when _lastInboxIds is empty)
+    playPing();
   }
-
-  // Refresh known sets
-  knownTaskIds = new Set(allMyTasks.map(taskKey));
-  knownChangeIds = new Set(allMyChanges.map(changeKey));
-  firstLoadDone = true;
+  _lastInboxIds = currentIds;
+  updateBellBadge();
 }
 
 // Auto-refresh ALL data every 15 min — silent, doesn't disturb typing or open chat
