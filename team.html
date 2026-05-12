@@ -2229,7 +2229,7 @@ function renderTaskRows(tasks, startIdx) {
         <span class="task-num" style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
         <div class="task-title-cell" style="min-width:0;overflow-wrap:anywhere">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-            <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid #bfdbfe">🏷 ${t.Client}</span>` : ''}${dateText}${filePendingChip}
+            <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${renderClientEditor(t)}${dateText}${filePendingChip}
           </div>
           ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
 
@@ -2446,6 +2446,62 @@ async function loadTasksByDate() { return; }
 
 function toggleStatusSelect(idx) {} // no longer needed
 
+// ===== CLIENT TAG EDITOR =====
+// Renders an inline pill-styled <select> next to a task's title so any team
+// member can tag or retag the Client. Picking an option patches the sheet's
+// Client column and reloads tasks. This is how legacy untagged rows become
+// visible on the client portal (Yellow Door) — once they carry a Client value,
+// the Live Tasks filter on the client portal picks them up.
+function renderClientEditor(t) {
+  const c = t.Client || '';
+  const placeholder = c ? `🏷 ${c} ▾` : '+ Tag client ▾';
+  const chipStyle = c
+    ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
+    : 'background:#f5f4f0;color:#888;border:1px dashed #d4cfc4';
+  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}', this.value, this)" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;cursor:pointer;font-family:'Poppins',sans-serif;appearance:none;-webkit-appearance:none;-moz-appearance:none;${chipStyle}">
+    <option value="" selected>${placeholder}</option>
+    ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
+    <optgroup label="Jindal">
+      <option value="Jindal Steel">Jindal Steel</option>
+      <option value="Jindal League">Jindal League</option>
+      <option value="Jindal Youth League">Jindal Youth League</option>
+      <option value="Sohar Steel">Sohar Steel</option>
+      <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+    </optgroup>
+    <option value="RM Universal">RM Universal</option>
+    <option value="Kotak">Kotak</option>
+    <option value="TEAM YP">TEAM YP</option>
+    <option value="Pitches">Pitches</option>
+    <option value="Marico">Marico</option>
+    <option value="Zouk">Zouk</option>
+    <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+    <option value="HZL">HZL</option>
+    <option value="Adhoc">Adhoc</option>
+  </select>`;
+}
+
+async function updateTaskClient(encodedTask, newValue, selectEl) {
+  const task = decodeURIComponent(encodedTask);
+  if (!newValue) return; // user re-picked the placeholder — no-op
+  const finalValue = newValue === '__clear__' ? '' : newValue;
+  // Optimistic local update — patch the in-memory task and re-render immediately
+  const cached = (window._teamTasks || []).find(x => x.Task === task);
+  if (cached) cached.Client = finalValue;
+  try {
+    fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({
+        action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+        matchValue: task, data: { Client: finalValue }
+      })
+    });
+    // Re-fetch so the new tag flows through. loadTasks repaints the row.
+    setTimeout(() => loadTasks(), 400);
+  } catch(e) {
+    alert('Could not update client tag.');
+  }
+}
+
 async function updateStatusFromDropdown(idx, encodedTask) {
   const task = decodeURIComponent(encodedTask);
   const dd = document.getElementById(`status-dropdown-${idx}`);
@@ -2536,13 +2592,20 @@ function isWorkingDay(name, date) {
 
 // Find an approved leave row covering this date for this person
 function getApprovedLeaveForDate(name, dateStr, allRows) {
-  return allRows.find(r =>
-    r.Type === 'leave' &&
-    r.Assignee === name &&
-    (r.Status === 'Approved' || r.Status === 'approved') &&
-    r.Date <= dateStr &&
-    (r.Task || r.Date) >= dateStr   // Task col stores the end-date
-  ) || null;
+  return allRows.find(r => {
+    if (r.Type !== 'leave') return false;
+    if (r.Assignee !== name) return false;
+    if (r.Status !== 'Approved' && r.Status !== 'approved') return false;
+    // Override-leave rows store a timestamped ID in Task ("override-leave-…-…").
+    // Treating that as an end-date would alphabetically satisfy `Task >= dateStr`
+    // for every future date, leaking the single-day override forward indefinitely.
+    // Override resolution lives in resolveTodayStatus; skip override rows here.
+    if (/override/i.test(r.Notes || '')) return false;
+    const from = r.Date;
+    const to   = r.Task || r.Date;   // Task col stores the end-date
+    if (!from) return false;
+    return from <= dateStr && to >= dateStr;
+  }) || null;
 }
 
 // Returns the schedule rules for the current user
