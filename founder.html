@@ -2341,6 +2341,8 @@ function renderCapacity(tasks) {
   const allData = window._allRowsCache || tasks;
   const istNow3 = getISTMinutes();
   const todayMarked = {};
+  // Normalize names so trailing whitespace / case mismatches don't cause lookup failures
+  const norm = s => (s || '').trim().toLowerCase();
   // Multiple attendance rows may exist for one person on one day (original mark +
   // any number of overrides). Prefer the override row. Key by normalized name so
   // trailing spaces or case differences in the sheet don't cause mismatches.
@@ -2357,7 +2359,6 @@ function renderCapacity(tasks) {
   // Build per-person stats — only ACTIVE members (Sam excluded).
   // Match assignee with whitespace/case tolerance so accidental trailing spaces
   // or case differences in the sheet don't cause people to appear idle.
-  const norm = s => (s || '').trim().toLowerCase();
   const stats = ACTIVE_TEAM.map(name => {
     const nameNorm = norm(name);
     const myTasks = tasks.filter(t => norm(t.Assignee) === nameNorm && OPEN_LC.has(statusLC(t.Status)));
