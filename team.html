@@ -2108,6 +2108,41 @@ function jumpToTaskRow(taskKey) {
   setTimeout(() => { row.style.background = originalBg; }, 1600);
 }
 
+// Toggle the ✓ tick on a single update line. The line is stored as
+// "[12-05] Start with this..." — we just prepend/strip a "✓ " marker on it.
+// Lines marked ✓ render with strike-through + 40% opacity.
+async function toggleUpdateTick(encodedTask, lineIdx) {
+  const taskKey = decodeURIComponent(encodedTask);
+  const task = (allTasks || []).find(t => t.Task === taskKey);
+  if (!task) return;
+  const updates = (task.Update || '').trim();
+  if (!updates) return;
+  const lines = updates.split('\n').filter(l => l.trim());
+  if (lineIdx < 0 || lineIdx >= lines.length) return;
+
+  // Flip tick state on this line only
+  if (/^✓\s/.test(lines[lineIdx])) {
+    lines[lineIdx] = lines[lineIdx].replace(/^✓\s*/, '');
+  } else {
+    lines[lineIdx] = '✓ ' + lines[lineIdx];
+  }
+  const newUpdate = lines.join('\n');
+
+  // Optimistic UI: update local state and re-render now, don't wait for the sheet
+  task.Update = newUpdate;
+  loadTasks?.();  // re-render with current state; will refresh from server too
+
+  try {
+    fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({
+        action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+        matchValue: taskKey, data: { Update: newUpdate }
+      })
+    });
+  } catch(e) {}
+}
+
 // Toggle the Add Task form (collapsed by default)
 function toggleQuickTaskForm() {
   const form = document.getElementById('quick-task-form');
@@ -2155,12 +2190,17 @@ function renderTaskRows(tasks, startIdx) {
       const titleText = t.Title || t.Task || '—';
       const descText = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
       const updatesText = (t.Update || '').trim();
-      const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
+      // Keep original lines (with indexes) — we need them when toggling tick state
+      const allUpdateLinesRaw = updatesText ? updatesText.split('\n').filter(l => l.trim()) : [];
+      // Show newest first
+      const updateLinesIndexed = allUpdateLinesRaw.map((line, origIdx) => ({ line, origIdx })).reverse();
 
       // Update line prefix: legacy is [MM-DD], new format is [DD-MM]. Display both as [DD/MM].
       const formatUpdateLine = (line) => {
-        const m = line.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
-        if (!m) return line;
+        // Strip leading ✓ marker (for ticked lines) before formatting
+        const cleanLine = line.replace(/^✓\s*/, '');
+        const m = cleanLine.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
+        if (!m) return cleanLine;
         let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
         // If first part > 12 → must be DD-MM. If second part > 12 → must be MM-DD (swap).
         // If both ≤ 12 → ambiguous; assume the new format (DD-MM).
@@ -2182,9 +2222,17 @@ function renderTaskRows(tasks, startIdx) {
             <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid #bfdbfe">🏷 ${t.Client}</span>` : ''}${dateText}${filePendingChip}
           </div>
           ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
-          ${updateLines.length ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
+          ${updateLinesIndexed.length ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
             <div style="font-size:9px;color:#92702e;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:4px">Latest from Suriti</div>
-            ${updateLines.map(l => `<div style="font-size:12px;color:#1a1a1a;line-height:1.5;font-weight:500;overflow-wrap:anywhere">${formatUpdateLine(l)}</div>`).join('')}
+            ${updateLinesIndexed.map(({line, origIdx}) => {
+              const isDone = /^✓\s/.test(line);
+              return `<div style="display:flex;align-items:flex-start;gap:8px;padding:3px 0;${isDone ? 'opacity:0.4;text-decoration:line-through' : ''}">
+                <button onclick="toggleUpdateTick('${encodeURIComponent(t.Task)}', ${origIdx})" title="${isDone ? 'Mark as not done' : 'Mark as done'}" style="background:${isDone ? '#22c55e' : 'transparent'};border:1.5px solid ${isDone ? '#22c55e' : '#d4a017'};border-radius:50%;width:18px;height:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;margin-top:1px">
+                  <span style="font-size:11px;color:${isDone ? '#fff' : '#d4a017'};line-height:1">${isDone ? '✓' : ''}</span>
+                </button>
+                <div style="font-size:12px;color:#1a1a1a;line-height:1.5;font-weight:500;overflow-wrap:anywhere;flex:1">${formatUpdateLine(line)}</div>
+              </div>`;
+            }).join('')}
           </div>` : ''}
         </div>
         <div class="task-cell" data-label="Status" style="min-width:0">
