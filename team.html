@@ -474,12 +474,19 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
             <option value="">— Select —</option>
             <optgroup label="Jindal">
               <option value="Jindal Steel">Jindal Steel</option>
+              <option value="Jindal League">Jindal League</option>
               <option value="Jindal Youth League">Jindal Youth League</option>
               <option value="Sohar Steel">Sohar Steel</option>
               <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
             </optgroup>
+            <option value="RM Universal">RM Universal</option>
             <option value="Kotak">Kotak</option>
+            <option value="TEAM YP">TEAM YP</option>
             <option value="Pitches">Pitches</option>
+            <option value="Marico">Marico</option>
+            <option value="Zouk">Zouk</option>
+            <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+            <option value="HZL">HZL</option>
             <option value="Adhoc">Adhoc</option>
             <option value="__other__">Other... (→ Adhoc)</option>
           </select>
@@ -1044,7 +1051,7 @@ async function sendAgentMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         system: AGENT_SYSTEM,
         messages: agentHistory,
         max_tokens: 2500
@@ -1170,6 +1177,22 @@ function buildInboxItems() {
     });
   }
 
+  // 5. Tasks just approved by the client — prompt designer to upload open files
+  //    and (after that's done) flip status to Closed. Detected via the task's
+  //    Status flipping to "Approved" after autoLinkCreativeToTask propagates
+  //    the client approval from Yellow Door back to the task row.
+  myTasks.forEach(t => {
+    if (!/^approved$/i.test(t.Status || '')) return;
+    const id = 'approved:' + (t.Date || '') + '|' + (t.Title || t.Task || '');
+    if (dismissedNotifIds.has(id)) return;
+    items.push({
+      id, kind: 'approved', icon: '🌟', label: 'Client approved',
+      title: t.Title || (t.Task || '').substring(0, 60),
+      sub: 'Upload open files, then mark Closed' + (t.Client ? ' · ' + t.Client : ''),
+      target: 'tasks'
+    });
+  });
+
   return items;
 }
 
@@ -1277,7 +1300,8 @@ function openNotifPanel(forceShow) {
     reminder: { color: '#854f0b', bg: '#fdf6e0' },
     task:     { color: '#854f0b', bg: '#fff8e1' },
     change:   { color: '#9a3412', bg: '#ffedd5' },
-    review:   { color: '#5b21b6', bg: '#ede9fe' }
+    review:   { color: '#5b21b6', bg: '#ede9fe' },
+    approved: { color: '#15803d', bg: '#dcfce7' }
   };
 
   let html = '';
@@ -1363,10 +1387,16 @@ function detectNewItems(allMyTasks, allMyChanges) {
   updateBellBadge();
 }
 
-// Auto-refresh ALL data every 15 min — silent, doesn't disturb typing or open chat
+// Auto-refresh ALL data every 60s — keeps tasks in sync when Suriti changes a
+// client tag / status / update from the founder OS. Doesn't disturb in-progress
+// typing or open chats (loadTasks just refetches data and repaints the static
+// task list; chat polls separately).
 function startAutoRefresh() {
   setInterval(() => {
     if (!currentUser) return;
+    // Skip if user is mid-typing on a task input or update field
+    const a = document.activeElement;
+    if (a && a.matches('input, textarea, [contenteditable="true"]')) return;
     // Core data
     loadTasks?.();
     loadReminders?.();
@@ -1376,7 +1406,7 @@ function startAutoRefresh() {
     loadLeave?.();
     // Viplav-only review feed
     if (REVIEWERS.includes(currentUser)) loadReviews?.();
-  }, 15 * 60 * 1000);
+  }, 60 * 1000);
 }
 
 // ====== TEAM CHAT ======
@@ -2108,6 +2138,46 @@ function jumpToTaskRow(taskKey) {
   setTimeout(() => { row.style.background = originalBg; }, 1600);
 }
 
+// Append a new dated update line to a task. Used by the "+ Add update for today..."
+// inputs under every task row — mirrors the founder OS addUpdate so designers can
+// log progress in the same conversational style Suriti uses on her side.
+async function addUpdate(encodedTask, inputEl) {
+  const text = (inputEl.value || '').trim();
+  if (!text) return;
+  const taskKey = decodeURIComponent(encodedTask);
+  const list = window._teamTasks || [];
+  const task = list.find(t => t.Task === taskKey);
+  if (!task) {
+    console.warn('addUpdate: task not found', taskKey);
+    return;
+  }
+  // DD-MM format — matches the founder OS convention and parseUpdate() already
+  // accepts either [DD-MM] or legacy [MM-DD]
+  const ist = new Date();
+  const dd = String(ist.getDate()).padStart(2, '0');
+  const mm = String(ist.getMonth() + 1).padStart(2, '0');
+  const existing = (task.Update || '').trim();
+  const appended = (existing ? existing + '\n' : '') + `[${dd}-${mm}] ${text}`;
+
+  // Optimistic UI — show the new update immediately
+  task.Update = appended;
+  inputEl.value = '';
+  loadTasks();
+
+  // Persist — fire and forget, sheet write usually settles within a second
+  try {
+    fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({
+        action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+        matchValue: taskKey, data: { Update: appended }
+      })
+    });
+  } catch(e) {
+    console.warn('addUpdate patch failed', e);
+  }
+}
+
 // Toggle the ✓ tick on a single update line. The line is stored as
 // "[12-05] Start with this..." — we just prepend/strip a "✓ " marker on it.
 // Lines marked ✓ render with strike-through + 40% opacity.
@@ -2248,6 +2318,12 @@ function renderTaskRows(tasks, startIdx) {
               <div onclick="toggleUpdateTick('${encodeURIComponent(t.Task)}', ${origIdx})" title="Click to undo" style="font-size:11px;color:#888;line-height:1.5;padding:2px 0;overflow-wrap:anywhere;cursor:pointer" onmouseover="this.style.color='#444'" onmouseout="this.style.color='#888'">${formatUpdateLine(line)}</div>
             `).join('')}
           </div>` : ''}
+
+          <div style="margin-top:8px">
+            <input type="text" placeholder="+ Add update for today..."
+              onkeydown="if(event.key==='Enter') addUpdate('${encodeURIComponent(t.Task)}', this)"
+              style="font-size:11px;padding:5px 9px;width:100%;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+          </div>
         </div>
         <div class="task-cell" data-label="Status" style="min-width:0">
           <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
@@ -2291,6 +2367,11 @@ async function loadTasks() {
       t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
     );
 
+    // Reconcile any pending client-tag writes that the sheet may not have
+    // committed yet. Without this, refetching wipes optimistic Client edits
+    // and the user sees their just-set tag vanish.
+    reconcilePendingClientUpdates(all);
+
     // Stash for handlers like toggleUpdateTick that need to mutate task state
     window._teamTasks = all;
 
@@ -2326,11 +2407,23 @@ async function loadTasks() {
     renderFocusToday(focusItems, overdueTasks.length, todayTasks.length);
     renderUpdatesToday(sorted);
 
-    // Split: current-month OPEN tasks shown at top, everything else grouped into month folders (incl. done)
+    // Split: main list shows OPEN tasks for the current month PLUS any task
+    // closed within the last 7 days (regardless of which month it was due in).
+    // After 7 days, closed tasks fall through to the month-archive folders below.
+    //
+    // Heuristic: no "Closed Date" column exists on the sheet, so we use the
+    // task's Date (due date) as a proxy. Tasks are usually closed near their
+    // due date — close enough for the 7-day visibility window Suriti wants.
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
     const currentOpen = sorted.filter(t => {
       const s = t.Status || 'Pending';
       const m = (t.Date || '').substring(0, 7);
-      return m === currentMonth && OPEN_STATUSES.includes(s);
+      const isOpen = OPEN_STATUSES.includes(s);
+      const isCurrentMonth = m === currentMonth;
+      const isRecentlyClosed = DONE_STATUSES.includes(s) && (t.Date || '') >= sevenDaysAgoStr;
+      return (isCurrentMonth && isOpen) || isRecentlyClosed;
     });
     const archived = sorted.filter(t => !currentOpen.includes(t));
 
@@ -2480,13 +2573,43 @@ function renderClientEditor(t) {
   </select>`;
 }
 
+// Pending client-tag writes that haven't yet been confirmed by the sheet.
+// keyed by task description. Each entry: { client, attempts, lastTry }
+// loadTasks() walks this map after each refetch and re-applies any tag the
+// sheet hasn't picked up yet — fixes the "I tagged a client and it vanished"
+// race where Apps Script took longer to commit than the next refetch interval.
+window._pendingClientUpdates = window._pendingClientUpdates || {};
+
 async function updateTaskClient(encodedTask, newValue, selectEl) {
   const task = decodeURIComponent(encodedTask);
   if (!newValue) return; // user re-picked the placeholder — no-op
   const finalValue = newValue === '__clear__' ? '' : newValue;
-  // Optimistic local update — patch the in-memory task and re-render immediately
+
+  // Optimistic local update — mutates the in-memory task so the next render keeps it
   const cached = (window._teamTasks || []).find(x => x.Task === task);
   if (cached) cached.Client = finalValue;
+
+  // Register as a pending write — loadTasks will re-apply this until the sheet confirms
+  window._pendingClientUpdates[task] = { client: finalValue, attempts: 1, lastTry: Date.now() };
+
+  // IMMEDIATE visual update — update placeholder text + chip style so the user
+  // sees the tag stick. Uses selectedIndex (not .value) for iOS Safari reliability.
+  if (selectEl && selectEl.options[0]) {
+    selectEl.options[0].textContent = finalValue ? `🏷 ${finalValue} ▾` : '+ Tag client ▾';
+    selectEl.selectedIndex = 0;
+    if (finalValue) {
+      selectEl.style.background = '#eff6ff';
+      selectEl.style.color = '#1e40af';
+      selectEl.style.border = '1px solid #bfdbfe';
+    } else {
+      selectEl.style.background = '#f8fafc';
+      selectEl.style.color = '#64748b';
+      selectEl.style.border = '1px solid #e2e8f0';
+    }
+  }
+
+  // Fire the sheet write — no awaiting, no immediate refetch. The pending-writes
+  // registry will keep the tag visible across refreshes until the sheet confirms.
   try {
     fetch(SHEETDB, {
       method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
@@ -2495,11 +2618,50 @@ async function updateTaskClient(encodedTask, newValue, selectEl) {
         matchValue: task, data: { Client: finalValue }
       })
     });
-    // Re-fetch so the new tag flows through. loadTasks repaints the row.
-    setTimeout(() => loadTasks(), 400);
   } catch(e) {
     alert('Could not update client tag.');
   }
+}
+
+// Reconcile pending client writes against fresh sheet data. Called inside
+// loadTasks after refetching but BEFORE re-rendering. Three outcomes per
+// pending write:
+//   1. Sheet shows the new value → confirmed, drop from pending
+//   2. Sheet still shows old value, < 30s elapsed → re-apply optimistically
+//      so the chip doesn't vanish; we'll re-check on the next refresh
+//   3. Sheet still shows old value, > 30s and attempts < 3 → retry the patch
+//      (Apps Script may have dropped the write)
+//   4. After 3 attempts → give up, surface to console
+function reconcilePendingClientUpdates(freshTasks) {
+  const pending = window._pendingClientUpdates || {};
+  Object.entries(pending).forEach(([task, info]) => {
+    const t = freshTasks.find(x => x.Task === task);
+    if (!t) return; // task gone — clean up
+    if ((t.Client || '') === info.client) {
+      delete pending[task];
+      return; // sheet caught up, all good
+    }
+    // Still stale — re-apply optimistically so the user's chip doesn't vanish
+    t.Client = info.client;
+    const elapsed = Date.now() - info.lastTry;
+    if (elapsed > 30000 && info.attempts < 3) {
+      info.attempts++;
+      info.lastTry = Date.now();
+      console.log(`Retrying client tag write for ${task} (attempt ${info.attempts})`);
+      try {
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({
+            action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+            matchValue: task, data: { Client: info.client }
+          })
+        });
+      } catch(e) {}
+    } else if (info.attempts >= 3) {
+      console.warn(`Gave up on client tag write for ${task} — manual save needed`);
+      delete pending[task];
+    }
+  });
 }
 
 async function updateStatusFromDropdown(idx, encodedTask) {
@@ -2617,22 +2779,24 @@ function getSchedule(name) {
 }
 
 // Universal time cutoffs (apply to everyone regardless of schedule)
-const ABSENT_AFTER_MIN  = 11 * 60 + 30; // 11:30 AM IST — no mark by now = Absent
-const HALFDAY_AFTER_MIN = 13 * 60 + 30; // 1:30 PM IST — marking after = Half Day
+const ABSENT_AFTER_MIN  = 11 * 60 + 30; // 11:30 AM IST — no mark by now = Half Day window starts
+const LEAVE_AFTER_MIN   = 14 * 60 + 30; // 2:30 PM IST — past this, no Half Day. It's Leave.
 
 // Compute attendance status from minutes-of-day (in IST)
 // - up to scheduled+grace → Present
 // - up to 11:30 AM → Late
-// - after 11:30 AM → Half Day (you can still mark, but it's half day)
+// - 11:30 AM – 2:30 PM → Half Day (still markable)
+// - after 2:30 PM → Leave (mark button hides, day is logged as full leave)
 function computeAttendanceStatus(name, totalMin) {
   const s = getSchedule(name);
   if (totalMin <= s.onTimeBy)        return 'Present';
   if (totalMin <= ABSENT_AFTER_MIN)  return 'Late';
-  return 'Half Day';
+  if (totalMin <= LEAVE_AFTER_MIN)   return 'Half Day';
+  return 'Leave';
 }
 
 // Returns the displayed status for someone today, considering all factors:
-// Inactive / Off / On Leave / [marked status] / Absent / Not marked
+// Inactive / Off / On Leave / [marked status] / Absent (past cutoff, unmarked) / Not marked
 function resolveTodayStatus(name, attendanceRowToday, allRows, currentMinNow) {
   if (isInactive(name)) return 'Inactive';
   const today = new Date();
@@ -2660,7 +2824,9 @@ function resolveTodayStatus(name, attendanceRowToday, allRows, currentMinNow) {
 
   if (getApprovedLeaveForDate(name, todayStr, allRows)) return 'On Leave';
   if (attendanceRowToday) return attendanceRowToday.Status || 'Present';
-  // No mark — derive from current time
+  // No mark — derive from current time. Past 2:30 PM with no mark = effectively
+  // on leave for the day (per Suriti: can't claim half day this late).
+  if (currentMinNow > LEAVE_AFTER_MIN) return 'On Leave';
   if (currentMinNow > ABSENT_AFTER_MIN) return 'Absent';
   return 'Not marked';
 }
@@ -2703,18 +2869,14 @@ function startISTClock() {
 function setAttendancePill(status) {
   const pill = document.getElementById('att-status-pill');
   if (!pill) return;
-  const palette = {
-    'Present':    '#86b59c',  // sage
-    'Late':       '#d864a3',  // dusty pink
-    'Half Day':   '#c89572',  // dusty orange
-    'Absent':     '#c95757',  // red
-    'On Leave':   '#7a8ec0',  // dusty blue
-    'Off':        '#bbb',     // weekend / not a workday
-    'Inactive':   '#ddd',     // sleeping
-    'Not marked': '#bbb'
-  };
-  pill.style.color = palette[status] || palette['Not marked'];
-  pill.textContent = status.toUpperCase();
+  // Suriti's rule: only Present and Leave exist as visible labels. Map any raw
+  // status (Late, Half Day, Absent, On Leave, Off, Not marked, etc.) to one of
+  // the two. Internal data layer keeps the granular truth.
+  const isPresent = status === 'Present' || status === 'Late' || status === 'Half Day';
+  const label = isPresent ? 'PRESENT' : 'LEAVE';
+  const color = isPresent ? '#86b59c' : '#7a8ec0';  // sage / dusty blue
+  pill.style.color = color;
+  pill.textContent = label;
 }
 
 // Google Sheets serializes time-only cells as a 1899-prefixed date string like
@@ -2744,15 +2906,12 @@ async function loadAttendance() {
     const btnEl      = document.getElementById('mark-btn');
     const schedule   = getSchedule(currentUser);
 
-    // Display palettes
+    // Display palette — only two visible states per Suriti's rule.
+    // Internal branching below still uses the granular effectiveStatus to decide
+    // whether to show the Mark Attendance button; the visible label is binary.
     const palette = {
-      'Present':  { color:'#15803d', icon:'✓', label:'Present',  bg:'#dcfce7' },
-      'Late':     { color:'#be185d', icon:'⏰', label:'Late',     bg:'#fce7f3' },
-      'Half Day': { color:'#9a3412', icon:'🟡', label:'Half day', bg:'#fed7aa' },
-      'Absent':   { color:'#b91c1c', icon:'✕',  label:'Absent',   bg:'#fee2e2' },
-      'On Leave': { color:'#1e40af', icon:'📍', label:'On Leave', bg:'#dbeafe' },
-      'Off':      { color:'#666',    icon:'🌴', label:'Off',      bg:'#f3f4f6' },
-      'Inactive': { color:'#999',    icon:'💤', label:'Inactive', bg:'#f5f5f5' }
+      Present: { color:'#15803d', icon:'✓',  label:'Present', bg:'#dcfce7' },
+      Leave:   { color:'#1e40af', icon:'📍', label:'Leave',   bg:'#dbeafe' }
     };
 
     if (scheduleEl) {
@@ -2764,45 +2923,47 @@ async function loadAttendance() {
 
     // === ON LEAVE today — show that, hide button ===
     if (effectiveStatus === 'On Leave') {
-      const p = palette['On Leave'];
+      const p = palette.Leave;
       if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} On leave today</span>`;
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill('On Leave');
     }
     // === OFF (weekend / non-working day) — show that, hide button ===
     else if (effectiveStatus === 'Off') {
-      const p = palette['Off'];
+      const p = palette.Leave;
       if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Off today — enjoy.</span>`;
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill('Off');
     }
-    // === MARKED (Present / Late / Half Day) — show effective status, not raw todayAtt[0]
-    // (otherwise an override is invisible because todayAtt[0] is the ORIGINAL mark)
+    // === MARKED (Present / Late / Half Day) — show as Present, retain time stamp ===
     else if (['Present','Late','Half Day'].includes(effectiveStatus)) {
       const time = formatAttTimeTeam(todayAtt[0]?.Title || '');
-      const p = palette[effectiveStatus] || palette['Present'];
-      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} ${p.label}</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
+      const p = palette.Present;
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Present</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill(effectiveStatus);
     }
-    // === ABSENT (past 11:30 AM, no mark) — show as absent but still allow mark = Half Day ===
+    // === ABSENT (between 11:30 AM and 2:30 PM, no mark) — show as Leave but
+    //     keep the button so they can still mark and log as Half Day. After
+    //     2:30 PM resolveTodayStatus returns 'On Leave' instead, which falls
+    //     through to the On Leave branch above (no mark button).
     else if (effectiveStatus === 'Absent') {
-      const p = palette['Absent'];
-      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Marked absent</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">You missed the 11:30 AM cutoff. Marking now will log a <span style="color:#9a3412;font-weight:700">Half day</span>.</span>`;
+      const p = palette.Leave;
+      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Leave</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">You missed the 11:30 AM cutoff. Marking before 2:30 PM still logs you as Present (Half Day internally).</span>`;
       if (btnEl) {
         btnEl.style.display = 'inline-block';
-        btnEl.textContent = `✅ Mark Attendance (Half day)`;
+        btnEl.textContent = `✅ Mark Attendance`;
       }
       setAttendancePill('Absent');
     }
-    // === NOT MARKED YET — preview projected status ===
+    // === NOT MARKED YET — preview but keep terminology binary ===
     else {
       const projectedStatus = computeAttendanceStatus(currentUser, ist.totalMin);
-      const p = palette[projectedStatus];
-      if (statusEl) statusEl.innerHTML = `<span style="color:#888;font-weight:500;font-size:14px">Not marked yet</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">Marking now will be logged as <span style="color:${p.color};font-weight:700">${p.label}</span></span>`;
+      const p = palette.Present;
+      if (statusEl) statusEl.innerHTML = `<span style="color:#888;font-weight:500;font-size:14px">Not marked yet</span> <span style="font-size:12px;color:#666;display:block;margin-top:4px">Marking now will log you as <span style="color:${p.color};font-weight:700">Present</span></span>`;
       if (btnEl) {
         btnEl.style.display = 'inline-block';
-        btnEl.textContent = `✅ Mark Attendance (${p.label})`;
+        btnEl.textContent = `✅ Mark Attendance`;
       }
       setAttendancePill('Not marked');
     }
@@ -2883,13 +3044,17 @@ async function loadAttendance() {
 
     document.getElementById('attendance-history').innerHTML = history.length
       ? history.map(([date, info]) => {
-          const p = palette[info.status] || palette['Present'];
+          // Collapse raw status to the binary vocab Suriti wants surfaced
+          // everywhere: Present (if marked in any form) or Leave (anything else).
+          const isPresent = info.status === 'Present' || info.status === 'Late' || info.status === 'Half Day';
+          const displayStatus = isPresent ? 'Present' : 'Leave';
+          const p = palette[displayStatus];
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-weight:500">${date}</span>
               ${info.time ? `<span style="font-size:11px;color:#888;font-family:'DM Mono',monospace">${info.time}</span>` : ''}
             </div>
-            <span style="background:${p.bg};color:${p.color};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">${info.status}</span>
+            <span style="background:${p.bg};color:${p.color};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">${displayStatus}</span>
           </div>`;
         }).join('')
       : '<div class="empty-state">No history yet.</div>';
@@ -3055,7 +3220,7 @@ Be specific and practical. Format as a quick checklist with ✅ or ⚠️ for ea
   try {
     const res  = await fetch(BACKEND, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
     const reply = data.content?.[0]?.text || 'Could not get AI analysis.';
