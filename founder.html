@@ -708,7 +708,12 @@
           <label>Client</label>
           <select id="task-client" onchange="onClientChange('task-client','task-client-custom')">
             <option value="">— Select —</option>
-            <option value="Jindal">Jindal Group</option>
+            <optgroup label="Jindal">
+              <option value="Jindal Steel">Jindal Steel</option>
+              <option value="Jindal Youth League">Jindal Youth League</option>
+              <option value="Sohar Steel">Sohar Steel</option>
+              <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+            </optgroup>
             <option value="Kotak">Kotak</option>
             <option value="Pitches">Pitches</option>
             <option value="Adhoc">Adhoc</option>
@@ -736,7 +741,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="card-title" style="margin:0">All Tasks</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="task-search" placeholder="🔍 Search task or person..." style="width:220px" oninput="filterTasks()">
+          <input type="text" id="task-search" placeholder="🔍 Search: name, status, client..." style="width:240px" oninput="filterTasks()">
           <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
         </div>
       </div>
@@ -1829,7 +1834,7 @@ async function sendChat() {
 
   // Build live task context
   const today = new Date().toISOString().split('T')[0];
-  const openTasks = allTasks.filter(t => t.Status !== 'Done' && (t.Type === 'task' || !t.Type || t.Type === ''));
+  const openTasks = allTasks.filter(t => t.Status !== 'Done' && t.Status !== 'Closed' && (t.Type === 'task' || !t.Type || t.Type === ''));
   const todayTasks = allTasks.filter(t => t.Date === today && (t.Type === 'task' || !t.Type || t.Type === ''));
   const taskSummary = openTasks.length
     ? `\n\nLIVE OPEN TASKS (${openTasks.length} total):\n` + openTasks.map(t => `- ${t.Assignee}: ${t.Task} [${t.Status || 'Pending'}] due ${t.Date}`).join('\n')
@@ -2562,7 +2567,7 @@ function checkTeamNotifications(tasks) {
   // Notification 2: Designers who cleared their queue
   const openCounts = {};
   TEAM_LIST.forEach(name => {
-    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done').length;
+    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done' && t.Status !== 'Closed' && t.Status !== 'closed').length;
   });
   const cleared = [];
   TEAM_LIST.forEach(name => {
@@ -2707,13 +2712,19 @@ function renderTasks(tasks) {
   let html = '';
 
   // Active Today: any open task created today OR with an update timestamped today.
-  // Skip this entirely when a filter is active — user explicitly wants ONLY the filtered tasks.
+  // Update lines can be in either [MM-DD] (legacy) or [DD-MM] (current Indian) format —
+  // check both so Suriti's own updates surface the task as active today.
+  // Skip this entirely when a filter is active.
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayMonthDay = todayStr.substring(5); // "MM-DD"
+  const todayDate = new Date();
+  const todayMD = todayStr.substring(5);  // "MM-DD" (legacy)
+  const todayDM = `${String(todayDate.getDate()).padStart(2,'0')}-${String(todayDate.getMonth()+1).padStart(2,'0')}`;  // "DD-MM" (new)
   const activeToday = _taskFilterIds ? [] : tasks.filter(t => {
-    if (t.Status === 'Done') return false;
+    const status = (t.Status || '').toLowerCase();
+    if (status === 'done' || status === 'closed') return false;
     if (t.Date === todayStr) return true;
-    if ((t.Update || '').includes(`[${todayMonthDay}]`)) return true;
+    const upd = t.Update || '';
+    if (upd.includes(`[${todayMD}]`) || upd.includes(`[${todayDM}]`)) return true;
     return false;
   });
   if (activeToday.length) {
@@ -2742,13 +2753,16 @@ function renderTasks(tasks) {
   // Helper that renders the contents of a single date group (header + its tasks)
   const renderDateGroup = (date) => {
     const total = grouped[date].length;
-    const done  = grouped[date].filter(t => t.Status === 'Done').length;
+    const done  = grouped[date].filter(t => t.Status === 'Done' || t.Status === 'Closed').length;
     let out = `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>${date}</span>
-      <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} done</span>
+      <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} closed</span>
     </div>`;
     grouped[date].forEach((t) => {
-      const status = t.Status || 'Pending';
+      // Normalize legacy "Done" → "Closed" across the system. Going forward only
+      // "Closed" exists; Suriti asked to drop "Done" entirely.
+      const rawStatus = t.Status || 'Pending';
+      const status = rawStatus === 'Done' ? 'Closed' : rawStatus;
       const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
       const link = t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
       const title = t.Title || '';
@@ -2789,7 +2803,6 @@ function renderTasks(tasks) {
           <option ${status==='Approved'?'selected':''}>Approved</option>
           <option ${status==='Closed'?'selected':''}>Closed</option>
           <option ${status==='On Hold'?'selected':''}>On Hold</option>
-          ${status==='Done'?'<option selected>Done</option>':''}
         </select>
         <input type="text" placeholder="Paste link" value="${t['Preview Link']||''}"
           onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
@@ -2817,7 +2830,7 @@ function renderTasks(tasks) {
     const isCurrent = m === currentMonthKey;
     const monthDates = monthGroups[m];
     const totalTasks = monthDates.reduce((s,d) => s + grouped[d].length, 0);
-    const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Done').length, 0);
+    const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Done' || t.Status === 'Closed').length, 0);
     let monthLabel;
     try {
       monthLabel = new Date(m + '-01').toLocaleDateString('en-IN', {month: 'long', year: 'numeric'});
@@ -3001,7 +3014,23 @@ function filterTasks() {
   const search = document.getElementById('task-search').value.toLowerCase().trim();
   const date = document.getElementById('task-filter-date').value;
   let filtered = allTasks;
-  if(search) filtered = filtered.filter(t => (t.Task+t.Assignee).toLowerCase().includes(search));
+  if(search) {
+    filtered = filtered.filter(t => {
+      // Match across ALL useful fields — title, description, assignee, client, status.
+      // So typing "pending", "closed", "kritya", "jindal", "behance" all work.
+      // Done is normalized to Closed for consistency with the renamed status.
+      const statusNorm = (t.Status || '').toLowerCase() === 'done' ? 'closed' : (t.Status || '').toLowerCase();
+      const haystack = [
+        t.Title || '',
+        t.Task || '',
+        t.Assignee || '',
+        t.Client || '',
+        statusNorm,
+        t.Notes || ''
+      ].join(' ').toLowerCase();
+      return haystack.includes(search);
+    });
+  }
   if(date) filtered = filtered.filter(t => t.Date === date);
 
   // Quick lookup — show ClickUp links prominently if search has 3+ chars
