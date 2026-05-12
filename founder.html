@@ -745,7 +745,6 @@
           <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
         </div>
       </div>
-      <div id="quick-lookup-result" style="display:none;margin-bottom:12px;padding:12px;background:var(--surface2);border:1px solid var(--yellow);border-radius:6px"></div>
       <div id="tasks-list"><div class="empty-state">No tasks yet. Add one above.</div></div>
     </div>
   </div>
@@ -1265,7 +1264,7 @@
           </select>
         </div>
         <div>
-          <label>ClickUp / File Link</label>
+          <label>File Link</label>
           <input type="text" id="cl-link" placeholder="Paste link">
         </div>
       </div>
@@ -1834,7 +1833,10 @@ async function sendChat() {
 
   // Build live task context
   const today = new Date().toISOString().split('T')[0];
-  const openTasks = allTasks.filter(t => t.Status !== 'Done' && t.Status !== 'Closed' && (t.Type === 'task' || !t.Type || t.Type === ''));
+  const openTasks = allTasks.filter(t => {
+    const s = (t.Status || '').toLowerCase();
+    return s !== 'done' && s !== 'closed' && (t.Type === 'task' || !t.Type || t.Type === '');
+  });
   const todayTasks = allTasks.filter(t => t.Date === today && (t.Type === 'task' || !t.Type || t.Type === ''));
   const taskSummary = openTasks.length
     ? `\n\nLIVE OPEN TASKS (${openTasks.length} total):\n` + openTasks.map(t => `- ${t.Assignee}: ${t.Task} [${t.Status || 'Pending'}] due ${t.Date}`).join('\n')
@@ -2330,26 +2332,43 @@ function renderCapacity(tasks) {
   if (!wrap) return;
 
   const today = new Date().toISOString().split('T')[0];
-  const OPEN = ['Pending','In Progress','Awaiting Review','Awaiting Client','On Hold'];
-  const ACTIONABLE = ['Pending','In Progress','On Hold'];
+  // Case-insensitive set so "pending", "PENDING", "In progress" all match correctly
+  const OPEN_LC = new Set(['pending','in progress','awaiting review','awaiting client','on hold']);
+  const ACTIONABLE_LC = new Set(['pending','in progress','on hold']);
+  const statusLC = s => (s || 'Pending').toString().trim().toLowerCase();
 
   // Today's data for resolving each person's day status
   const allData = window._allRowsCache || tasks;
   const istNow3 = getISTMinutes();
   const todayMarked = {};
-  allData.filter(r => r.Type === 'attendance' && r.Date === today).forEach(r => { todayMarked[r.Assignee] = r; });
+  // Multiple attendance rows may exist for one person on one day (original mark +
+  // any number of overrides). Prefer the override row. Key by normalized name so
+  // trailing spaces or case differences in the sheet don't cause mismatches.
+  allData.filter(r => r.Type === 'attendance' && r.Date === today).forEach(r => {
+    const key = norm(r.Assignee);
+    if (!key) return;
+    const existing = todayMarked[key];
+    const isOverride = /override/i.test(r.Notes || '');
+    if (!existing || isOverride) {
+      todayMarked[key] = r;
+    }
+  });
 
-  // Build per-person stats — only ACTIVE members (Sam excluded)
+  // Build per-person stats — only ACTIVE members (Sam excluded).
+  // Match assignee with whitespace/case tolerance so accidental trailing spaces
+  // or case differences in the sheet don't cause people to appear idle.
+  const norm = s => (s || '').trim().toLowerCase();
   const stats = ACTIVE_TEAM.map(name => {
-    const myTasks = tasks.filter(t => t.Assignee === name && OPEN.includes(t.Status || 'Pending'));
-    const overdue = myTasks.filter(t => t.Date && t.Date < today && ACTIONABLE.includes(t.Status || 'Pending')).length;
+    const nameNorm = norm(name);
+    const myTasks = tasks.filter(t => norm(t.Assignee) === nameNorm && OPEN_LC.has(statusLC(t.Status)));
+    const overdue = myTasks.filter(t => t.Date && t.Date < today && ACTIONABLE_LC.has(statusLC(t.Status))).length;
     let oldestAge = 0;
     myTasks.forEach(t => {
       if (!t.Date) return;
       const age = Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24));
       if (age > oldestAge) oldestAge = age;
     });
-    const dayStatus = resolveTodayStatusFOS(name, todayMarked[name], allData, istNow3, today);
+    const dayStatus = resolveTodayStatusFOS(name, todayMarked[nameNorm], allData, istNow3, today);
     return { name, count: myTasks.length, overdue, oldestAge, dayStatus };
   });
 
@@ -2460,10 +2479,12 @@ function renderMorningDigest(tasks) {
 
   // Per-designer open task counts
   const byPerson = {};
+  const normName = s => (s || '').trim().toLowerCase();
   openTasks.forEach(t => {
     if (!t.Assignee) return;
-    if (!byPerson[t.Assignee]) byPerson[t.Assignee] = 0;
-    byPerson[t.Assignee]++;
+    const key = normName(t.Assignee);
+    if (!byPerson[key]) byPerson[key] = 0;
+    byPerson[key]++;
   });
 
   // Idle calculation — only people who SHOULD be working today AND have no open tasks
@@ -2473,17 +2494,27 @@ function renderMorningDigest(tasks) {
   const istNow2 = getISTMinutes();
   const allData = window._allRowsCache || tasks; // best-effort cache; fallback to task list
   const todayMarkedFor = {};
-  allData.filter(r => r.Type === 'attendance' && r.Date === todayStr2).forEach(r => { todayMarkedFor[r.Assignee] = r; });
+  allData.filter(r => r.Type === 'attendance' && r.Date === todayStr2).forEach(r => {
+    const key = normName(r.Assignee);
+    if (!key) return;
+    const existing = todayMarkedFor[key];
+    const isOverride = /override/i.test(r.Notes || '');
+    if (!existing || isOverride) todayMarkedFor[key] = r;
+  });
   const idleDesigners = ACTIVE_TEAM.filter(n => {
-    if (byPerson[n] > 0) return false;                                  // has open tasks → not idle
-    const todayStatus = resolveTodayStatusFOS(n, todayMarkedFor[n], allData, istNow2, todayStr2);
+    if (byPerson[normName(n)] > 0) return false;                          // has open tasks → not idle
+    const todayStatus = resolveTodayStatusFOS(n, todayMarkedFor[normName(n)], allData, istNow2, todayStr2);
     // Don't count someone as idle if they're not even expected to be working,
     // OR if we don't yet know their status today ('Not marked' = before attendance cutoff).
     // Suriti was seeing absent people incorrectly flagged as idle — this guards against that.
     if (['Inactive','Off','On Leave','Absent','Not marked'].includes(todayStatus)) return false;
     return true;
   });
-  const overloaded = Object.entries(byPerson).filter(([n,c]) => c >= 5 && !isInactive(n)).map(([n,c]) => ({ name:n, count:c }));
+  // overloaded keys are normalized (lowercase); look up the canonical name from ACTIVE_TEAM for display
+  const overloaded = Object.entries(byPerson)
+    .filter(([n,c]) => c >= 5)
+    .map(([n,c]) => ({ name: ACTIVE_TEAM.find(a => normName(a) === n) || n, count: c }))
+    .filter(o => !isInactive(o.name));
 
   // Throughput — tasks closed in last 7 days (using Date as proxy if no closed-date)
   const closedThisWeek = tasks.filter(t => DONE.includes(t.Status) && t.Date && t.Date >= weekStartStr).length;
@@ -3036,25 +3067,6 @@ function filterTasks() {
   }
   if(date) filtered = filtered.filter(t => t.Date === date);
 
-  // Quick lookup — show ClickUp links prominently if search has 3+ chars
-  const lookupEl = document.getElementById('quick-lookup-result');
-  if(search.length >= 3) {
-    const withLinks = filtered.filter(t => t['Preview Link']);
-    if(withLinks.length) {
-      lookupEl.style.display = 'block';
-      lookupEl.innerHTML = `<div style="font-size:11px;color:var(--yellow);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">🔗 Quick Links</div>` +
-        withLinks.map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
-          <span><span style="color:var(--yellow);font-weight:700">${t.Assignee}</span> — ${t.Task} <span style="color:var(--muted);font-size:11px">(${t.Date})</span></span>
-          <a href="${t['Preview Link']}" target="_blank" class="btn btn-yellow btn-sm" style="text-decoration:none;font-size:11px">🔗 Open</a>
-        </div>`).join('');
-    } else {
-      lookupEl.style.display = 'block';
-      lookupEl.innerHTML = `<span style="font-size:12px;color:var(--muted)">No ClickUp links found for "${search}" yet.</span>`;
-    }
-  } else {
-    lookupEl.style.display = 'none';
-  }
-
   renderTasks(filtered);
 }
 
@@ -3129,17 +3141,23 @@ async function addTask() {
 // (Email-all functionality removed — team sees tasks live in their portal.)
 
 // ====== HR ======
-async function loadHR() {
+// `skipFetch=true` re-renders using only the in-memory cache. Used by openAttendanceOverride
+// to show an instant local UI update without waiting for the sheet round-trip (which would
+// overwrite the optimistic cache with stale server data).
+async function loadHR(skipFetch) {
   const today = new Date().toISOString().split('T')[0];
   const filterDate = document.getElementById('hr-date-filter')?.value || today;
 
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const raw = await res.json();
-    const data = raw.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
-
-    // Make full row list available to renderMorningDigest's idle calculation
-    window._allRowsCache = data;
+    let data;
+    if (skipFetch && window._allRowsCache) {
+      data = window._allRowsCache;
+    } else {
+      const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
+      const raw = await res.json();
+      data = raw.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
+      window._allRowsCache = data;
+    }
 
     // Now render capacity using the FRESH data — task rows for counts,
     // _allRowsCache (set above) for attendance lookups.
@@ -3149,16 +3167,24 @@ async function loadHR() {
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');
 
-    // Build {name → attendance row} for today
+    // Build {normalized name → attendance row} for today — prefer override rows
+    // Normalize the key so "Gayatri" matches "Gayatri " or "gayatri" rows.
     const todayMarkedBy = {};
-    attendance.filter(r => r.Date === today).forEach(r => { todayMarkedBy[r.Assignee] = r; });
+    const normHR = s => (s || '').trim().toLowerCase();
+    attendance.filter(r => r.Date === today).forEach(r => {
+      const key = normHR(r.Assignee);
+      if (!key) return;
+      const existing = todayMarkedBy[key];
+      const isOverride = /override/i.test(r.Notes || '');
+      if (!existing || isOverride) todayMarkedBy[key] = r;
+    });
 
     // Compute status for every ACTIVE team member (Sam etc. excluded automatically)
     const istNow = getISTMinutes();
     const rows = ACTIVE_TEAM.map(name => ({
       name,
-      status: resolveTodayStatusFOS(name, todayMarkedBy[name], data, istNow, today),
-      time: formatAttTime(todayMarkedBy[name]?.Title || '')
+      status: resolveTodayStatusFOS(name, todayMarkedBy[normHR(name)], data, istNow, today),
+      time: formatAttTime(todayMarkedBy[normHR(name)]?.Title || '')
     }));
 
     // Bucket by status for visual grouping
@@ -3242,7 +3268,10 @@ async function loadHR() {
 }
 
 // Suriti can manually override any team member's attendance status for today.
-// If they've already marked → patch their existing row. If not → create one.
+// Strategy: ALWAYS insert a new row tagged "override by Suriti" with a unique Task ID.
+// Reading code prefers the override row over the original mark.
+// This avoids the patch-by-Task bug where Task is a time string ("09:30:00") that
+// collides across days, causing patches to update the wrong row.
 async function openAttendanceOverride(name, currentStatus) {
   const options = ['Present', 'Late', 'Half Day', 'Absent', 'On Leave'];
   const prompt = `Change ${name}'s status for today (currently: ${currentStatus})\n\n` +
@@ -3256,42 +3285,34 @@ async function openAttendanceOverride(name, currentStatus) {
   if (newStatus === currentStatus) return;
 
   const today = getISTDate();
+  const timestamp = Date.now();
 
   try {
+    let row;
     if (newStatus === 'On Leave') {
-      // Add an approved leave row for today (single-day leave)
-      const row = { Date: today, Task: today, Assignee: name, Status: 'Approved', Type: 'leave', Notes: 'override by Suriti' };
-      await fetch(SHEETDB_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-        body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
-      });
+      row = { Date: today, Task: `override-leave-${name}-${today}-${timestamp}`, Assignee: name, Status: 'Approved', Type: 'leave', Notes: 'override by Suriti' };
     } else {
-      // Find existing attendance row for today
-      const data = window._allRowsCache || [];
-      const existing = data.find(r => r.Type === 'attendance' && r.Assignee === name && r.Date === today);
-      if (existing) {
-        // Patch existing row's status
-        await fetch(SHEETDB_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({
-            action: 'patch',
-            sheet: 'Type:tasks',
-            matchColumn: 'Task',
-            matchValue: existing.Task,
-            data: { Status: newStatus, Notes: 'override by Suriti' }
-          })
-        });
-      } else {
-        // Create a new attendance row with the override time = "manual"
-        const row = { Date: today, Title: '—', Task: 'manual-' + name + '-' + today, Assignee: name, Status: newStatus, Notes: 'override by Suriti', Type: 'attendance' };
-        await fetch(SHEETDB_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
-        });
-      }
+      // Unique Task ID ensures this row never collides with the original mark or other overrides
+      row = { Date: today, Title: '—', Task: `override-att-${name}-${today}-${timestamp}`, Assignee: name, Status: newStatus, Notes: 'override by Suriti', Type: 'attendance' };
     }
-    // Refresh HR after sheet commits
-    setTimeout(loadHR, 1500);
+
+    console.log('[override] writing row for', name, '→', newStatus, row);
+
+    await fetch(SHEETDB_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
+    });
+
+    // Optimistic local update so the UI reflects the change immediately
+    if (!window._allRowsCache) window._allRowsCache = [];
+    window._allRowsCache.push(row);
+
+    // Render NOW using the cached data (with our new row in it) — no refetch.
+    // This avoids the race where loadHR() would refetch the sheet (which hasn't
+    // committed our override yet) and wipe the optimistic update.
+    loadHR(true);
+    // Then 3 seconds later, fetch fresh data to sync with the sheet
+    setTimeout(() => loadHR(), 3000);
   } catch(e) {
     alert('Could not update status: ' + e.message);
   }
