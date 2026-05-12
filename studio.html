@@ -200,13 +200,13 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
         <div class="form-sub">Pick a task, drop the file, done</div>
 
         <div class="field">
-          <label>Designer</label>
+          <label>Team</label>
           <select id="q-designer" onchange="onDesignerChange()">
             <option value="">Select your name</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
-            <option>Siddhesh</option><option>Ajay</option>
+            <option>Siddhesh</option><option>Ajay</option><option>Kritya</option>
           </select>
         </div>
 
@@ -222,29 +222,34 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
           <input type="text" id="q-name" placeholder="What are you uploading?">
         </div>
 
-        <div class="field">
+        <!-- Client is auto-set from the picked task — no manual selection.
+             Hidden select keeps the rest of the form code working without touching
+             submitUpload's client handling. Visible read-only line shows the
+             resolved client so the designer can confirm before uploading. -->
+        <div class="field" id="client-info" style="display:none">
           <label>Client</label>
-          <select id="q-client">
-            <option value="">Select client...</option>
-            <optgroup label="Jindal Group">
-              <option value="Jindal Steel">Jindal Steel</option>
-              <option value="Jindal League">Jindal League</option>
-              <option value="Jindal Youth League">Jindal Youth League</option>
-              <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
-              <option value="Sohar Steel">Sohar Steel</option>
-            </optgroup>
-            <option value="RM Universal">RM Universal</option>
-            <option value="Kotak">Kotak</option>
-            <option value="TEAM YP">TEAM YP</option>
-            <option value="Pitches">Pitches</option>
-            <option value="Marico">Marico</option>
-            <option value="Zouk">Zouk</option>
-            <option value="TATA Mutual Funds">TATA Mutual Funds</option>
-            <option value="HZL">HZL</option>
-            <option value="Adhoc">Adhoc / One-time client</option>
-          </select>
-          <div id="q-client-lock-note" style="display:none;font-size:11px;color:#15803d;margin-top:6px;line-height:1.4">🔒 Auto-set from the task you picked. Locked so files can't mis-route.</div>
+          <div id="q-client-display" style="font-size:14px;font-weight:600;color:#1e40af;padding:8px 0">—</div>
         </div>
+        <select id="q-client" style="display:none">
+          <option value="">Select client...</option>
+          <optgroup label="Jindal Group">
+            <option value="Jindal Steel">Jindal Steel</option>
+            <option value="Jindal League">Jindal League</option>
+            <option value="Jindal Youth League">Jindal Youth League</option>
+            <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+            <option value="Sohar Steel">Sohar Steel</option>
+          </optgroup>
+          <option value="RM Universal">RM Universal</option>
+          <option value="Kotak">Kotak</option>
+          <option value="TEAM YP">TEAM YP</option>
+          <option value="Pitches">Pitches</option>
+          <option value="Marico">Marico</option>
+          <option value="Zouk">Zouk</option>
+          <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+          <option value="HZL">HZL</option>
+          <option value="Adhoc">Adhoc / One-time client</option>
+        </select>
+        <div id="q-client-lock-note" style="display:none"></div>
 
         <div class="field">
           <label>File type</label>
@@ -401,6 +406,11 @@ async function onDesignerChange() {
   const designer = document.getElementById('q-designer').value;
   const taskSelect = document.getElementById('q-task');
   document.getElementById('creative-name-field').style.display = 'none';
+  // Reset the client display — stale info from a previous designer's task shouldn't carry over
+  const clientInfo = document.getElementById('client-info');
+  if (clientInfo) clientInfo.style.display = 'none';
+  const clientSel = document.getElementById('q-client');
+  if (clientSel) clientSel.value = '';
   myTasks = [];
 
   if (!designer) {
@@ -430,12 +440,17 @@ async function onDesignerChange() {
       const isFullyComplete = (r.Status === 'Done' || r.Status === 'Approved') && (r['Open File Link'] || '').trim();
       if (isFullyComplete) return false;
 
+      // Suriti's directive: only show actionable tasks. Closed tasks are done —
+      // no upload expected. Hide them entirely (designer can't do anything useful
+      // with a Closed task from this screen).
+      if (r.Status === 'Closed' || r.Status === 'closed') return false;
+
       // Open tasks assigned to this designer
       if ((r.Type === 'task' || !r.Type || r.Type === '') && r.Assignee === designer) {
         if (r.Status !== 'Done') return true; // active task — always show
         return isWithinWindow(r.Date); // recently done — keep for a week so designer can upload open file
       }
-      // Creatives by this designer
+      // Creatives by this designer (rework flow)
       if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
         if (r.Status === 'Sent Back') return true; // rework — always show
         if (['Approved', 'Rejected', 'Done'].includes(r.Status)) return isWithinWindow(r.Date);
@@ -445,15 +460,13 @@ async function onDesignerChange() {
 
     const opts = ['<option value="">Select task...</option>'];
     myTasks.forEach((t, i) => {
-      const isRework = t.Type === 'creative' && t.Status === 'Sent Back';
-      const isClosed = t.Status === 'Done' || t.Status === 'Approved' || t.Status === 'Rejected';
-      const needsOpenFile = (t.Status === 'Done' || t.Status === 'Approved') && !(t['Open File Link'] || '').trim();
-      // Display: prefer Title; otherwise truncated Task description
+      // Clean label: just the title, no icons, no status suffix. Internal state
+      // (rework, needs-open-file, etc.) is conveyed by behavior elsewhere (the
+      // File Type picker pre-selects Open File for Approved tasks awaiting it,
+      // and rework uploads handle the path automatically on submit).
       const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
-      const displayName = rawName.length > 50 ? rawName.substring(0, 50) + '…' : rawName;
-      const prefix = isRework ? '🔄 Rework: ' : (needsOpenFile ? '📂 ' : (isClosed ? `✓ ` : ''));
-      const suffix = needsOpenFile ? ' [needs open file]' : (isClosed ? ` [${t.Status}]` : (t.Status && t.Status !== 'Pending' && !isRework ? ` [${t.Status}]` : ''));
-      opts.push(`<option value="${i}">${prefix}${displayName}${suffix}</option>`);
+      const displayName = rawName.length > 60 ? rawName.substring(0, 60) + '…' : rawName;
+      opts.push(`<option value="${i}">${displayName}</option>`);
     });
     opts.push('<option value="" disabled>— No matching task? Add one in your Team portal —</option>');
 
@@ -468,37 +481,41 @@ async function onDesignerChange() {
 function onTaskChange() {
   const val = document.getElementById('q-task').value;
   const clientSel = document.getElementById('q-client');
-  const lockNote = document.getElementById('q-client-lock-note');
+  const clientInfo = document.getElementById('client-info');
+  const clientDisplay = document.getElementById('q-client-display');
   document.getElementById('creative-name-field').style.display = val === 'adhoc' ? 'block' : 'none';
 
-  // Reset to unlocked state by default
-  clientSel.disabled = false;
-  if (lockNote) lockNote.style.display = 'none';
-
-  // Adhoc / no-task → let designer pick freely
+  // Hide client info if nothing's picked yet
   if (val === '' || val === 'adhoc') {
     clientSel.value = '';
+    if (clientInfo) clientInfo.style.display = 'none';
     return;
   }
 
-  // Real task picked — read its Client column and lock the dropdown.
-  // This eliminates the entire mismatch class: a Kotak task can't be uploaded as Jindal Steel.
   const idx = parseInt(val, 10);
   const task = myTasks[idx];
-  if (!task) { clientSel.value = ''; return; }
+  if (!task) {
+    clientSel.value = '';
+    if (clientInfo) clientInfo.style.display = 'none';
+    return;
+  }
 
   // Tasks store Client either in the new Client column, or legacy codename in
   // Assignee for already-morphed creatives; normalize either form to canonical.
   const taskClient = normalizeClient(task.Client || (task.Type === 'creative' ? task.Assignee : ''));
 
   if (taskClient && CLIENT_BY_NAME[taskClient]) {
+    // Auto-set and show — no input from designer needed
     clientSel.value = taskClient;
-    clientSel.disabled = true;
-    if (lockNote) lockNote.style.display = 'block';
+    if (clientInfo) clientInfo.style.display = 'block';
+    if (clientDisplay) clientDisplay.innerHTML = `🏷 ${taskClient}`;
   } else {
-    // Task has no client tagged yet — leave open for the designer to pick.
-    // (Once they tag it, future uploads for the same task auto-lock.)
+    // Task is untagged — surface this clearly so designer asks Suriti to tag it
+    // on the Team portal instead of guessing. Without a client we don't know
+    // which Dropbox folder to route to, so we block the upload.
     clientSel.value = '';
+    if (clientInfo) clientInfo.style.display = 'block';
+    if (clientDisplay) clientDisplay.innerHTML = `<span style="color:#b91c1c;font-size:13px">⚠️ This task has no client tagged.<br><span style="font-weight:400;font-size:12px;color:#666">Ask Suriti to tag it on Founder OS first — uploads need a client to route to the right folder.</span></span>`;
   }
 }
 
@@ -515,7 +532,7 @@ async function submitUpload(){
   if (!designer) { showErr('Please select your name.'); return; }
   if (!taskVal) { showErr('Please select a task.'); return; }
   if (isAdhoc && !adhocName) { showErr('Please enter a creative name.'); return; }
-  if (!client) { showErr('Please select a client.'); return; }
+  if (!client) { showErr('This task has no client tagged. Ask Suriti to tag it on Founder OS first — uploads need a client to route correctly.'); return; }
   if (!files || !files.length) { showErr('Please select at least one file.'); return; }
 
   const isOpenFile = fileType === 'open';
