@@ -710,12 +710,19 @@
             <option value="">— Select —</option>
             <optgroup label="Jindal">
               <option value="Jindal Steel">Jindal Steel</option>
+              <option value="Jindal League">Jindal League</option>
               <option value="Jindal Youth League">Jindal Youth League</option>
               <option value="Sohar Steel">Sohar Steel</option>
               <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
             </optgroup>
+            <option value="RM Universal">RM Universal</option>
             <option value="Kotak">Kotak</option>
+            <option value="TEAM YP">TEAM YP</option>
             <option value="Pitches">Pitches</option>
+            <option value="Marico">Marico</option>
+            <option value="Zouk">Zouk</option>
+            <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+            <option value="HZL">HZL</option>
             <option value="Adhoc">Adhoc</option>
             <option value="__other__">Other... (→ Adhoc)</option>
           </select>
@@ -1344,13 +1351,66 @@ function isWorkingDay(name, date) {
   return false;
 }
 function getApprovedLeaveForDate(name, dateStr, allRows) {
-  return allRows.find(r =>
-    r.Type === 'leave' &&
-    r.Assignee === name &&
-    (r.Status === 'Approved' || r.Status === 'approved') &&
-    r.Date <= dateStr &&
-    (r.Task || r.Date) >= dateStr
-  ) || null;
+  return allRows.find(r => {
+    if (r.Type !== 'leave') return false;
+    if (r.Assignee !== name) return false;
+    if (r.Status !== 'Approved' && r.Status !== 'approved') return false;
+    // Override-leave rows have non-date strings in Task ("override-leave-…-timestamp")
+    // which would otherwise alphabetically satisfy `Task >= dateStr` for every
+    // future date, leaking a single-day override into perpetuity. Override
+    // priority is handled by the day-resolver layer; skip override rows here.
+    if (/override/i.test(r.Notes || '')) return false;
+    // Regular leave: Date is the start; Task is the end (or Date itself for single-day)
+    const from = r.Date;
+    const to   = r.Task || r.Date;
+    if (!from) return false;
+    return from <= dateStr && to >= dateStr;
+  }) || null;
+}
+// Returns the resolved attendance status for a person on ANY given date.
+// Honors override priority (most recent override wins), then approved leave,
+// then attendance row, then falls back to Absent (past) or Not marked (today
+// before cutoff). Future dates and pre-launch dates should be filtered by
+// the caller before calling this.
+function resolveDayStatusFOS(name, dateStr, allRows) {
+  if (isInactive(name)) return 'Inactive';
+  // Construct a local-time Date for the working-day check. dateStr is YYYY-MM-DD.
+  const [yy, mm, dd] = dateStr.split('-').map(Number);
+  const dateObj = new Date(yy, mm - 1, dd);
+  if (!isWorkingDay(name, dateObj)) return 'Off';
+
+  // 1. Latest override on this date wins (attendance or leave override)
+  const nameKey = (name || '').trim().toLowerCase();
+  const overrides = (allRows || []).filter(r =>
+    (r.Type === 'attendance' || r.Type === 'leave') &&
+    r.Date === dateStr &&
+    (r.Assignee || '').trim().toLowerCase() === nameKey &&
+    /override/i.test(r.Notes || '')
+  );
+  if (overrides.length > 0) {
+    overrides.sort((a, b) => {
+      const ta = (a.Task || '').match(/-(\d+)$/);
+      const tb = (b.Task || '').match(/-(\d+)$/);
+      return (tb ? parseInt(tb[1], 10) : 0) - (ta ? parseInt(ta[1], 10) : 0);
+    });
+    const latest = overrides[0];
+    return latest.Type === 'leave' ? 'On Leave' : (latest.Status || 'Present');
+  }
+
+  // 2. No override — fall back: approved leave > regular attendance row > Absent
+  if (getApprovedLeaveForDate(name, dateStr, allRows)) return 'On Leave';
+
+  const att = (allRows || []).find(r =>
+    r.Type === 'attendance' &&
+    r.Date === dateStr &&
+    (r.Assignee || '').trim().toLowerCase() === nameKey
+  );
+  if (att) return att.Status || 'Present';
+
+  // 3. No record at all — past day → Absent; today before cutoff → Not marked
+  const todayStr = getISTDate();
+  if (dateStr < todayStr) return 'Absent';
+  return 'Not marked';
 }
 // Returns final displayed status: Present | Late | Half Day | Absent | On Leave | Off | Inactive
 const ABSENT_AFTER_MIN_FOS = 11 * 60 + 30; // 11:30 AM IST
@@ -2046,6 +2106,7 @@ async function loadTasks() {
     allTasks = window._allRowsCache.filter(r => r.Type === 'task' || r.Type === '' || !r.Type);
     renderTasks(allTasks);
     checkTeamNotifications(allTasks);
+    checkClientRequests(allTasks); // 🤝 Surface incoming client portal requests for triage
     renderMorningDigest(allTasks); // 📋 Today's Brief — surfaces capacity issues, hot deadlines, slowdowns
   } catch(e) {
     document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
@@ -2241,8 +2302,6 @@ function renderWorkOutput(allRows) {
   const SYSTEM_LIVE_DATE = '2026-05-10';
   const todayDate = new Date();
 
-  const attendance = allRows.filter(r => r.Type === 'attendance');
-
   // Background + foreground colors per status
   const dayBg = {
     'Present':  '#dcfce7', 'Late': '#fce7f3', 'Half Day': '#fed7aa',
@@ -2266,24 +2325,21 @@ function renderWorkOutput(allRows) {
 
       if (isFuture || isPreLaunch) {
         status = 'No data';
-      } else if (!isWorkingDay(name, dateObj)) {
-        status = 'Off';
       } else {
-        const lv = getApprovedLeaveForDate(name, dateStr, allRows);
-        if (lv) { status = 'On Leave'; leave++; }
-        else {
-          const att = attendance.find(r => r.Date === dateStr && r.Assignee === name);
-          if (att) {
-            status = att.Status || 'Present';
-            if (status === 'Present') present++;
-            else if (status === 'Late') late++;
-            else if (status === 'Half Day') half++;
-            else if (status === 'Absent') absent++;
-          } else {
-            status = 'Absent'; absent++;
-          }
-        }
+        // Use the override-aware resolver so any retroactive corrections
+        // (overrides) propagate into this Daily Performance view.
+        status = resolveDayStatusFOS(name, dateStr, allRows);
+        // For this view, "Not marked" (today before cutoff) is treated as
+        // pending — show as No data so it doesn't inflate the absent count.
+        if (status === 'Not marked') status = 'No data';
       }
+
+      // Tally for the summary line
+      if (status === 'Present')   present++;
+      else if (status === 'Late')     late++;
+      else if (status === 'Half Day') half++;
+      else if (status === 'Absent')   absent++;
+      else if (status === 'On Leave') leave++;
 
       // Tasks closed this day for this person
       const closedToday = allRows.filter(r =>
@@ -2615,9 +2671,12 @@ function checkTeamNotifications(tasks) {
   try { lastCounts = JSON.parse(localStorage.getItem('yos-last-open-counts') || '{}'); } catch(e) {}
 
   // Notification 1: NEW ad-hoc tasks added by the TEAM (not by Suriti herself)
+  // Skip 'New Request' rows — those are client-submitted and surface in their
+  // own dedicated banner; double-counting them here would be noise.
   const teamTasks = tasks.filter(t =>
     t.Assignee &&
     t.Assignee !== FOUNDER &&
+    t.Status !== 'New Request' &&
     !(/added by suriti/i.test(t.Notes || ''))   // ignore tasks Suriti added from Founder OS
   );
   const knownIds = new Set(knownSet);
@@ -2727,8 +2786,133 @@ function showTeamNotificationBanner(newOnes, cleared, onDismiss) {
   window._newTeamTaskIds = new Set(newOnes.map(taskId));
 }
 
+// ========== CLIENT REQUEST BANNER ==========
+// Surfaces tasks submitted from the client portal (Status === 'New Request',
+// Assignee === ''). Each row gets an inline assignee dropdown — picking a
+// person promotes the row to a real task (Status → Pending, Assignee → chosen).
+// A ✕ button declines (Status → Closed). Until promoted, these never appear
+// in the main task list — the banner is their only home, so triage is explicit.
+
+function checkClientRequests(tasks) {
+  const requests = tasks.filter(t => t.Status === 'New Request');
+  const existing = document.getElementById('client-request-banner');
+  if (!requests.length) { if (existing) existing.remove(); return; }
+  showClientRequestBanner(requests);
+}
+
+function showClientRequestBanner(requests) {
+  const old = document.getElementById('client-request-banner');
+  if (old) old.remove();
+
+  const rows = requests.map(t => {
+    const requester = ((t.Notes || '').match(/requested by\s+(.+?)(?:\s*·|$)/i) || [])[1] || 'client';
+    const dateBit = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
+    const title = (t.Title || t.Task || '—').replace(/"/g, '&quot;');
+    const desc = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
+    const taskKey = encodeURIComponent(t.Task || '');
+    const assigneeOptions = ACTIVE_TEAM.map(n => `<option value="${n}">→ ${n}</option>`).join('');
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #dbeafe">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.4">${title}</div>
+        ${desc ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5;overflow-wrap:anywhere">${desc}</div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center;font-size:10px">
+          ${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid #bfdbfe">🏷 ${t.Client}</span>` : ''}
+          <span style="color:#666">from <strong style="color:#1a1a1a">${requester}</strong></span>
+          <span style="color:#666">· due ${dateBit}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+        <select onchange="promoteClientRequest('${taskKey}', this.value)" style="font-size:11px;padding:5px 10px;border-radius:8px;background:#FEBC06;color:#000;border:1px solid #FEBC06;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif">
+          <option value="" selected>Assign to…</option>
+          ${assigneeOptions}
+        </select>
+        <button onclick="declineClientRequest('${taskKey}')" title="Decline this request" style="background:transparent;border:1px solid #cbd5e1;color:#64748b;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const banner = document.createElement('div');
+  banner.id = 'client-request-banner';
+  banner.style.cssText = 'background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:18px';
+  banner.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <strong style="font-size:13px;color:#1e3a8a">🤝 ${requests.length} new request${requests.length>1?'s':''} from client${requests.length>1?'s':''}</strong>
+      <span style="font-size:10px;color:#3b5cb8;font-family:'DM Mono',monospace">submitted via Yellow Door</span>
+    </div>
+    <div>${rows}</div>
+  `;
+  const panel = document.getElementById('panel-tasks');
+  if (panel) panel.insertBefore(banner, panel.firstChild);
+}
+
+async function promoteClientRequest(encodedTask, assignee) {
+  if (!assignee) return; // user re-picked the placeholder — no-op
+  const task = decodeURIComponent(encodedTask);
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
+        matchValue: task, data: {
+          Status: 'Pending',
+          Assignee: assignee,
+          Notes: `client request promoted to ${assignee} by Suriti`
+        }
+      })
+    });
+    // Optimistic local update so the row jumps from banner → main task list immediately
+    const local = allTasks.find(t => t.Task === task);
+    if (local) {
+      local.Status = 'Pending';
+      local.Assignee = assignee;
+      local.Notes = `client request promoted to ${assignee} by Suriti`;
+    }
+    // Also stamp it in the "known team tasks" set so it doesn't fire as a
+    // freshly-added-by-team notification on the next refresh
+    try {
+      const known = JSON.parse(localStorage.getItem('yos-known-team-tasks') || '[]');
+      if (local) known.push(taskId(local));
+      localStorage.setItem('yos-known-team-tasks', JSON.stringify(known));
+    } catch(e) {}
+    renderTasks(allTasks);
+    checkClientRequests(allTasks); // refresh the banner so this row drops out
+  } catch(e) {
+    alert('Could not promote request: ' + e.message);
+  }
+}
+
+async function declineClientRequest(encodedTask) {
+  const task = decodeURIComponent(encodedTask);
+  if (!confirm(`Decline this request?\n\n"${task.substring(0,80)}"\n\nThe client will see it closed.`)) return;
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
+        matchValue: task, data: {
+          Status: 'Closed',
+          Notes: 'client request declined by Suriti'
+        }
+      })
+    });
+    const local = allTasks.find(t => t.Task === task);
+    if (local) { local.Status = 'Closed'; local.Notes = 'client request declined by Suriti'; }
+    checkClientRequests(allTasks);
+  } catch(e) {
+    alert('Could not decline request: ' + e.message);
+  }
+}
+
 function renderTasks(tasks) {
   const el = document.getElementById('tasks-list');
+  // 'New Request' rows live in the client-request banner at the top of the
+  // Tasks panel until Suriti promotes them. Filter them out here so they
+  // don't double-surface as un-assigned blanks in the main list.
+  tasks = tasks.filter(t => t.Status !== 'New Request');
   if(!tasks.length) { el.innerHTML = '<div class="empty-state">No tasks found.</div>'; return; }
 
   // If a filter is active (e.g. clicked "10 hot deadlines"), only show those tasks
@@ -2836,10 +3020,10 @@ function renderTasks(tasks) {
           </div>` : '';
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div class="fos-task-row" style="display:grid;grid-template-columns:1fr 130px 160px 120px 80px;gap:8px;align-items:start;font-size:12px;">
+        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(260px, 0.9fr) 110px 1.4fr 80px 44px;gap:8px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div>${title || desc || '—'}
-              ${t.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;border:1px solid #bfdbfe">🏷 ${t.Client}</span>` : ''}
+              ${renderFosClientEditor(t)}
               <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
                 title="Reassign — pick a different person"
                 style="margin-left:8px;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:12px;background:#fff8e1;border:1px solid #f0d080;color:#854f0b;font-weight:700;cursor:pointer">
@@ -2954,6 +3138,59 @@ async function addUpdate(encodedTask, inputEl) {
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: taskKey, data: { Update: appended } })
     });
   } catch(e) { console.log('Update save error:', e.message); }
+}
+
+// ===== CLIENT TAG EDITOR (founder OS) =====
+// Inline pill-styled select next to a task's title — same UX as team portal,
+// lets Suriti retag any task's Client column on the fly. Once tagged, the task
+// surfaces on the client portal's Live Tasks for that sub-brand.
+function renderFosClientEditor(t) {
+  const c = t.Client || '';
+  const placeholder = c ? `🏷 ${c} ▾` : '＋ Client ▾';
+  // Match the assignee chip's solid-bordered weight — untagged should still be visible.
+  // Tagged → blue (set), Untagged → solid grey-mint (asking to be set).
+  const chipStyle = c
+    ? 'background:#eff6ff;color:#1e40af;border:1px solid #93c5fd'
+    : 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value)" style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;padding:2px 8px;border-radius:12px;margin-left:8px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;${chipStyle}">
+    <option value="" selected>${placeholder}</option>
+    ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
+    <optgroup label="Jindal">
+      <option value="Jindal Steel">Jindal Steel</option>
+      <option value="Jindal League">Jindal League</option>
+      <option value="Jindal Youth League">Jindal Youth League</option>
+      <option value="Sohar Steel">Sohar Steel</option>
+      <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+    </optgroup>
+    <option value="RM Universal">RM Universal</option>
+    <option value="Kotak">Kotak</option>
+    <option value="TEAM YP">TEAM YP</option>
+    <option value="Pitches">Pitches</option>
+    <option value="Marico">Marico</option>
+    <option value="Zouk">Zouk</option>
+    <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+    <option value="HZL">HZL</option>
+    <option value="Adhoc">Adhoc</option>
+  </select>`;
+}
+
+async function updateTaskClient(encodedTask, assignee, date, newValue) {
+  const task = decodeURIComponent(encodedTask);
+  if (!newValue) return;
+  const finalValue = newValue === '__clear__' ? '' : newValue;
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({
+        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
+        matchValue: task, data: { Client: finalValue }
+      })
+    });
+    const local = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+    if (local) { local.Client = finalValue; renderTasks(allTasks); }
+  } catch(e) { alert('Error updating client tag: ' + e.message); }
 }
 
 async function updateTaskStatus(task, assignee, date, newStatus) {
