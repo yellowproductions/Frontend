@@ -196,6 +196,8 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   .creative-card { padding: 14px !important; }
   input, select { font-size: 16px !important; }
   .nav { padding: 16px 20px !important; }
+  /* Submit-a-task active bar — stack columns on phone */
+  .req-form-row { grid-template-columns: 1fr !important; gap: 12px !important; }
 }
 </style>
 </head>
@@ -268,43 +270,54 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchTab('assets',this)">📋 Assets</button>
-      <button class="tab-btn" onclick="switchTab('live-tasks',this); loadClientTasks();">📊 Live Tasks</button>
+      <button class="tab-btn active" onclick="switchTab('live-tasks',this); loadClientTasks();">📊 Live Tasks</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
       <button class="tab-btn" data-portal="jindal" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
+      <button class="tab-btn" data-portal="rm-universal" onclick="switchTab('rm-universal',this)">🌐 RM Universal</button>
       <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">🏦 Kotak</button>
+      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('team-yp',this)">🟡 TEAM YP</button>
+      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('pitches',this)">💡 Pitches</button>
+      <button class="tab-btn" data-portal="marico" onclick="switchTab('marico',this)">🌾 Marico</button>
+      <button class="tab-btn" data-portal="zouk" onclick="switchTab('zouk',this)">👜 Zouk</button>
+      <button class="tab-btn" data-portal="tata-mf" onclick="switchTab('tata-mf',this)">💼 TATA Mutual Funds</button>
+      <button class="tab-btn" data-portal="hzl" onclick="switchTab('hzl',this)">⛏️ HZL</button>
       <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">📁 Adhoc</button>
-      <button class="tab-btn" data-portal="pitches" onclick="switchTab('pitches',this)">💡 Pitches & Ideas</button>
     </div>
 
         <div id="tab-jindal-steel" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/ccvd6koc6btz9sig5ofvx/AOzQUVzR_bxWP45ip6kdthk?rlkey=ad05v33nz64gb0v673aonuczi&st=dlj6as00&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📐</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Brand Guidelines</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Logos, fonts and brand elements</div>
-          <a href="https://www.dropbox.com/scl/fo/0xnn18uxukez81ia8miv3/AO3hEObcoQJgaKi_DEcMA9Y?rlkey=553qutippzsnzhhlk9vs2jymm&st=84yjvol5&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Logos, fonts, brand book</div>
+          <a href="https://www.dropbox.com/scl/fo/0xnn18uxukez81ia8miv3/AO3hEObcoQJgaKi_DEcMA9Y?rlkey=553qutippzsnzhhlk9vs2jymm&st=1hz9vkjl&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🖼️</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Photos and references</div>
-          <a href="https://www.dropbox.com/scl/fo/hzq48t8vsdxmoik0zjzm0/AO1B4-K8DkcxwoRiEBK1OGY?rlkey=tbq18ps6xnbgcudgsnyqxpcg9&st=enjwneot&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Photography & references</div>
+          <a href="https://www.dropbox.com/scl/fo/hzq48t8vsdxmoik0zjzm0/AO1B4-K8DkcxwoRiEBK1OGY?rlkey=tbq18ps6xnbgcudgsnyqxpcg9&st=vfhj372s&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/kmfxydge8oiyxewto0w2l/AHkR7QjqmvrEdrv6PwdXDkw?rlkey=y6c4brnl8ae3t59iv3dbgxmak&st=1nfcblkj&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/kmfxydge8oiyxewto0w2l/AHkR7QjqmvrEdrv6PwdXDkw?rlkey=y6c4brnl8ae3t59iv3dbgxmak&st=t1ehjdj6&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/e8bhyfiwlrlhmdp78253r/AOEIkKfJzJ1IWBrRWuNRRR4?rlkey=2k81n1mhpp9k9x5ym43yucf8e&st=qlkol6nt&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/e8bhyfiwlrlhmdp78253r/AOEIkKfJzJ1IWBrRWuNRRR4?rlkey=2k81n1mhpp9k9x5ym43yucf8e&e=1&st=8jvciush&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-steelcity" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -317,22 +330,34 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="tab-jindal-league" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/ys4ukzxt2rqwlhg87o2l6/ADirMp0WFntXTfIHh2vKT7Q?rlkey=0pu4978ddwm7a8ly0mmqnew0g&st=4mt04h08&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🖼️</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Match images and references</div>
-          <a href="https://www.dropbox.com/scl/fo/sw6p96ro5cfa6p6383hgr/AAWWOrko_DXPGGNdN9x3JIs?rlkey=elqjiz0fffhavu90sddiqe7df&st=kc93krsj&dl=0" target="_blank" class="btn btn-yellow btn-sm">📤 Open in Dropbox ↗</a>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Photography & references</div>
+          <a href="https://www.dropbox.com/scl/fo/sw6p96ro5cfa6p6383hgr/AAWWOrko_DXPGGNdN9x3JIs?rlkey=elqjiz0fffhavu90sddiqe7df&st=vybmpzvh&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/kmfxydge8oiyxewto0w2l/AGrImQ0bSNAdhFf8yu9SoEQ?rlkey=o8zrx4u9o8rq5zta03m1pgzbb&st=txckacxo&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/0864w83rfsf4bi4w0niw7/AGrImQ0bSNAdhFf8yu9SoEQ?rlkey=o8zrx4u9o8rq5zta03m1pgzbb&st=byc52vw8&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/sw6p96ro5cfa6p6383hgr/AJp07Gjo_Uv12aU81U0bJac?rlkey=3p54cpt35ev16i9fsmam2xuzf&st=at5wyxnt&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/2925ld2w4ftgvkpiqa5dv/AJp07Gjo_Uv12aU81U0bJac?rlkey=3p54cpt35ev16i9fsmam2xuzf&st=560ta75j&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">📝</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Not POSTED</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Pre-publish drafts</div>
+          <a href="https://www.dropbox.com/scl/fo/6xnp0vyl1sma1gwbvr0pa/ALleKZ091adOcdX3XkPA50w?rlkey=bj2cacrngwsf1dq3mexjigtnw&st=d3ui79uf&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-youthleague" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -345,16 +370,22 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="tab-jindal-youth" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/3bbs5cy0ks1q7p05qz099/AIgz2sT0UIED_d67E3hKXko?rlkey=w0dacmbxjz2b976ldhf50blnu&st=yk68j1tq&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/j9wx0ulhp4qxb5w4o6f9f/AGVW45q3_4Jr0yX4C_o_MNs?rlkey=3zcse3vjxw6p44uxkc7roydc7&st=sphjxmy3&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/3bbs5cy0ks1q7p05qz099/AILT5DoOMSPcB6QAtHIs5wE/Creatives?rlkey=w0dacmbxjz2b976ldhf50blnu&subfolder_nav_tracking=1&st=dhltd8xs&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/muhfl04jrpk22vvfa8lft/AAZtIgu8NHywgj-5f0eg84Q?rlkey=qvc80wh06lki796ypozfnht3f&st=s88k3m40&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/3bbs5cy0ks1q7p05qz099/AOfgbfzpom-Hk9jKGDEZ9mM/Open%20Files?rlkey=w0dacmbxjz2b976ldhf50blnu&subfolder_nav_tracking=1&st=1zksovqc&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review</div>
@@ -366,16 +397,22 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="tab-sohar-steel" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/g7m0a4dy9vi3xqps32q9g/AO-EAqC-E8-cjV0cmgRsDWw?rlkey=2gdsktait96a4au7zd2vtz384&st=z7fju48k&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/nxlcgscxja0nhmum4tbj8/ANGil9koi5JzqOeeIQF5lZY?rlkey=pododj9sbf868k7p31af7gydk&st=2fw984ln&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/nxlcgscxja0nhmum4tbj8/ANGil9koi5JzqOeeIQF5lZY?rlkey=pododj9sbf868k7p31af7gydk&st=fw65q22w&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/0zcnz5frs7jpdx65aphlh/AAwi9fKmZ4gJaiZjmhWIb3I?rlkey=oad50r32sdk4bsxdyoy1t6mr6&st=9kwsthxf&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/0zcnz5frs7jpdx65aphlh/AAwi9fKmZ4gJaiZjmhWIb3I?rlkey=oad50r32sdk4bsxdyoy1t6mr6&st=1psk2oaf&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review</div>
@@ -387,16 +424,22 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="tab-duqm" class="tab-content" data-portal="jindal">
       <div class="folders-row">
         <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/46va9dc7zoovhqvy927re/AGyuE4v3uS-ulbstqgMncuM?rlkey=e8nsh5wnch1zx4tbecaquhqyd&st=49puv1zw&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🎨</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/5d3a6uw0lqb64t54m03fi/AOhOFsXS3XRfZAq1oBwPNPk?rlkey=qy9iptnbovoo95a7vdo2l3jwb&st=xtklx7ho&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/46va9dc7zoovhqvy927re/ADxlm8tfe76YeI5zaSuur64/Creatives?rlkey=e8nsh5wnch1zx4tbecaquhqyd&subfolder_nav_tracking=1&st=r8mdqves&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/zx1yq19ld47p76wrdppjr/AKI0haLDAMbafiKkyRIoaOM?rlkey=tw9atqp3o8pry170wqzgxv6ro&st=3rf4aq3h&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/46va9dc7zoovhqvy927re/AHBcGECokmJSwhV6e5ykV9o/Open%20Files?dl=0&rlkey=e8nsh5wnch1zx4tbecaquhqyd&subfolder_nav_tracking=1" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-duqm" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -409,28 +452,28 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="tab-kotak" class="tab-content" data-portal="kotak">
       <div class="folders-row">
         <div class="folder-card">
-          <div style="font-size:32px;margin-bottom:10px">🎨</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
-          <a href="https://www.dropbox.com/scl/fo/dp5dsn7osm4e5tsafsv2d/ANkaWpBa794XvClDc5nYnIw?rlkey=45x6zandy7xm2sl3vkne8fyjq&st=px9w795f&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/AJvd9GMmU9ztXB_TZpZr2gs?rlkey=ylbo80tyvg0zrwosn6992n2zm&st=vug827rw&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🖼️</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Image Bank</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Photography & references</div>
-          <a href="https://www.dropbox.com/scl/fo/a9votfw7iw9ytc9d6kzea/AMO1mV82hYfWTi-6WRwAEJE?rlkey=pmcetca3545hiftvtly32tbvg&st=hgb9030f&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/ABodtTZIgVxgZP-oqiVGno8/Image%20Bank?rlkey=ylbo80tyvg0zrwosn6992n2zm&subfolder_nav_tracking=1&st=n3ttzsum&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🎨</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Creatives</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Approved design files</div>
+          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/AI8KthjpiMOfQa4mOlYk4IA/Creatives?rlkey=ylbo80tyvg0zrwosn6992n2zm&subfolder_nav_tracking=1&st=9rgmlb52&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">📂</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">Open Files</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Source files (AI, PSD)</div>
-          <a href="https://www.dropbox.com/scl/fo/cffombdclqbz8spe4i9gr/AFCtM246_VkxPE4EM0Q18kQ?rlkey=ecfvcsyy9rhi050qf1mxzkbzc&st=i27iwsr5&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
-        </div>
-        <div class="folder-card">
-          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
-          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/AJvd9GMmU9ztXB_TZpZr2gs?rlkey=ylbo80tyvg0zrwosn6992n2zm&st=or8luxv0&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/3w9y507l5wcc8j0px1cjd/AEN5kaCWWBBWt6XWaSJzDPQ/Open%20Files?dl=0&rlkey=ylbo80tyvg0zrwosn6992n2zm&subfolder_nav_tracking=1" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-kotak" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -448,8 +491,8 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
         <div class="folder-card">
           <div style="font-size:32px;margin-bottom:10px">🗂️</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">All Adhoc Files</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Designs + open files for one-off jobs</div>
-          <a href="https://www.dropbox.com/scl/fo/f13lq8x7z0a2gfqdful7r/AIbDcVimpDYi_XMMvDwMPpg?rlkey=rzn4ss5zvw4ed9rt4lgr9m15k&st=ytyyi9uw&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">One-off jobs that do not belong to a named client</div>
+          <a href="https://www.dropbox.com/scl/fo/f13lq8x7z0a2gfqdful7r/AIbDcVimpDYi_XMMvDwMPpg?rlkey=rzn4ss5zvw4ed9rt4lgr9m15k&st=sfxqunyu&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-adhoc" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -458,8 +501,8 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div id="approved-adhoc"><div class="empty-state">No approved creatives yet.</div></div>
     </div>
 
-    <!-- PITCHES & IDEAS TAB — internal pitches, mockups, concepts (no client) -->
-    <div id="tab-pitches" class="tab-content" data-portal="pitches">
+    <!-- PITCHES TAB — internal pitches, mockups, concepts. Now lives inside the TEAM YP portal. -->
+    <div id="tab-pitches" class="tab-content" data-portal="team-yp">
       <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
         <strong style="font-weight:600">Internal pitches and idea mockups</strong> — design concepts and explorations not tied to any active client. Visible only to Suriti, Viplav, Kritya, Siddhesh.
       </div>
@@ -468,7 +511,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <div style="font-size:32px;margin-bottom:10px">💡</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">All Pitches</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Mockups, concepts, internal explorations</div>
-          <a href="https://www.dropbox.com/scl/fo/zhntfef04ksozwyxir89e/AMWCmHD3uN3mgrTExiSuHCo?rlkey=otdny4kb13w18cuiyl86seqic&st=bpnucov1&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+          <a href="https://www.dropbox.com/scl/fo/zhntfef04ksozwyxir89e/AMWCmHD3uN3mgrTExiSuHCo?rlkey=otdny4kb13w18cuiyl86seqic&st=tw9akxdx&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
         </div>
       </div>
       <div class="section-label">Pending Review <span id="count-pending-pitches" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
@@ -477,9 +520,160 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div id="approved-pitches"><div class="empty-state">No approved mockups yet.</div></div>
     </div>
 
+    <!-- RM UNIVERSAL TAB -->
+    <div id="tab-rm-universal" class="tab-content" data-portal="rm-universal">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">RM Universal</strong> — Dropbox folders auto-create on first approved upload. Add the share links here once the folders exist.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/95ieu9j3179cuo5y4314s/AD9ntvMz53HODgD9lWhal48?rlkey=qrsfl16ti6hpodkg5fg7a2k00&st=q7o7ay1k&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">📕</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">RM Brochure</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Final brochure files</div>
+          <a href="https://www.dropbox.com/scl/fo/95ieu9j3179cuo5y4314s/AMiMisT4YsVHm6VYXr5vOvA/RM%20BROCHURE%20FINAL_Folder?dl=0&rlkey=qrsfl16ti6hpodkg5fg7a2k00&subfolder_nav_tracking=1" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-rm-universal" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-rm-universal"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-rm-universal"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- TEAM YP TAB -->
+    <div id="tab-team-yp" class="tab-content" data-portal="team-yp">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">TEAM YP</strong> — internal work for Yellow Productions itself. Pitches lives as a sub-tab in this portal.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/uq1fso58zw56982w0tbfb/ACUHDoc_iR2XXKsva5Ah08I?rlkey=0xu1i619ioikle2ojf6cmm15d&st=grd75tyg&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-team-yp" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-team-yp"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-team-yp"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- MARICO TAB -->
+    <div id="tab-marico" class="tab-content" data-portal="marico">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">Marico</strong> — Dropbox folders auto-create on first approved upload.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/uoka6sxdgy7oeeelxj6tv/ANxMxSi2na3hyOwCoUcIOsA?rlkey=8qwyl59tj5jlj0d6t2jy3ri61&st=shz8ptgk&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-marico" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-marico"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-marico"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- ZOUK TAB -->
+    <div id="tab-zouk" class="tab-content" data-portal="zouk">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">Zouk</strong> — Dropbox folders auto-create on first approved upload.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/wvpnz6z0gftfkh98qzuk7/AJcMVwh6VylU7R4qd6dFyes?rlkey=n3kzjjtwvtteq1xwau5tu0ct1&st=b0az4cxp&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-zouk" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-zouk"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-zouk"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- TATA MUTUAL FUNDS TAB -->
+    <div id="tab-tata-mf" class="tab-content" data-portal="tata-mf">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">TATA Mutual Funds</strong> — Dropbox folders auto-create on first approved upload.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/604imxetkrnmreqb48ctq/AEsUHWYKy-b6UyEPi2Sad5o?rlkey=kad5dz6wz44yk57k7544jv06r&st=u10n5c6w&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-tata-mf" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-tata-mf"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-tata-mf"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
+    <!-- HZL TAB -->
+    <div id="tab-hzl" class="tab-content" data-portal="hzl">
+      <div style="background:#fef9ef;border:1px solid #f0d080;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#6b5113">
+        <strong style="font-weight:600">HZL</strong> — Dropbox folders auto-create on first approved upload.
+      </div>
+      <div class="folders-row">
+        <div class="folder-card">
+          <div style="font-size:32px;margin-bottom:10px">🗂️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">Main Folder</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Browse everything</div>
+          <a href="https://www.dropbox.com/scl/fo/jovm1axt0dnjmdvvwcubm/ACV0dVeCUvu7pKeAnNPOD94?rlkey=azk2l7yb15efs6kvypwa2wgvw&st=8kf93ib5&dl=0" target="_blank" class="btn btn-yellow btn-sm">Open in Dropbox ↗</a>
+        </div>
+      </div>
+      <div class="section-label">Pending Review <span id="count-pending-hzl" style="background:#fef9ee;color:var(--yellow);border:1px solid #f0d080;padding:2px 10px;border-radius:20px;font-size:11px"></span></div>
+      <div id="pending-hzl"><div class="empty-state">No creatives pending review.</div></div>
+      <div class="section-label">✅ Approved</div>
+      <div id="approved-hzl"><div class="empty-state">No approved creatives yet.</div></div>
+    </div>
+
 
     <!-- LIVE TASKS TAB — clients see what's being worked on for them -->
-    <div id="tab-live-tasks" class="tab-content">
+    <div id="tab-live-tasks" class="tab-content active">
+
+      <!-- SUBMIT A TASK — always-visible active bar (mirrors founder OS Add Task pattern) -->
+      <div style="margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:700;color:#1a1a1a">＋ Submit a Task</div>
+          <div style="font-size:11px;color:var(--muted)">Suriti will review and assign someone from the team</div>
+        </div>
+        <div class="req-form-row" style="display:grid;grid-template-columns:1.2fr 1.5fr 140px 130px 110px;gap:10px;align-items:end">
+          <div>
+            <label>Title <span style="color:var(--red);text-transform:none;font-weight:400">*</span></label>
+            <input type="text" id="req-title" placeholder="e.g. Q3 brochure refresh">
+          </div>
+          <div>
+            <label>Brief <span style="color:var(--muted);text-transform:none;font-weight:400">(optional)</span></label>
+            <input type="text" id="req-desc" placeholder="Context, references, anything important">
+          </div>
+          <div id="req-client-wrap">
+            <label>Sub-brand</label>
+            <select id="req-client"></select>
+          </div>
+          <div>
+            <label>Due date</label>
+            <input type="date" id="req-date">
+          </div>
+          <div>
+            <button class="btn btn-yellow btn-sm" id="req-submit" onclick="submitClientRequest()" style="width:100%">Submit</button>
+          </div>
+        </div>
+        <div id="req-error" style="display:none;color:var(--red);font-size:12px;font-weight:600;margin-top:10px"></div>
+      </div>
+
       <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:18px;font-weight:700;margin-bottom:4px">Live Tasks</div>
@@ -489,17 +683,6 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       </div>
       <div id="client-tasks-wrap">
         <div class="empty-state">Loading tasks...</div>
-      </div>
-    </div>
-
-    <!-- ASSETS TAB -->
-    <div id="tab-assets" class="tab-content active">
-      <div style="margin-bottom:20px">
-        <div style="font-size:18px;font-weight:700;margin-bottom:4px">All Assets</div>
-        <div style="font-size:13px;color:var(--muted)">Quick access to all approved creatives and open files across projects.</div>
-      </div>
-      <div id="assets-table-wrap">
-        <div class="empty-state">Loading assets...</div>
       </div>
     </div>
 
@@ -521,15 +704,83 @@ const DESIGNER_EMAILS = {
   Ajay:'ajay@yellowproductions.co.in'
 };
 
-// Multi-client portal config — passwords removed (handled by backend now).
-// Each portal-key maps to its tabs/folders. Backend assigns scope on login.
-// `clientNames` is the list of Client values (as typed in task forms) that belong to this portal.
-const CLIENT_PORTALS = {
-  jindal:  { brand: 'Jindal Group',     folders: ['steelcity','youthleague','jindal-youth','sohar-steel','duqm'], clientNames: ['Jindal', 'Jindal Steel', 'Jindal Youth League', 'Sohar Steel', 'Jindal Steel Duqm'] },
-  kotak:   { brand: 'Kotak',            folders: ['kotak'],    clientNames: ['Kotak'] },
-  adhoc:   { brand: 'Adhoc',            folders: ['adhoc'],    clientNames: ['Adhoc'], isAdhoc: true },
-  pitches: { brand: 'Pitches & Ideas',  folders: ['pitches'],  clientNames: ['Pitches'] }
+// =================== CANONICAL CLIENT REGISTRY ===================
+// Single source of truth for every client across the system. Replaces the
+// old codename map (steelcity/youthleague/etc.) where Assignee column held
+// internal keys instead of real names. New writes always use the canonical
+// `name`; old codenames are normalized to canonical on read.
+//
+// • `name`   — written to the sheet (Assignee on creative rows, Client on tasks)
+// • `slug`   — URL/DOM-safe id used for HTML element ids and ?portal= URL params.
+//              Legacy slugs preserved so existing tab divs / IDs don't break.
+// • `portal` — which client portal scope this brand belongs to
+// • `folder` — Dropbox base path. Subpaths (Creatives, Open Files) auto-create.
+// • `tabLabel` — display label for the per-brand creative tab inside its portal
+const CLIENT_REGISTRY = [
+  { name: 'Jindal Steel',        slug: 'steelcity',     portal: 'jindal',       folder: '/JINDAL',                tabLabel: '🏗️ Jindal Steel' },
+  { name: 'Jindal League',       slug: 'youthleague',   portal: 'jindal',       folder: '/Jindal League',         tabLabel: '⚽ Jindal League' },
+  { name: 'Jindal Youth League', slug: 'jindal-youth',  portal: 'jindal',       folder: '/Jindal Youth League',   tabLabel: '🏆 Jindal Youth League' },
+  { name: 'Jindal Steel Duqm',   slug: 'duqm',          portal: 'jindal',       folder: '/Jindal Steel Duqm',     tabLabel: '⚙️ Jindal Steel Duqm' },
+  { name: 'Sohar Steel',         slug: 'sohar-steel',   portal: 'jindal',       folder: '/Sohar Steel',           tabLabel: '🇴🇲 Sohar Steel' },
+  { name: 'RM Universal',        slug: 'rm-universal',  portal: 'rm-universal', folder: '/RM Universal',          tabLabel: '🌐 RM Universal' },
+  { name: 'Kotak',               slug: 'kotak',         portal: 'kotak',        folder: '/KOTAK',                 tabLabel: '🏦 Kotak' },
+  { name: 'TEAM YP',             slug: 'team-yp',       portal: 'team-yp',      folder: '/TEAM YP',               tabLabel: '🟡 TEAM YP' },
+  { name: 'Pitches',             slug: 'pitches',       portal: 'team-yp',      folder: '/PITCHES',               tabLabel: '💡 Pitches' },
+  { name: 'Marico',              slug: 'marico',        portal: 'marico',       folder: '/Marico',                tabLabel: '🌾 Marico' },
+  { name: 'Zouk',                slug: 'zouk',          portal: 'zouk',         folder: '/Zouk',                  tabLabel: '👜 Zouk' },
+  { name: 'TATA Mutual Funds',   slug: 'tata-mf',       portal: 'tata-mf',      folder: '/TATA Mutual Funds',     tabLabel: '💼 TATA Mutual Funds' },
+  { name: 'HZL',                 slug: 'hzl',           portal: 'hzl',          folder: '/HZL',                   tabLabel: '⛏️ HZL' },
+  { name: 'Adhoc',               slug: 'adhoc',         portal: 'adhoc',        folder: '/ADHOC',                 tabLabel: '📁 Adhoc' }
+];
+const CLIENT_BY_NAME = Object.fromEntries(CLIENT_REGISTRY.map(c => [c.name, c]));
+const CLIENT_BY_SLUG = Object.fromEntries(CLIENT_REGISTRY.map(c => [c.slug, c]));
+
+// Legacy codename → canonical name. Lets us read pre-cleanup sheet rows
+// where Assignee held 'steelcity' / 'youthleague' / etc.
+const LEGACY_CLIENT_MAP = {
+  steelcity:     'Jindal Steel',
+  youthleague:   'Jindal League',
+  'jindal-youth':'Jindal Youth League',
+  'sohar-steel': 'Sohar Steel',
+  duqm:          'Jindal Steel Duqm',
+  kotak:         'Kotak',
+  adhoc:         'Adhoc',
+  pitches:       'Pitches',
+  Jindal:        'Jindal Steel'   // old "Jindal" tag (singular) maps to Steel
 };
+function normalizeClient(raw) {
+  if (!raw) return '';
+  const v = String(raw).trim();
+  return LEGACY_CLIENT_MAP[v] || v;
+}
+
+// Build Dropbox path for a client's subfolder. Throws if client isn't registered
+// — failing loud is better than silently routing to /JINDAL like the old default.
+function clientFolder(clientName, subfolder) {
+  const entry = CLIENT_BY_NAME[normalizeClient(clientName)];
+  if (!entry) throw new Error(`Unknown client: "${clientName}". Add to CLIENT_REGISTRY first.`);
+  return entry.folder + (subfolder ? '/' + subfolder : '');
+}
+
+// Portal definitions — derived from the registry so adding a client to the
+// registry automatically wires up its portal/tab. Each portal lists the
+// canonical client names it shows in its creative tabs.
+const CLIENT_PORTALS = (() => {
+  const portals = {};
+  CLIENT_REGISTRY.forEach(c => {
+    if (!portals[c.portal]) {
+      portals[c.portal] = { brand: c.name, clientNames: [], folders: [] };
+    }
+    portals[c.portal].clientNames.push(c.name);
+    portals[c.portal].folders.push(c.name);  // FOLDERS are now canonical names
+  });
+  // Portal-level branding & special flags
+  if (portals.jindal)       portals.jindal.brand       = 'Jindal Group';
+  if (portals['team-yp'])   portals['team-yp'].brand   = 'TEAM YP';
+  if (portals['rm-universal']) portals['rm-universal'].brand = 'RM Universal';
+  if (portals.adhoc) portals.adhoc.isAdhoc = true;
+  return portals;
+})();
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 let activePortal = null;
 let FOLDERS = []; // populated on login based on active portal
@@ -685,39 +936,32 @@ function doLogout() {
 }
 
 
+// Resolve the Dropbox /Creatives target for a creative when the client approves.
+// Folder slug coming in (e.g. 'kotak', 'steelcity') gets normalized to a canonical
+// client name, then we look up its registered folder. Unknown → throw, NOT a
+// silent fallback to /JINDAL/Creatives like the old map had.
 function getCreativesFolder(folder) {
-  const map = {
-    steelcity: '/JINDAL/Creatives',
-    youthleague: '/Jindal League/Creatives',
-    'jindal-youth': '/Jindal Youth League/Creatives',
-    'sohar-steel': '/Sohar Steel/Creatives',
-    duqm: '/Jindal Steel Duqm/Creatives',
-    kotak: '/KOTAK/Creatives',
-    adhoc: '/ADHOC/Creatives',
-    pitches: '/PITCHES/Creatives'
-  };
-  return map[folder] || '/JINDAL/Creatives';
+  // folder may be a slug ('kotak') or a canonical name ('Kotak') depending on caller
+  const canonical = CLIENT_BY_SLUG[folder]?.name || normalizeClient(folder);
+  return clientFolder(canonical, 'Creatives');
 }
 
 function getPendingFolder(folder) {
-  const map = {
-    steelcity: '/JINDAL/Pending',
-    youthleague: '/Jindal League/Pending',
-    'jindal-youth': '/Jindal Youth League/Pending',
-    'sohar-steel': '/Sohar Steel/Pending',
-    duqm: '/Jindal Steel Duqm/Pending',
-    kotak: '/KOTAK/Pending',
-    adhoc: '/ADHOC/Pending',
-    pitches: '/PITCHES/Pending'
-  };
-  return map[folder] || '/JINDAL/Pending';
+  const canonical = CLIENT_BY_SLUG[folder]?.name || normalizeClient(folder);
+  return clientFolder(canonical, 'Pending');
 }
 
 async function loadCreatives() {
   try {
     const res = await fetch(SHEETDB + '?sheet=Type:tasks');
     const data = await res.json();
-    allCreatives = Array.isArray(data) ? data.filter(r => (r.Status === 'Client Review' || r.Status === 'Approved') && r.Task && r.Task.includes('|')) : [];
+    // Intake normalization: legacy rows had Assignee like 'steelcity' / 'youthleague';
+    // map those to canonical client names so downstream filters work with one vocabulary.
+    allCreatives = Array.isArray(data)
+      ? data
+          .filter(r => (r.Status === 'Client Review' || r.Status === 'Approved') && r.Task && r.Task.includes('|'))
+          .map(r => ({ ...r, Assignee: normalizeClient(r.Assignee), Client: normalizeClient(r.Client) }))
+      : [];
   } catch(e) { allCreatives = []; }
   renderAll();
 }
@@ -731,7 +975,11 @@ async function loadClientTasks() {
   try {
     const res = await fetch(SHEETDB + '?sheet=Type:tasks');
     const data = await res.json();
-    const allRows = Array.isArray(data) ? data : [];
+    // Normalize every row's Client column so legacy values ('Jindal', 'kotak')
+    // route through the same vocabulary as new writes ('Jindal Steel', 'Kotak').
+    const allRows = (Array.isArray(data) ? data : []).map(r =>
+      ({ ...r, Client: normalizeClient(r.Client) })
+    );
 
     // Decide which Client values this portal sees:
     //   • Specific portal (Jindal/Kotak/Pitches): match its clientNames list
@@ -766,8 +1014,9 @@ async function loadClientTasks() {
     }
 
     // Group by status for clearer scanning
-    const STATUS_ORDER = ['Pending','In Progress','Awaiting Review','Awaiting Client','Approved','Closed','Done','On Hold'];
+    const STATUS_ORDER = ['New Request','Pending','In Progress','Awaiting Review','Awaiting Client','Approved','Closed','Done','On Hold'];
     const STATUS_STYLE = {
+      'New Request':     { bg:'#fff8e1', fg:'#92640a' },
       'Pending':         { bg:'#fef3c7', fg:'#854f0b' },
       'In Progress':     { bg:'#dbeafe', fg:'#1e40af' },
       'Awaiting Review': { bg:'#ede9fe', fg:'#5b21b6' },
@@ -811,9 +1060,9 @@ async function loadClientTasks() {
             <div style="flex:1;min-width:240px">
               <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:4px">${t.Title || t.Task || '—'}</div>
               ${t.Task && t.Title && t.Task !== t.Title ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;line-height:1.5">${t.Task}</div>` : ''}
-              <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:4px">
+              <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted);margin-top:4px">
                 <span><strong style="color:#444">Due:</strong> ${dueDate}</span>
-                <span><strong style="color:#444">Client:</strong> ${t.Client}</span>
+                ${renderTagClientPill(t)}
               </div>
               ${linksHtml}
               ${latestUpdate ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
@@ -838,89 +1087,171 @@ async function loadClientTasks() {
   }
 }
 
+// ===== TAG CLIENT PILL (inline editor on each task row) =====
+// Renders an interactive chip showing the task's Client value. Picking an option
+// patches the sheet's Client column and reloads. Scoped to the active portal's
+// clientNames so a Jindal user can move tasks within their sub-brands (Steel,
+// Sohar, Duqm, Youth, League) but not into Kotak/Pitches. Founder mode ('all')
+// gets every canonical client. The pill is how legacy untagged rows get tagged
+// in — once a Client value lands, they surface in the matching client portal.
+function renderTagClientPill(t) {
+  const c = (t.Client || '').trim();
+  const label = c ? `🏷 ${c}` : '+ Tag client';
+  const chipStyle = c
+    ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
+    : 'background:#f5f4f0;color:#888;border:1px dashed #d4cfc4';
 
-function renderAssets() {
-  const wrap = document.getElementById('assets-table-wrap');
-  if (!wrap) return;
-
-  // Only show approved creatives belonging to the active portal's folders.
-  // FOLDERS is set on login per portal; for founder ('all') it's everything.
-  const approved = allCreatives.filter(c =>
-    c.Status === 'Approved' && FOLDERS.includes(c.Assignee)
-  );
-
-  if (!approved.length) {
-    wrap.innerHTML = '<div class="empty-state">No approved assets yet.</div>';
-    return;
+  // Build option list based on portal scope. Names come from CLIENT_REGISTRY
+  // so adding a client in one place flows everywhere automatically.
+  let names = [];
+  if (activePortal === 'all') {
+    names = CLIENT_REGISTRY.map(r => r.name);
+  } else if (CLIENT_PORTALS[activePortal]) {
+    names = (CLIENT_PORTALS[activePortal].clientNames || []).slice();
   }
 
-  const CLIENT_NAMES = {
-    steelcity: 'Jindal Steel', youthleague: 'Jindal League',
-    'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel',
-    duqm: 'Jindal Steel Duqm', kotak: 'Kotak', adhoc: 'Adhoc', pitches: 'Pitches & Ideas'
-  };
+  // No options to offer (or single-option portal where there's nothing to switch to)
+  // — render as a read-only chip if tagged, hide entirely if not
+  if (!names.length || (names.length === 1 && c === names[0])) {
+    return c
+      ? `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;${chipStyle}">${label}</span>`
+      : '';
+  }
 
-  wrap.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="border-bottom:2px solid #e0ddd8;text-align:left">
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Creative</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Client</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Designer</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Preview</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Open File</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px">Date</th>
-          <th style="padding:10px 12px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${approved.map(item => {
-          const parts = item.Task.split('|');
-          const name = parts[0].trim();
-          const designer = parts[1] ? parts[1].trim() : '—';
-          const client = CLIENT_NAMES[item.Assignee] || item.Assignee || '—';
-          const preview = item['Preview Link'];
-          const openFileRaw = (item['Open File Link'] || '').trim();
-          // Only show "Open" link if it's an actual shared URL — not an internal Dropbox path like /REVIEW/...
-          const hasValidOpenFile = openFileRaw.startsWith('http');
-          const date = item.Date ? new Date(item.Date).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '—';
-          // Use the Task field as a stable row identifier for delete
-          const rowKey = encodeURIComponent(item.Task || '');
-          return `<tr style="border-bottom:1px solid #f0eeea">
-            <td style="padding:12px;font-weight:600;color:#1a1a1a">${name}</td>
-            <td style="padding:12px;color:var(--muted)">${client}</td>
-            <td style="padding:12px;color:var(--muted)">${designer}</td>
-            <td style="padding:12px">${preview ? `<a href="${preview}" target="_blank" style="color:var(--yellow);font-weight:600;text-decoration:none">🖼️ View</a>` : '<span style="color:#ccc;font-size:12px">Pending</span>'}</td>
-            <td style="padding:12px">${hasValidOpenFile ? `<a href="${openFileRaw}" target="_blank" style="color:var(--yellow);font-weight:600;text-decoration:none">📂 Open</a>` : '<span style="color:#ccc;font-size:12px">Pending upload</span>'}</td>
-            <td style="padding:12px;color:var(--muted);font-size:12px">${date}</td>
-            <td style="padding:12px"><button onclick="deleteAsset('${rowKey}')" title="Remove from assets" style="background:transparent;border:none;cursor:pointer;font-size:14px;opacity:0.4;padding:4px 8px" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'">🗑️</button></td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+  const opts = names.map(n => `<option value="${n}">${n}</option>`).join('');
+  return `<select onchange="updateTaskClientFromPortal('${encodeURIComponent(t.Task)}', this.value)" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;cursor:pointer;font-family:'Poppins',sans-serif;appearance:none;-webkit-appearance:none;-moz-appearance:none;${chipStyle}">
+    <option value="" selected>${label}</option>
+    ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
+    ${opts}
+  </select>`;
 }
 
-async function deleteAsset(rowKey) {
-  const taskValue = decodeURIComponent(rowKey);
-  if (!confirm(`Remove this asset from the list?\n\n"${taskValue.split('|')[0].trim()}"\n\nThis only removes the sheet entry. The actual Dropbox file is not touched — delete it manually from Dropbox if needed.`)) return;
+async function updateTaskClientFromPortal(encodedTask, newValue) {
+  if (!newValue) return; // re-picked the placeholder — no-op
+  const task = decodeURIComponent(encodedTask);
+  const finalValue = newValue === '__clear__' ? '' : newValue;
   try {
-    await fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type': 'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({ action:'delete', sheet:'Type:tasks', matchColumn:'Task', matchValue: taskValue })
+    fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+      body: JSON.stringify({
+        action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+        matchValue: task, data: { Client: finalValue }
+      })
     });
-    // Optimistic local removal
-    allCreatives = allCreatives.filter(c => c.Task !== taskValue);
-    renderAssets();
-    toast('Asset removed.');
+    toast(finalValue ? `✓ Tagged as ${finalValue}` : '✓ Client tag cleared.');
+    setTimeout(() => loadClientTasks(), 500);
   } catch(e) {
-    toast('Could not remove. Try again.');
+    toast('Could not update tag.');
   }
 }
+
 
 function renderAll() {
   FOLDERS.forEach(folder => renderFolder(folder));
-  renderAssets();
+  // Live Tasks is the default landing tab — populate it immediately
+  loadClientTasks();
+  // Populate the sub-brand picker on the Request a Task form
+  populateRequestClientPicker();
+}
+
+// ===== REQUEST A TASK (client → Suriti) =====
+// Clients submit a new task. It lands on the founder OS as a "New Request"
+// in the client-request banner for Suriti to triage and assign.
+
+// Build the sub-brand <select> options based on which portal the user is in.
+// • Jindal portal → list its sub-brands (Steel, League, Youth, Sohar, Duqm)
+// • Single-brand portals (Kotak, Adhoc, Pitches) → auto-set, hide picker
+// • Founder mode ('all') → show every canonical client
+function populateRequestClientPicker() {
+  const sel = document.getElementById('req-client');
+  const wrap = document.getElementById('req-client-wrap');
+  if (!sel || !wrap) return;
+
+  let names = [];
+  if (activePortal === 'all') {
+    // Founder mode — full registry
+    names = CLIENT_REGISTRY.map(r => r.name);
+  } else if (CLIENT_PORTALS[activePortal]) {
+    names = (CLIENT_PORTALS[activePortal].clientNames || []).slice();
+  }
+
+  if (!names.length) {
+    names = [activePortal || 'Adhoc'];
+  }
+
+  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
+  // If only one option, hide the picker entirely — there's nothing to choose
+  wrap.style.display = names.length === 1 ? 'none' : '';
+}
+
+async function submitClientRequest() {
+  const titleEl = document.getElementById('req-title');
+  const descEl  = document.getElementById('req-desc');
+  const dateEl  = document.getElementById('req-date');
+  const clientEl = document.getElementById('req-client');
+  const errEl   = document.getElementById('req-error');
+  const submitBtn = document.getElementById('req-submit');
+
+  const title  = (titleEl?.value || '').trim();
+  const desc   = (descEl?.value  || '').trim();
+  const date   = (dateEl?.value  || '').trim();
+  const client = (clientEl?.value || '').trim();
+
+  errEl.style.display = 'none';
+  if (!title) {
+    errEl.textContent = 'Please add a title for your request.';
+    errEl.style.display = 'block';
+    titleEl?.focus();
+    return;
+  }
+  if (!client) {
+    errEl.textContent = 'Please pick a sub-brand.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  const originalLabel = submitBtn.textContent;
+  submitBtn.textContent = 'Sending…';
+
+  const todayISO = new Date().toISOString().split('T')[0];
+  const row = {
+    Date: date || todayISO,
+    Title: title,
+    Task: desc || title,
+    Update: '',
+    Assignee: '',                                  // empty — banner on founder OS triages it
+    Status: 'New Request',
+    Notes: `requested by ${currentUser || 'client'}`,
+    'Preview Link': '',
+    'Open File Link': '',
+    Type: 'task',
+    Client: client
+  };
+
+  try {
+    fetch(SHEETDB, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
+    });
+
+    // Optimistic UX — reset the form and reload tasks to show the new row
+    titleEl.value = '';
+    descEl.value  = '';
+    dateEl.value  = '';
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+    toast('✓ Request sent to the Yellow team.');
+    // Small delay so the sheet write lands before we re-fetch
+    setTimeout(() => loadClientTasks(), 700);
+  } catch(e) {
+    errEl.textContent = 'Could not send. Please try again.';
+    errEl.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+  }
 }
 
 // Format any messy date value as DD/MM (Indian convention)
@@ -1010,7 +1341,14 @@ async function autoLinkCreativeToTask(creative, designerName) {
 }
 
 function renderFolder(folder) {
-  const items = allCreatives.filter(c => c.Assignee === folder);
+  // `folder` is a canonical client name (e.g. 'Jindal Steel'). The HTML element
+  // IDs were built around legacy slugs ('steelcity'); look up the slug to match.
+  const entry = CLIENT_BY_NAME[folder] || CLIENT_BY_SLUG[folder];
+  if (!entry) return;
+  const canonicalName = entry.name;
+  const slug          = entry.slug;
+
+  const items = allCreatives.filter(c => c.Assignee === canonicalName);
   const pending  = items.filter(c => c.Status === 'Client Review');
   // Hide approved cards more than 2 days past client approval. File stays in
   // Dropbox — only the visual "Approved" card is removed from view.
@@ -1019,21 +1357,21 @@ function renderFolder(folder) {
   );
 
   // Count badge
-  const countEl = document.getElementById(`count-pending-${folder}`);
+  const countEl = document.getElementById(`count-pending-${slug}`);
   if (countEl) countEl.textContent = pending.length || '';
 
   // Pending
-  const pendingEl = document.getElementById(`pending-${folder}`);
+  const pendingEl = document.getElementById(`pending-${slug}`);
   if (pendingEl) {
     if (!pending.length) {
       pendingEl.innerHTML = '<div class="empty-state">No creatives pending review.</div>';
     } else {
-      pendingEl.innerHTML = pending.map((item, idx) => renderPendingCard(item, idx, folder)).join('');
+      pendingEl.innerHTML = pending.map((item, idx) => renderPendingCard(item, idx, canonicalName)).join('');
     }
   }
 
   // Approved
-  const approvedEl = document.getElementById(`approved-${folder}`);
+  const approvedEl = document.getElementById(`approved-${slug}`);
   if (approvedEl) {
     if (!approved.length) {
       approvedEl.innerHTML = '<div class="empty-state">No approved creatives yet.</div>';
