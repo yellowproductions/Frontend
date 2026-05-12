@@ -1358,6 +1358,30 @@ function resolveTodayStatusFOS(name, attendanceRowToday, allRows, currentMinNow,
   if (isInactive(name)) return 'Inactive';
   const today = new Date();
   if (!isWorkingDay(name, today)) return 'Off';
+
+  // Most recent override (any type) wins. Without this, overriding someone FROM
+  // "On Leave" back to "Present" would silently fail — the old leave row would
+  // still be matched by getApprovedLeaveForDate and short-circuit to "On Leave".
+  // Override rows have "override by Suriti" in Notes and a timestamp suffix in Task.
+  const nameKey = (name || '').trim().toLowerCase();
+  const overrides = allRows.filter(r =>
+    (r.Type === 'attendance' || r.Type === 'leave') &&
+    r.Date === todayStr &&
+    (r.Assignee || '').trim().toLowerCase() === nameKey &&
+    /override/i.test(r.Notes || '')
+  );
+  if (overrides.length > 0) {
+    // Sort by timestamp suffix in Task (largest = most recent override wins)
+    overrides.sort((a, b) => {
+      const ta = (a.Task || '').match(/-(\d+)$/);
+      const tb = (b.Task || '').match(/-(\d+)$/);
+      return (tb ? parseInt(tb[1], 10) : 0) - (ta ? parseInt(ta[1], 10) : 0);
+    });
+    const latest = overrides[0];
+    return latest.Type === 'leave' ? 'On Leave' : (latest.Status || 'Present');
+  }
+
+  // No override — normal fallback: approved leave > attendance mark > default
   if (getApprovedLeaveForDate(name, todayStr, allRows)) return 'On Leave';
   if (attendanceRowToday) return attendanceRowToday.Status || 'Present';
   if (currentMinNow > ABSENT_AFTER_MIN_FOS) return 'Absent';
