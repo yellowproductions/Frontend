@@ -460,7 +460,12 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">Client</label>
           <select id="quick-task-client" onchange="onClientChangeTeam()" style="font-size:12px;padding:7px 8px;width:100%">
             <option value="">— Select —</option>
-            <option value="Jindal">Jindal Group</option>
+            <optgroup label="Jindal">
+              <option value="Jindal Steel">Jindal Steel</option>
+              <option value="Jindal Youth League">Jindal Youth League</option>
+              <option value="Sohar Steel">Sohar Steel</option>
+              <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+            </optgroup>
             <option value="Kotak">Kotak</option>
             <option value="Pitches">Pitches</option>
             <option value="Adhoc">Adhoc</option>
@@ -2057,7 +2062,9 @@ function renderTaskRows(tasks, startIdx) {
     </div>
     ${tasks.map((t, i) => {
       const idx = startIdx + i;
-      const status = t.Status || 'Pending';
+      // Normalize legacy "Done" → "Closed" — single closed status going forward
+      const rawStatus = t.Status || 'Pending';
+      const status = rawStatus === 'Done' ? 'Closed' : rawStatus;
       const isToday = t.Date === today;
       const isOverdue = t.Date && t.Date < today && !DONE_STATUSES.includes(status);
       const isDoneNoFile = DONE_STATUSES.includes(status) && !(t['Preview Link'] || t['Open File Link']);
@@ -2117,7 +2124,6 @@ function renderTaskRows(tasks, startIdx) {
             <option ${status==='Approved'?'selected':''}>Approved</option>
             <option ${status==='Closed'?'selected':''}>Closed</option>
             <option ${status==='On Hold'?'selected':''}>On Hold</option>
-            ${status==='Done'?'<option selected>Done</option>':''}
           </select>
         </div>
         <input class="task-cell" data-label="Final file" type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
@@ -2217,7 +2223,7 @@ async function loadTasks() {
         try {
           monthLabel = m === 'No date' ? 'No date' : new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
         } catch(e) { monthLabel = m; }
-        const doneCount = monthTasks.filter(t => (t.Status === 'Done' || t.Status === 'done')).length;
+        const doneCount = monthTasks.filter(t => (t.Status === 'Done' || t.Status === 'done' || t.Status === 'Closed' || t.Status === 'closed')).length;
         html += `<details style="background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">
           <summary style="cursor:pointer;padding:12px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span><span style="font-size:16px;margin-right:8px">📁</span><strong>${monthLabel}</strong>
