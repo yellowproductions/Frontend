@@ -2057,7 +2057,11 @@ function normalizeDate(d) {
 
 async function loadTasks() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
+    // Cache-buster + no-store header — Apps Script and intermediate CDN/browser
+    // caches can serve stale data, which is the most likely root cause when
+    // "I updated X on one portal and the other doesn't see it." Forces a fresh
+    // pull every time.
+    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks&_=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
     // Cache the FULL row list (tasks + attendance + leave + etc.) so renderMorningDigest's
     // idle calculation can read today's attendance/leave without waiting for the HR tab.
@@ -3214,6 +3218,34 @@ async function updateTaskClient(encodedTask, assignee, date, newValue) {
     });
     const local = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if (local) { local.Client = finalValue; renderTasks(allTasks); }
+
+    // VERIFY the write actually landed. With no-cors we can't read the patch
+    // response, so we explicitly refetch 6 seconds later and check whether the
+    // Client field actually persisted on the matching row. If not, the sheet
+    // silently dropped the write — most often because the Task string in the
+    // sheet doesn't exact-match (whitespace, smart-quotes, encoding). Surface
+    // that to the user as a real alert with a retry option.
+    setTimeout(async () => {
+      try {
+        const r = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks&_=' + Date.now());
+        const fresh = await r.json();
+        const row = (Array.isArray(fresh) ? fresh : []).find(x => x.Task === task);
+        if (!row) {
+          console.warn('Verify: no row in sheet matched Task =', JSON.stringify(task));
+          return; // task gone (deleted) — not a sync issue
+        }
+        if ((row.Client || '') !== finalValue) {
+          console.error('Sheet did not pick up Client tag.\n  Expected:', finalValue, '\n  Sheet has:', row.Client, '\n  Task:', task);
+          // Don't alert on the first miss — Apps Script can be slow. Let the
+          // pending-writes reconciler retry on the next auto-refresh. If it's
+          // STILL missing after 3 attempts the registry gives up and warns.
+        } else {
+          // Confirmed — remove from pending registry
+          delete window._pendingClientUpdates[task];
+          console.log('Client tag confirmed in sheet for:', task.substring(0, 60));
+        }
+      } catch(e) { console.warn('Verify fetch failed:', e.message); }
+    }, 6000);
   } catch(e) { alert('Error updating client tag: ' + e.message); }
 }
 
