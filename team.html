@@ -2574,7 +2574,28 @@ function resolveTodayStatus(name, attendanceRowToday, allRows, currentMinNow) {
   if (isInactive(name)) return 'Inactive';
   const today = new Date();
   if (!isWorkingDay(name, today)) return 'Off';
-  if (getApprovedLeaveForDate(name, getISTNow().date, allRows)) return 'On Leave';
+
+  // Most recent override (any type) wins — without this, overriding back-and-forth
+  // would silently keep returning the FIRST override.
+  const todayStr = getISTNow().date;
+  const nameKey = (name || '').trim().toLowerCase();
+  const overrides = (allRows || []).filter(r =>
+    (r.Type === 'attendance' || r.Type === 'leave') &&
+    r.Date === todayStr &&
+    (r.Assignee || '').trim().toLowerCase() === nameKey &&
+    /override/i.test(r.Notes || '')
+  );
+  if (overrides.length) {
+    overrides.sort((a, b) => {
+      const ta = (a.Task || '').match(/-(\d+)$/);
+      const tb = (b.Task || '').match(/-(\d+)$/);
+      return (tb ? parseInt(tb[1], 10) : 0) - (ta ? parseInt(ta[1], 10) : 0);
+    });
+    const latest = overrides[0];
+    return latest.Type === 'leave' ? 'On Leave' : (latest.Status || 'Present');
+  }
+
+  if (getApprovedLeaveForDate(name, todayStr, allRows)) return 'On Leave';
   if (attendanceRowToday) return attendanceRowToday.Status || 'Present';
   // No mark — derive from current time
   if (currentMinNow > ABSENT_AFTER_MIN) return 'Absent';
@@ -2675,7 +2696,7 @@ async function loadAttendance() {
       scheduleEl.innerHTML = `<strong>${schedule.type}</strong> · starts ${schedule.start} IST · 15 min grace`;
     }
 
-    // Resolve today's effective status using all the rules
+    // Resolve today's effective status using all the rules (overrides applied)
     const effectiveStatus = resolveTodayStatus(currentUser, todayAtt[0], data, ist.totalMin);
 
     // === ON LEAVE today — show that, hide button ===
@@ -2692,14 +2713,14 @@ async function loadAttendance() {
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill('Off');
     }
-    // === ALREADY MARKED — show marked status ===
-    else if (todayAtt.length) {
-      const status = todayAtt[0].Status || 'Present';
-      const time = todayAtt[0].Title || '';
-      const p = palette[status] || palette['Present'];
+    // === MARKED (Present / Late / Half Day) — show effective status, not raw todayAtt[0]
+    // (otherwise an override is invisible because todayAtt[0] is the ORIGINAL mark)
+    else if (['Present','Late','Half Day'].includes(effectiveStatus)) {
+      const time = formatAttTimeTeam(todayAtt[0]?.Title || '');
+      const p = palette[effectiveStatus] || palette['Present'];
       if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} ${p.label}</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
       if (btnEl) btnEl.style.display = 'none';
-      setAttendancePill(status);
+      setAttendancePill(effectiveStatus);
     }
     // === ABSENT (past 11:30 AM, no mark) — show as absent but still allow mark = Half Day ===
     else if (effectiveStatus === 'Absent') {
