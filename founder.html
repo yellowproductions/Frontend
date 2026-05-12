@@ -2063,6 +2063,9 @@ async function loadTasks() {
     // idle calculation can read today's attendance/leave without waiting for the HR tab.
     window._allRowsCache = data.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
     allTasks = window._allRowsCache.filter(r => r.Type === 'task' || r.Type === '' || !r.Type);
+    // Re-apply any client-tag writes that haven't been confirmed by the sheet
+    // yet — otherwise the auto-refresh wipes the optimistic update.
+    if (typeof reconcilePendingClientUpdates === 'function') reconcilePendingClientUpdates(allTasks);
     renderTasks(allTasks);
     checkTeamNotifications(allTasks);
     checkClientRequests(allTasks); // 🤝 Surface incoming client portal requests for triage
@@ -3187,10 +3190,18 @@ function renderFosClientEditor(t) {
   </select>`;
 }
 
+// Pending client-tag writes that the sheet hasn't yet confirmed. Each loadTasks
+// reconciles against the fresh data and re-applies any still-pending tag so the
+// optimistic update survives the auto-refresh race.
+window._pendingClientUpdates = window._pendingClientUpdates || {};
+
 async function updateTaskClient(encodedTask, assignee, date, newValue) {
   const task = decodeURIComponent(encodedTask);
   if (!newValue) return;
   const finalValue = newValue === '__clear__' ? '' : newValue;
+  // Register the write so reconcilePendingClientUpdates can re-apply if the
+  // 60s auto-refresh refetches the sheet before Apps Script commits.
+  window._pendingClientUpdates[task] = { client: finalValue, attempts: 1, lastTry: Date.now() };
   try {
     await fetch(SHEETDB_URL, {
       method: 'POST',
@@ -3204,6 +3215,41 @@ async function updateTaskClient(encodedTask, assignee, date, newValue) {
     const local = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if (local) { local.Client = finalValue; renderTasks(allTasks); }
   } catch(e) { alert('Error updating client tag: ' + e.message); }
+}
+
+// Reconcile pending client writes against fresh sheet data. Called inside
+// loadTasks AFTER the fetch but BEFORE renderTasks. Behavior matches the team
+// portal version: confirmed writes drop out, stale ones get re-applied
+// optimistically, and writes that don't land after 30s + 3 attempts give up.
+function reconcilePendingClientUpdates(freshTasks) {
+  const pending = window._pendingClientUpdates || {};
+  Object.entries(pending).forEach(([task, info]) => {
+    const t = freshTasks.find(x => x.Task === task);
+    if (!t) return;
+    if ((t.Client || '') === info.client) {
+      delete pending[task];
+      return;
+    }
+    t.Client = info.client;
+    const elapsed = Date.now() - info.lastTry;
+    if (elapsed > 30000 && info.attempts < 3) {
+      info.attempts++;
+      info.lastTry = Date.now();
+      console.log(`Retrying client tag write for ${task} (attempt ${info.attempts})`);
+      try {
+        fetch(SHEETDB_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({
+            action:'patch', sheet:'Type:tasks', matchColumn:'Task',
+            matchValue: task, data: { Client: info.client }
+          })
+        });
+      } catch(e) {}
+    } else if (info.attempts >= 3) {
+      console.warn(`Gave up on client tag write for ${task} — manual save needed`);
+      delete pending[task];
+    }
+  });
 }
 
 async function updateTaskStatus(task, assignee, date, newStatus) {
