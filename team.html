@@ -2723,37 +2723,74 @@ async function loadAttendance() {
       setAttendancePill('Not marked');
     }
 
-    // History — merge attendance rows + approved leave rows. Prefer the most informative
-    // entry per date (override > leave > original attendance). Also fix the ugly Title
-    // display which was coming back as "Sat Dec 30 1899 11:28:00 GMT..." (Google Sheets'
-    // way of serializing time-only cells).
+    // History — merge attendance rows + approved leave rows. For each date, the
+    // MOST RECENT override row wins (timestamp lives in the override row's Task field).
+    // This makes overriding back-and-forth work: latest action sticks.
+    // Also fixes ugly Title display ("Sat Dec 30 1899 11:28:00 GMT...") from Google Sheets.
     const myAttendance = data.filter(r => r.Type === 'attendance' && r.Assignee === currentUser);
     const myLeaves     = data.filter(r => r.Type === 'leave' && r.Assignee === currentUser && /approved/i.test(r.Status || ''));
 
-    // Build map: Date → { status, time }. Leave rows win over attendance rows.
-    const byDate = {};
-    myAttendance.forEach(r => {
-      const existing = byDate[r.Date];
-      const isOverride = /override/i.test(r.Notes || '');
-      if (!existing || isOverride) {
-        byDate[r.Date] = { status: r.Status || 'Present', time: formatAttTimeTeam(r.Title || ''), source: 'attendance' };
-      }
-    });
-    // For each approved leave row, mark all dates it covers as "On Leave"
+    const getOverrideTs = (task) => {
+      const m = (task || '').match(/-(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    // Expand each row into one entry per date it covers. Multi-day regular leaves
+    // become multiple entries; single-day override leaves stay single.
+    const expanded = [];
+    myAttendance.forEach(r => expanded.push({ row: r, date: r.Date }));
     myLeaves.forEach(r => {
+      const isOverride = /override/i.test(r.Notes || '');
+      if (isOverride) {
+        // Override leave is a single-day flag — Task field is an ID, not a date
+        expanded.push({ row: r, date: r.Date });
+        return;
+      }
+      // Regular leave: Task column stores the end date in the original schema
       const from = r.Date;
-      const to   = r.Task || from;     // Task column stores leave end date in original schema
+      const to   = r.Task || from;
       if (!from) return;
-      // Iterate from `from` to `to` inclusive
       try {
         const start = new Date(from);
         const end   = new Date(to);
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const ds = d.toISOString().split('T')[0];
-          byDate[ds] = { status: 'On Leave', time: '', source: 'leave' };
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          // Couldn't parse end date — treat as single-day leave
+          expanded.push({ row: r, date: from });
+          return;
         }
-      } catch(e) {}
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          expanded.push({ row: r, date: d.toISOString().split('T')[0] });
+        }
+      } catch(e) {
+        expanded.push({ row: r, date: from });
+      }
+    });
+
+    // Group expanded entries by date, then pick the winning row per date
+    const grouped = {};
+    expanded.forEach(e => {
+      if (!grouped[e.date]) grouped[e.date] = [];
+      grouped[e.date].push(e.row);
+    });
+
+    const byDate = {};
+    Object.entries(grouped).forEach(([date, rows]) => {
+      // Priority 1: most recent override (any type) — for back-and-forth changes
+      const overrides = rows.filter(r => /override/i.test(r.Notes || ''));
+      if (overrides.length) {
+        overrides.sort((a, b) => getOverrideTs(b.Task) - getOverrideTs(a.Task));
+        const latest = overrides[0];
+        byDate[date] = latest.Type === 'leave'
+          ? { status: 'On Leave', time: '' }
+          : { status: latest.Status || 'Present', time: formatAttTimeTeam(latest.Title || '') };
+        return;
+      }
+      // Priority 2: a regular approved leave → On Leave
+      const leave = rows.find(r => r.Type === 'leave');
+      if (leave) { byDate[date] = { status: 'On Leave', time: '' }; return; }
+      // Priority 3: attendance mark
+      const att = rows.find(r => r.Type === 'attendance');
+      if (att) byDate[date] = { status: att.Status || 'Present', time: formatAttTimeTeam(att.Title || '') };
     });
 
     const history = Object.entries(byDate)
