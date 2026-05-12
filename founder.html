@@ -746,7 +746,12 @@
 
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="card-title" style="margin:0">All Tasks</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="card-title" style="margin:0">All Tasks</div>
+          <span id="tasks-live-dot" title="Auto-refreshes every 60 seconds when you're not typing" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#86efac"></span>
+          <button onclick="loadTasks()" title="Pull latest task data right now"
+            style="background:transparent;border:1px solid var(--border);color:#666;font-size:11px;padding:3px 10px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif">↻ Refresh</button>
+        </div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="text" id="task-search" placeholder="🔍 Search: name, status, client..." style="width:240px" oninput="filterTasks()">
           <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
@@ -1241,58 +1246,12 @@
       </div>
     </div>
 
-    <!-- ADD CREATIVE TO JINDAL -->
-    <div class="card">
-      <div class="card-title">Upload Creative to Jindal Portal</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Add a creative with the designer tagged — feedback will go directly to them.</p>
-
-      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-        <div>
-          <label>Project Folder</label>
-          <select id="cl-folder">
-            <option value="steelcity">Jindal Steel City</option>
-            <option value="youthleague">Jindal League</option>
-            <option value="jindal-youth">Jindal Youth League</option>
-            <option value="duqm">Jindal Steel Duqm</option>
-          </select>
-        </div>
-        <div>
-          <label>Creative Name</label>
-          <input type="text" id="cl-name" placeholder="e.g. Billboard v2">
-        </div>
-        <div>
-          <label>Designer</label>
-          <select id="cl-designer">
-            <option value="">Select designer</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
-            <option>Siddhesh</option><option>Ajay</option>
-          </select>
-        </div>
-        <div>
-          <label>File Link</label>
-          <input type="text" id="cl-link" placeholder="Paste link">
-        </div>
-      </div>
-
-      <button class="btn btn-yellow" onclick="uploadCreative()">+ Add to Portal</button>
-    </div>
-
-    <!-- CREATIVES LIST -->
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="card-title" style="margin:0">All Creatives on Jindal Portal</div>
-        <select id="cl-filter-folder" onchange="loadClientCreatives()" style="width:200px">
-          <option value="">All Folders</option>
-          <option value="steelcity">Jindal Steel City</option>
-          <option value="youthleague">Jindal League</option>
-          <option value="jindal-youth">Jindal Youth League</option>
-          <option value="duqm">Jindal Steel Duqm</option>
-        </select>
-      </div>
-      <div id="cl-list"><div class="empty-state">No creatives uploaded yet.</div></div>
-    </div>
+    <!-- The legacy "Upload Creative to Jindal Portal" + "All Creatives on Jindal Portal" sections
+         lived here. Both were removed in May 2026: every client now has its own portal, so a single
+         "Jindal-flavoured" upload widget no longer fits the workflow. Designers upload via Studio
+         (where task → client auto-link routes the file correctly). The corresponding JS helpers
+         (uploadCreative, loadClientCreatives) are intentionally left in place as dead code in case
+         we want to revive a single-page uploader later. -->
   </div>
 
 </div><!-- end main -->
@@ -1546,7 +1505,7 @@ function enterFounder() {
   if (bell) bell.style.display = 'block';
   loadTasks();
   loadHR();
-  renderChat();
+  renderAgentChat();
   renderRecents();
   startISTClockFounder();
   startChatPollingFounder();
@@ -1689,7 +1648,7 @@ async function callAI(systemPrompt, userMessage) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
@@ -1745,7 +1704,7 @@ function startNewChat(agent) {
   currentSessionId = null;
   currentAgent = agent;
   saveSessions();
-  renderChat();
+  renderAgentChat();
   renderRecents();
 }
 
@@ -1755,7 +1714,7 @@ function loadSession(sessionId) {
   currentSessionId = sessionId;
   currentAgent = s.agent;
   saveSessions();
-  renderChat();
+  renderAgentChat();
   renderRecents();
 }
 
@@ -1765,7 +1724,7 @@ function deleteSession(sessionId, ev) {
   chatSessions = chatSessions.filter(s => s.id !== sessionId);
   if (currentSessionId === sessionId) currentSessionId = chatSessions[0]?.id || null;
   saveSessions();
-  renderChat();
+  renderAgentChat();
   renderRecents();
 }
 
@@ -1814,7 +1773,7 @@ function renderAgentSidebar() {
     </div>`;
   }).join('');
 }
-function renderChat() {
+function renderAgentChat() {
   const chat = document.getElementById('ceo-chat');
   if (!chat) return;
   const s = currentSession();
@@ -1909,7 +1868,7 @@ async function sendChat() {
   s.display.push({ role: 'user', text: msg });
   s.history.push({ role: 'user', content: msg });
   s.updatedAt = Date.now();
-  renderChat();
+  renderAgentChat();
   renderRecents();
   saveSessions();
 
@@ -1935,7 +1894,7 @@ async function sendChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         system: enrichedPrompt,
         messages: s.history
@@ -1946,13 +1905,13 @@ async function sendChat() {
     s.history.push({ role: 'assistant', content: reply });
     s.display.push({ role: 'ai', text: reply });
     s.updatedAt = Date.now();
-    renderChat();
+    renderAgentChat();
     renderRecents();
     const reminderText = extractReminder(msg);
     if(reminderText) { addReminder(reminderText); }
   } catch(e) {
     s.display.push({ role: 'error', text: 'Could not reach agent. Try again.' });
-    renderChat();
+    renderAgentChat();
   }
 
   document.getElementById('loading').style.display = 'none';
@@ -2302,19 +2261,21 @@ function renderWorkOutput(allRows) {
   const SYSTEM_LIVE_DATE = '2026-05-10';
   const todayDate = new Date();
 
-  // Background + foreground colors per status
+  // Two-state attendance display per Suriti: anyone not actively marked Present
+  // shows as Leave. Removes "Absent" / "Off" / "No data for past day" — those all
+  // collapse to Leave. Future and pre-launch days still grey out (genuinely no
+  // data possible). This is a display simplification only — the raw attendance
+  // tracking in the sheet keeps every original value.
   const dayBg = {
-    'Present':  '#dcfce7', 'Late': '#fce7f3', 'Half Day': '#fed7aa',
-    'Absent':   '#fee2e2', 'On Leave': '#dbeafe', 'Off': '#f3f4f6', 'No data': '#fafaf7'
+    'Present': '#dcfce7', 'Leave': '#dbeafe', 'No data': '#fafaf7'
   };
   const dayFg = {
-    'Present':  '#15803d', 'Late': '#be185d', 'Half Day': '#9a3412',
-    'Absent':   '#b91c1c', 'On Leave': '#1e40af', 'Off': '#9ca3af', 'No data': '#cccccc'
+    'Present': '#15803d', 'Leave': '#1e40af', 'No data': '#cccccc'
   };
 
   const stats = ACTIVE_TEAM.map(name => {
     const cells = [];
-    let totalClosed = 0, present = 0, late = 0, half = 0, absent = 0, leave = 0;
+    let totalClosed = 0, present = 0, leave = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -2326,24 +2287,30 @@ function renderWorkOutput(allRows) {
       if (isFuture || isPreLaunch) {
         status = 'No data';
       } else {
-        // Use the override-aware resolver so any retroactive corrections
-        // (overrides) propagate into this Daily Performance view.
-        status = resolveDayStatusFOS(name, dateStr, allRows);
-        // For this view, "Not marked" (today before cutoff) is treated as
-        // pending — show as No data so it doesn't inflate the absent count.
-        if (status === 'Not marked') status = 'No data';
+        // Past or today. Resolve raw attendance, then collapse to binary:
+        // Present (they marked attendance in any form) vs Leave (everything else).
+        const raw = resolveDayStatusFOS(name, dateStr, allRows);
+        if (raw === 'Present' || raw === 'Late' || raw === 'Half Day') {
+          status = 'Present';
+        } else if (raw === 'Not marked' && dateStr === todayDate.toISOString().split('T')[0]) {
+          // Today, before the cutoff or just not marked yet — don't pre-label as Leave
+          status = 'No data';
+        } else {
+          // Past day with no Present mark, or genuine "On Leave" — all show as Leave
+          status = 'Leave';
+        }
       }
 
-      // Tally for the summary line
+      // Tally for the summary line — just the two visible states now
       if (status === 'Present')   present++;
-      else if (status === 'Late')     late++;
-      else if (status === 'Half Day') half++;
-      else if (status === 'Absent')   absent++;
-      else if (status === 'On Leave') leave++;
+      else if (status === 'Leave') leave++;
 
-      // Tasks closed this day for this person
+      // Tasks closed this day for this person. Filter accepts legacy rows that
+      // pre-date the Type column (when Type is empty we still treat them as tasks
+      // — pre-cleanup data shouldn't disappear from Daily Performance just because
+      // it lacks an explicit Type='task' tag).
       const closedToday = allRows.filter(r =>
-        r.Type === 'task' &&
+        (r.Type === 'task' || !r.Type) &&
         r.Assignee === name &&
         DONE.includes(r.Status || '') &&
         (r.Date || '') === dateStr
@@ -2352,17 +2319,16 @@ function renderWorkOutput(allRows) {
 
       cells.push({ day: d, status, closed: closedToday, dateStr });
     }
-    return { name, cells, totalClosed, present, late, half, absent, leave };
+    return { name, cells, totalClosed, present, leave };
   });
 
   // Sort by output desc — top performers up top
   stats.sort((a, b) => b.totalClosed - a.totalClosed);
 
-  // Legend at top
+  // Legend at top — only Present and Leave per simplified attendance model
   const legendItems = [
-    ['Present','#dcfce7','#15803d'], ['Late','#fce7f3','#be185d'],
-    ['Half Day','#fed7aa','#9a3412'], ['Absent','#fee2e2','#b91c1c'],
-    ['On Leave','#dbeafe','#1e40af'], ['Off','#f3f4f6','#9ca3af']
+    ['Present','#dcfce7','#15803d'],
+    ['Leave','#dbeafe','#1e40af']
   ];
   const legend = `<div style="display:flex;flex-wrap:wrap;gap:14px;padding:8px 4px 14px;font-size:11px;color:#666;border-bottom:1px solid var(--border);margin-bottom:12px">
     ${legendItems.map(([k,bg,fg]) => `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:3px;background:${bg};border:1px solid ${fg}20;display:inline-block"></span><span style="color:${fg}">${k}</span></span>`).join('')}
@@ -2396,10 +2362,7 @@ function renderWorkOutput(allRows) {
         <span style="font-size:11px;color:#666;display:flex;gap:12px;flex-wrap:wrap">
           <span style="color:#15803d;font-weight:700;font-size:13px">${s.totalClosed} closed</span>
           ${s.present ? `<span style="color:#15803d">${s.present} present</span>` : ''}
-          ${s.late ? `<span style="color:#be185d">${s.late} late</span>` : ''}
-          ${s.half ? `<span style="color:#9a3412">${s.half} half day</span>` : ''}
-          ${s.absent ? `<span style="color:#b91c1c">${s.absent} absent</span>` : ''}
-          ${s.leave ? `<span style="color:#1e40af">${s.leave} leave</span>` : ''}
+          ${s.leave ? `<span style="color:#1e40af">${s.leave} on leave</span>` : ''}
         </span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">${cellsHtml}</div>
@@ -2464,15 +2427,19 @@ function renderCapacity(tasks) {
   </div>` + stats.map(s => {
     let statusLabel, statusColor, statusBg;
 
-    // Day-status overrides task-load status: if they're off/absent/on-leave, show that instead
-    if (s.dayStatus === 'On Leave')      { statusLabel = '📍 On Leave';   statusColor = '#1e40af'; statusBg = '#dbeafe'; }
-    else if (s.dayStatus === 'Off')      { statusLabel = '🌴 Off';        statusColor = '#666';    statusBg = '#f3f4f6'; }
-    else if (s.dayStatus === 'Absent')   { statusLabel = '✕ Absent';      statusColor = '#b91c1c'; statusBg = '#fee2e2'; }
-    else if (s.count === 0)              { statusLabel = '🟢 Idle · ready'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
-    else if (s.count <= 2)               { statusLabel = '🟢 Light';      statusColor = '#15803d'; statusBg = '#f0fdf4'; }
-    else if (s.count <= 4)               { statusLabel = '🟡 Medium';     statusColor = '#854f0b'; statusBg = '#fefbf2'; }
-    else if (s.count <= 6)               { statusLabel = '🟠 Heavy';      statusColor = '#9a3412'; statusBg = '#fff7ed'; }
-    else                                  { statusLabel = '🔴 Overloaded'; statusColor = '#7f1d1d'; statusBg = '#fef2f2'; }
+    // Binary capacity display per Suriti's request: someone is either Present
+    // (with their current load shown as Idle / Light / Medium / Heavy / Overloaded)
+    // or Leave. Anyone not marked Present today — whether on approved leave, off,
+    // absent, or just hasn't marked yet — shows as a single neutral "📍 Leave"
+    // pill. No more shaming Absent labels; load only surfaces when the person
+    // is actually here to do work.
+    const isPresent = s.dayStatus === 'Present' || s.dayStatus === 'Late' || s.dayStatus === 'Half Day';
+    if (!isPresent)                       { statusLabel = '📍 Leave';      statusColor = '#1e40af'; statusBg = '#dbeafe'; }
+    else if (s.count === 0)               { statusLabel = '🟢 Idle · ready'; statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 2)                { statusLabel = '🟢 Light';      statusColor = '#15803d'; statusBg = '#f0fdf4'; }
+    else if (s.count <= 4)                { statusLabel = '🟡 Medium';     statusColor = '#854f0b'; statusBg = '#fefbf2'; }
+    else if (s.count <= 6)                { statusLabel = '🟠 Heavy';      statusColor = '#9a3412'; statusBg = '#fff7ed'; }
+    else                                   { statusLabel = '🔴 Overloaded'; statusColor = '#7f1d1d'; statusBg = '#fef2f2'; }
 
     const oldestText = s.oldestAge > 0 ? `${s.oldestAge}d old` : '—';
     const overdueText = s.overdue > 0
@@ -2913,6 +2880,30 @@ function renderTasks(tasks) {
   // Tasks panel until Suriti promotes them. Filter them out here so they
   // don't double-surface as un-assigned blanks in the main list.
   tasks = tasks.filter(t => t.Status !== 'New Request');
+
+  // SEARCH/DATE FILTER PERSISTENCE — bug fix:
+  // Many handlers (updateTaskStatus, reassignTask, updateTaskClient, etc.) call
+  // renderTasks(allTasks) after a write, which used to wipe the active filter.
+  // Now we re-apply the search-box + date-input filters here, so any caller is
+  // automatically consistent with what the user is searching for. This makes
+  // filterTasks() effectively just a "force re-render" — renderTasks itself owns
+  // filter application.
+  const searchEl = document.getElementById('task-search');
+  const dateEl   = document.getElementById('task-filter-date');
+  const search   = searchEl ? searchEl.value.toLowerCase().trim() : '';
+  const dateVal  = dateEl ? dateEl.value : '';
+  if (search || dateVal) {
+    tasks = tasks.filter(t => {
+      if (dateVal && t.Date !== dateVal) return false;
+      if (search) {
+        const statusNorm = (t.Status || '').toLowerCase() === 'done' ? 'closed' : (t.Status || '').toLowerCase();
+        const hay = [t.Title||'', t.Task||'', t.Assignee||'', t.Client||'', statusNorm, t.Notes||''].join(' ').toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+  }
+
   if(!tasks.length) { el.innerHTML = '<div class="empty-state">No tasks found.</div>'; return; }
 
   // If a filter is active (e.g. clicked "10 hot deadlines"), only show those tasks
@@ -2940,15 +2931,17 @@ function renderTasks(tasks) {
   });
 
   // Only the select gets colour — strong, not pastel
+  // Status pill colors — pastel palette, uniform with the assignee/client pills.
+  // No more saturated brights and gradients; just soft fills with darker text.
   const STATUS_SELECT = {
-    'Pending':         'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-    'In Progress':     'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-    'Awaiting Review': 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
-    'Awaiting Client': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
-    'Approved':        'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
-    'Closed':          'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-    'On Hold':         'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
-    'Done':            'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+    'Pending':         'background:#fef3c7;color:#92400e;border:1px solid #fde68a;',
+    'In Progress':     'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;',
+    'Awaiting Review': 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;',
+    'Awaiting Client': 'background:#fce7f3;color:#831843;border:1px solid #f9a8d4;',
+    'Approved':        'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;',
+    'Closed':          'background:#dcfce7;color:#166534;border:1px solid #86efac;',
+    'On Hold':         'background:#f3f4f6;color:#4b5563;border:1px solid #d1d5db;',
+    'Done':            'background:#dcfce7;color:#166534;border:1px solid #86efac;',
   };
 
   const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
@@ -3020,25 +3013,36 @@ function renderTasks(tasks) {
           </div>` : '';
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(260px, 0.9fr) 110px 1.4fr 80px 44px;gap:8px;align-items:start;font-size:12px;">
+        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(200px, 0.7fr) 110px 1fr 1fr 36px;gap:6px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
-            <div>${title || desc || '—'}
-              ${renderFosClientEditor(t)}
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+              <span contenteditable="true" spellcheck="true"
+                title="Click to edit · Tab or click out to save"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                onblur="updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
+                style="cursor:text;padding:1px 4px;border-radius:4px;outline:none;font-weight:600;min-width:40px"
+                onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
               <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
                 title="Reassign — pick a different person"
-                style="margin-left:8px;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:12px;background:#fff8e1;border:1px solid #f0d080;color:#854f0b;font-weight:700;cursor:pointer">
+                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#fef9ee;border:1px solid #f0d080;color:#854f0b;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
                 <option value="${t.Assignee||''}" selected>${t.Assignee||'— assign —'}</option>
                 ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
               </select>
+              ${renderFosClientEditor(t)}
             </div>
-            ${showDesc ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;overflow-wrap:anywhere;word-break:break-word">${desc}</div>` : ''}
+            ${showDesc ? `<div contenteditable="true" spellcheck="true"
+              title="Click to edit"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+              onblur="updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
+              style="font-size:11px;color:var(--muted);margin-top:4px;font-weight:400;overflow-wrap:anywhere;word-break:break-word;cursor:text;padding:2px 4px;border-radius:4px;outline:none"
+              onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
             ${updatesHtml}
             <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
               <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
             </div>
           </div>
         <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-          style="font-size:11px;padding:4px 6px;width:100%;border-radius:20px;${selectStyle}">
+          style="font-size:11px;padding:4px 8px;width:100%;border-radius:12px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${selectStyle}">
           <option ${status==='Pending'?'selected':''}>Pending</option>
           <option ${status==='In Progress'?'selected':''}>In Progress</option>
           <option ${status==='Awaiting Review'?'selected':''}>Awaiting Review</option>
@@ -3047,12 +3051,22 @@ function renderTasks(tasks) {
           <option ${status==='Closed'?'selected':''}>Closed</option>
           <option ${status==='On Hold'?'selected':''}>On Hold</option>
         </select>
-        <input type="text" placeholder="Paste link" value="${t['Preview Link']||''}"
-          onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-          style="font-size:11px;padding:4px 6px;min-width:0;width:100%;text-overflow:ellipsis">
-        <span>${link}</span>
+        <div style="display:flex;gap:3px;align-items:center;min-width:0">
+          <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
+            title="Preview / final-creative link"
+            onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+            style="font-size:11px;padding:4px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
+          ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" title="Open preview" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
+        </div>
+        <div style="display:flex;gap:3px;align-items:center;min-width:0">
+          <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
+            title="Source file link (AI / PSD in Dropbox)"
+            onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+            style="font-size:11px;padding:4px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
+          ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" title="Open source file" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
+        </div>
         <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
-          class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px">✕</button>
+          class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 6px;border-radius:6px">✕</button>
         </div>
       </div>`;
     });
@@ -3147,12 +3161,11 @@ async function addUpdate(encodedTask, inputEl) {
 function renderFosClientEditor(t) {
   const c = t.Client || '';
   const placeholder = c ? `🏷 ${c} ▾` : '＋ Client ▾';
-  // Match the assignee chip's solid-bordered weight — untagged should still be visible.
-  // Tagged → blue (set), Untagged → solid grey-mint (asking to be set).
+  // Pastel pill — matches the assignee chip's weight. Uniform style across the row.
   const chipStyle = c
-    ? 'background:#eff6ff;color:#1e40af;border:1px solid #93c5fd'
-    : 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
-  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value)" style="font-size:10px;font-family:'DM Mono',monospace;font-weight:700;padding:2px 8px;border-radius:12px;margin-left:8px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;${chipStyle}">
+    ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
+    : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
+  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value)" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
     <option value="" selected>${placeholder}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
@@ -3218,6 +3231,63 @@ async function updateTaskLink(task, assignee, date, link) {
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) t['Preview Link'] = link;
   } catch(e) { console.log('Error updating link'); }
+}
+
+// Edit the task's Title in place. Safe — Title isn't a match key, so subsequent
+// operations using the same Task string keep working.
+async function updateTaskTitle(task, assignee, date, newTitle) {
+  const v = (newTitle || '').trim();
+  if (!v) return; // ignore empty (user cleared it accidentally)
+  const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+  if (t && t.Title === v) return; // nothing changed
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Title: v } })
+    });
+    if (t) t.Title = v;
+  } catch(e) { console.log('Error updating title'); }
+}
+
+// Edit the task's description (Task column). NOTE: Task is the match key for
+// sheet writes; after a description edit, the local state gets updated to the
+// new value, and a re-render swaps all the onchange handlers in the row to
+// reference the new key. So subsequent edits don't break.
+async function updateTaskDescription(oldTask, assignee, date, newDesc) {
+  const v = (newDesc || '').trim();
+  if (!v) return;
+  const t = allTasks.find(t => t.Task === oldTask && t.Assignee === assignee && t.Date === date);
+  if (t && t.Task === v) return; // unchanged
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: oldTask, data: { Task: v } })
+    });
+    if (t) t.Task = v;
+    // Re-render so all handlers in this row pick up the new Task key
+    renderTasks(allTasks);
+  } catch(e) { console.log('Error updating description'); }
+}
+
+// Same pattern, for the second link column on each task row — Open File link.
+// Lets Suriti paste a /Open Files Dropbox URL alongside the preview link without
+// leaving the task row.
+async function updateTaskOpenFileLink(task, assignee, date, link) {
+  if(!link) return;
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'Open File Link': link } })
+    });
+    const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+    if(t) t['Open File Link'] = link;
+  } catch(e) { console.log('Error updating open file link'); }
 }
 
 // Click a task name in Today's Brief → jump to Tasks panel, search for it, highlight briefly
@@ -3449,27 +3519,23 @@ async function loadHR(skipFetch) {
       time: formatAttTime(todayMarkedBy[normHR(name)]?.Title || '')
     }));
 
-    // Bucket by status for visual grouping
+    // Bucket into the two visible states only.
+    // Suriti's rule: anyone not actively marked Present today belongs in Leave —
+    // whether their raw status is Absent, On Leave, Off, Not marked, or anything else.
     const buckets = {
       'Present':    [],
-      'Late':       [],
-      'Half Day':   [],
-      'Absent':     [],
-      'On Leave':   [],
-      'Off':        [],
-      'Not marked': [],
+      'Leave':      []
     };
-    rows.forEach(r => { (buckets[r.status] || buckets['Not marked']).push(r); });
+    const presentSet = new Set(['Present', 'Late', 'Half Day']);
+    rows.forEach(r => {
+      if (presentSet.has(r.status)) buckets['Present'].push(r);
+      else buckets['Leave'].push(r);
+    });
 
-    // Palette
+    // Palette — only two visual treatments now
     const palette = {
-      'Present':    { bg:'#dcfce7', fg:'#15803d', label:'Present',    icon:'✓' },
-      'Late':       { bg:'#fce7f3', fg:'#be185d', label:'Late',       icon:'⏰' },
-      'Half Day':   { bg:'#fed7aa', fg:'#9a3412', label:'Half day',   icon:'🟡' },
-      'Absent':     { bg:'#fee2e2', fg:'#b91c1c', label:'Absent',     icon:'✕'  },
-      'On Leave':   { bg:'#dbeafe', fg:'#1e40af', label:'On Leave',   icon:'📍' },
-      'Off':        { bg:'#f3f4f6', fg:'#666',    label:'Off',        icon:'🌴' },
-      'Not marked': { bg:'#f5f5f5', fg:'#888',    label:'Not marked', icon:'…' }
+      'Present':  { bg:'#dcfce7', fg:'#15803d', label:'Present', icon:'✓' },
+      'Leave':    { bg:'#dbeafe', fg:'#1e40af', label:'Leave',   icon:'📍' }
     };
 
     // Section helper — only renders if non-empty (keeps the panel clean)
@@ -3487,10 +3553,8 @@ async function loadHR(skipFetch) {
       </div>`;
     };
 
-    // Render in priority order (most important first)
-    let attHtml = section('Present') + section('Late') + section('Half Day') +
-                  section('Absent') + section('On Leave') + section('Off') +
-                  section('Not marked');
+    // Render Present first, then Leave
+    let attHtml = section('Present') + section('Leave');
 
     if (!attHtml) attHtml = '<div class="empty-state" style="padding:14px">No team members loaded.</div>';
     document.getElementById('attendance-today').innerHTML = attHtml;
@@ -3535,8 +3599,15 @@ async function loadHR(skipFetch) {
 // This avoids the patch-by-Task bug where Task is a time string ("09:30:00") that
 // collides across days, causing patches to update the wrong row.
 async function openAttendanceOverride(name, currentStatus) {
-  const options = ['Present', 'Late', 'Half Day', 'Absent', 'On Leave'];
-  const prompt = `Change ${name}'s status for today (currently: ${currentStatus})\n\n` +
+  // Two-state vocabulary per Suriti: Present or Leave. Internally, Leave writes
+  // a row tagged Type='leave' Status='Approved' which the resolver picks up as
+  // On Leave; the display layer then re-collapses that to Leave. So the data
+  // stays semantically correct (knows it's leave, not absent) while the UI is
+  // always one of two states.
+  const isCurrentlyPresent = ['Present', 'Late', 'Half Day'].includes(currentStatus);
+  const currentDisplay = isCurrentlyPresent ? 'Present' : 'Leave';
+  const options = ['Present', 'Leave'];
+  const prompt = `Change ${name}'s status for today (currently: ${currentDisplay})\n\n` +
     options.map((s, i) => `${i+1}. ${s}`).join('\n') +
     `\n\nEnter 1-${options.length}:`;
   const choice = window.prompt(prompt);
@@ -3544,18 +3615,19 @@ async function openAttendanceOverride(name, currentStatus) {
   const idx = parseInt(choice, 10) - 1;
   if (idx < 0 || idx >= options.length) return;
   const newStatus = options[idx];
-  if (newStatus === currentStatus) return;
+  if (newStatus === currentDisplay) return;
 
   const today = getISTDate();
   const timestamp = Date.now();
 
   try {
     let row;
-    if (newStatus === 'On Leave') {
+    if (newStatus === 'Leave') {
+      // Write as Type='leave' so the leave calendar + payroll reports stay accurate
       row = { Date: today, Task: `override-leave-${name}-${today}-${timestamp}`, Assignee: name, Status: 'Approved', Type: 'leave', Notes: 'override by Suriti' };
     } else {
-      // Unique Task ID ensures this row never collides with the original mark or other overrides
-      row = { Date: today, Title: '—', Task: `override-att-${name}-${today}-${timestamp}`, Assignee: name, Status: newStatus, Notes: 'override by Suriti', Type: 'attendance' };
+      // newStatus === 'Present' — write a plain attendance row
+      row = { Date: today, Title: '—', Task: `override-att-${name}-${today}-${timestamp}`, Assignee: name, Status: 'Present', Notes: 'override by Suriti', Type: 'attendance' };
     }
 
     console.log('[override] writing row for', name, '→', newStatus, row);
@@ -3628,7 +3700,7 @@ async function sendIgChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         system: agentSystemPrompts.social,
         messages: igChatHistory
@@ -3753,15 +3825,35 @@ Be specific, creative, and non-generic.`;
 }
 
 // ====== REVIEW (pulls live from sheet) ======
+// Maps the Assignee field on a creative row to the human-readable client name
+// for display in the Creative Review queue. Includes both legacy codenames
+// (steelcity, youthleague, etc.) and the canonical names — passing either form
+// through this map yields the canonical name.
 const CLIENT_LABELS = {
-  steelcity: 'Jindal Steel City',
-  youthleague: 'Jindal League',
-  'jindal-youth': 'Jindal Youth League',
+  // Legacy codenames (pre-cleanup)
+  steelcity:     'Jindal Steel',          // was 'Jindal Steel City' — outdated
+  youthleague:   'Jindal League',
+  'jindal-youth':'Jindal Youth League',
   'sohar-steel': 'Sohar Steel',
-  duqm: 'Jindal Steel Duqm',
-  kotak: 'Kotak',
-  adhoc: 'Adhoc',
-  pitches: 'Pitches & Ideas'
+  duqm:          'Jindal Steel Duqm',
+  kotak:         'Kotak',
+  adhoc:         'Adhoc',
+  pitches:       'Pitches',
+  // Canonical names (post-cleanup — passthrough)
+  'Jindal Steel':         'Jindal Steel',
+  'Jindal League':        'Jindal League',
+  'Jindal Youth League':  'Jindal Youth League',
+  'Jindal Steel Duqm':    'Jindal Steel Duqm',
+  'Sohar Steel':          'Sohar Steel',
+  'RM Universal':         'RM Universal',
+  'Kotak':                'Kotak',
+  'TEAM YP':              'TEAM YP',
+  'Pitches':              'Pitches',
+  'Marico':               'Marico',
+  'Zouk':                 'Zouk',
+  'TATA Mutual Funds':    'TATA Mutual Funds',
+  'HZL':                  'HZL',
+  'Adhoc':                'Adhoc'
 };
 
 const STATUS_PILLS = {
@@ -4727,6 +4819,21 @@ async function markFounderReminderDone(rowKey) {
 loadChat();
 loadFounderReminders();
 setInterval(() => { loadFounderReminders(); }, 60 * 1000);
+
+// Auto-refresh task list every 60 seconds — so when a client approves a creative
+// on Yellow Door, the resulting status flip lands here without a manual reload.
+// Skips when the user is mid-typing in a task input (avoids wiping their work)
+// and only runs while the Tasks panel is actually visible.
+setInterval(() => {
+  const panel = document.getElementById('panel-tasks');
+  if (!panel || !panel.classList.contains('active')) return;
+  const a = document.activeElement;
+  if (a && a.matches('#tasks-list input, #tasks-list textarea, #tasks-list select')) return;
+  // Briefly dim the live dot while the fetch runs as a visible heartbeat
+  const dot = document.getElementById('tasks-live-dot');
+  if (dot) { dot.style.background = '#fbbf24'; setTimeout(() => dot.style.background = '#86efac', 1500); }
+  loadTasks().catch(() => {});
+}, 60 * 1000);
 
 </script>
 </div><!-- end main-app -->
