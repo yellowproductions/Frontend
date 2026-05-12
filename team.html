@@ -421,6 +421,18 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div id="focus-list"></div>
     </div>
 
+    <!-- 📬 TODAY'S UPDATES — tasks Suriti added updates to today (or anyone). Clickable. -->
+    <div class="card" id="card-updates-today" style="margin-bottom:14px;border:1px solid #f0d080;background:#fff8e1;display:none;box-shadow:0 1px 2px rgba(0,0,0,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">📬</span>
+          <div style="margin:0;color:#854f0b;font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">Updates today</div>
+        </div>
+        <span style="font-size:11px;color:#a07419" id="updates-today-summary"></span>
+      </div>
+      <div id="updates-today-list"></div>
+    </div>
+
     <!-- Studio + Add task row — compact, side by side -->
     <div style="display:flex;gap:10px;margin-bottom:14px;align-items:stretch">
       <a href="studio.html" target="_blank" style="flex:1;background:#fff;border:1px solid #e6dfd0;color:#1a1a1a;text-decoration:none;font-size:13px;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-family:'Poppins',sans-serif">
@@ -2036,6 +2048,66 @@ function renderFocusToday(items, overdueCount, todayCount) {
   }).join('');
 }
 
+// 📬 Surface tasks where Suriti (or anyone) posted an update today.
+// Each row is clickable — clicking scrolls to the matching task in the main list.
+function renderUpdatesToday(allMyTasks) {
+  const card = document.getElementById('card-updates-today');
+  const list = document.getElementById('updates-today-list');
+  const summary = document.getElementById('updates-today-summary');
+  if (!card || !list) return;
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const todayMD = todayStr.substring(5);                                                    // "MM-DD" legacy
+  const todayDM = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}`;  // "DD-MM" new
+
+  // Build a list of {task, lineText} for every update line dated today
+  const items = [];
+  allMyTasks.forEach((t, idx) => {
+    const upd = (t.Update || '').trim();
+    if (!upd) return;
+    const lines = upd.split('\n').filter(l => l.trim());
+    lines.forEach(line => {
+      // Match the line's date prefix [DD-MM] or [MM-DD]
+      const m = line.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
+      if (!m) return;
+      const tag = `${m[1]}-${m[2]}`;
+      if (tag === todayDM || tag === todayMD) {
+        items.push({ task: t, idx, line: m[3] || line });
+      }
+    });
+  });
+
+  if (!items.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  summary.textContent = `${items.length} task${items.length>1?'s':''} updated today`;
+
+  list.innerHTML = items.map((it, i) => {
+    const isLast = i === items.length - 1;
+    const title = it.task.Title || it.task.Task || '—';
+    const safeKey = (it.task.Task || '').replace(/'/g, "\\'");
+    return `<div onclick="jumpToTaskRow('${safeKey}')" style="display:flex;flex-direction:column;gap:4px;padding:9px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='#fff8e1'" onmouseout="this.style.background=''">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <span style="color:#1a1a1a;font-weight:600">${title}</span>
+        ${it.task.Client ? `<span style="background:#eff6ff;color:#1e40af;font-size:9px;font-weight:600;padding:1px 6px;border-radius:8px;border:1px solid #bfdbfe">${it.task.Client}</span>` : ''}
+        <span style="color:#a07419;font-size:11px;margin-left:auto">→ jump</span>
+      </div>
+      <div style="font-size:12px;color:#555;line-height:1.4;padding-left:2px">${it.line}</div>
+    </div>`;
+  }).join('');
+}
+
+// Scroll a task row into view + highlight it briefly so the user sees where they landed.
+function jumpToTaskRow(taskKey) {
+  const row = document.querySelector(`[data-task-key="${taskKey.replace(/"/g, '&quot;')}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const originalBg = row.style.background;
+  row.style.transition = 'background 0.4s';
+  row.style.background = '#fef3c7';
+  setTimeout(() => { row.style.background = originalBg; }, 1600);
+}
+
 // Toggle the Add Task form (collapsed by default)
 function toggleQuickTaskForm() {
   const form = document.getElementById('quick-task-form');
@@ -2103,7 +2175,7 @@ function renderTaskRows(tasks, startIdx) {
         ? 'box-shadow:inset 3px 0 0 #dc2626;'
         : '';
       return `
-      <div class="task-row" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
+      <div id="task-anchor-${idx}" class="task-row" data-task-key="${(t.Task || '').replace(/"/g, '&quot;')}" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
         <span class="task-num" style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
         <div class="task-title-cell" style="min-width:0;overflow-wrap:anywhere">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
@@ -2187,6 +2259,7 @@ async function loadTasks() {
     const upcomingTasks = openSorted.filter(t => t.Date && t.Date > today).slice(0, 3);
     const focusItems = [...overdueTasks, ...todayTasks, ...upcomingTasks].slice(0, 5);
     renderFocusToday(focusItems, overdueTasks.length, todayTasks.length);
+    renderUpdatesToday(sorted);
 
     // Split: current-month OPEN tasks shown at top, everything else grouped into month folders (incl. done)
     const currentOpen = sorted.filter(t => {
