@@ -226,15 +226,24 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
           <label>Client</label>
           <select id="q-client">
             <option value="">Select client...</option>
-            <option value="duqm">Jindal Steel Duqm</option>
-            <option value="kotak">Kotak</option>
-            <option value="adhoc">Adhoc / One-time client</option>
-            <option value="pitches">Pitches &amp; Ideas (Internal)</option>
-            <option value="youthleague">Jindal League</option>
-            <option value="steelcity">Jindal Steel</option>
-            <option value="jindal-youth">Jindal Youth League</option>
-            <option value="sohar-steel">Sohar Steel</option>
+            <optgroup label="Jindal Group">
+              <option value="Jindal Steel">Jindal Steel</option>
+              <option value="Jindal League">Jindal League</option>
+              <option value="Jindal Youth League">Jindal Youth League</option>
+              <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
+              <option value="Sohar Steel">Sohar Steel</option>
+            </optgroup>
+            <option value="RM Universal">RM Universal</option>
+            <option value="Kotak">Kotak</option>
+            <option value="TEAM YP">TEAM YP</option>
+            <option value="Pitches">Pitches</option>
+            <option value="Marico">Marico</option>
+            <option value="Zouk">Zouk</option>
+            <option value="TATA Mutual Funds">TATA Mutual Funds</option>
+            <option value="HZL">HZL</option>
+            <option value="Adhoc">Adhoc / One-time client</option>
           </select>
+          <div id="q-client-lock-note" style="display:none;font-size:11px;color:#15803d;margin-top:6px;line-height:1.4">🔒 Auto-set from the task you picked. Locked so files can't mis-route.</div>
         </div>
 
         <div class="field">
@@ -294,19 +303,53 @@ function notifyTelegram(to, message) {
     }).catch(() => {});
   } catch(e) {}
 }
-const CLIENT_NAMES={steelcity:'Jindal Steel',youthleague:'Jindal League','jindal-youth':'Jindal Youth League','sohar-steel':'Sohar Steel',duqm:'Jindal Steel Duqm',kotak:'Kotak',adhoc:'Adhoc',pitches:'Pitches & Ideas'};
+// Canonical client registry — single source of truth.
+// `name` is what's written to the sheet (Assignee and Client columns).
+// `folder` is the Dropbox base path. New clients auto-create on first move.
+const CLIENT_REGISTRY = [
+  { name: 'Jindal Steel',         folder: '/JINDAL' },
+  { name: 'Jindal League',        folder: '/Jindal League' },
+  { name: 'Jindal Youth League',  folder: '/Jindal Youth League' },
+  { name: 'Jindal Steel Duqm',    folder: '/Jindal Steel Duqm' },
+  { name: 'Sohar Steel',          folder: '/Sohar Steel' },
+  { name: 'RM Universal',         folder: '/RM Universal' },
+  { name: 'Kotak',                folder: '/KOTAK' },
+  { name: 'TEAM YP',              folder: '/TEAM YP' },
+  { name: 'Pitches',              folder: '/PITCHES' },
+  { name: 'Marico',               folder: '/Marico' },
+  { name: 'Zouk',                 folder: '/Zouk' },
+  { name: 'TATA Mutual Funds',    folder: '/TATA Mutual Funds' },
+  { name: 'HZL',                  folder: '/HZL' },
+  { name: 'Adhoc',                folder: '/ADHOC' }
+];
+const CLIENT_BY_NAME = Object.fromEntries(CLIENT_REGISTRY.map(c => [c.name, c]));
 
-// Where each client's source/open files live in Dropbox
-const CLIENT_OPEN_FOLDERS = {
-  'steelcity':    '/JINDAL/Open Files',
-  'youthleague':  '/Jindal League/Open Files',
-  'jindal-youth': '/Jindal Youth League/Open Files',
-  'sohar-steel':  '/Sohar Steel/Open Files',
-  'duqm':         '/Jindal Steel Duqm/Open Files',
-  'kotak':        '/KOTAK/Open Files',
-  'adhoc':        '/ADHOC/Open Files',
-  'pitches':      '/PITCHES/Open Files'
+// Legacy codename → canonical name map. Old sheet rows used codenames in the
+// Assignee column ('steelcity', 'kotak', etc.); this lets us read those rows
+// without breaking. New writes always use canonical names.
+const LEGACY_CLIENT_MAP = {
+  steelcity:     'Jindal Steel',
+  youthleague:   'Jindal League',
+  'jindal-youth':'Jindal Youth League',
+  'sohar-steel': 'Sohar Steel',
+  duqm:          'Jindal Steel Duqm',
+  kotak:         'Kotak',
+  adhoc:         'Adhoc',
+  pitches:       'Pitches'
 };
+function normalizeClient(raw) {
+  if (!raw) return '';
+  const v = String(raw).trim();
+  return LEGACY_CLIENT_MAP[v] || v;
+}
+
+// Build the Dropbox path for a client's subfolder. Throws if the client isn't
+// registered — better to fail loudly than silently route to /JINDAL like before.
+function clientFolder(clientName, subfolder) {
+  const entry = CLIENT_BY_NAME[normalizeClient(clientName)];
+  if (!entry) throw new Error(`Unknown client: "${clientName}". Add it to CLIENT_REGISTRY first.`);
+  return entry.folder + (subfolder ? '/' + subfolder : '');
+}
 
 function updateFileTypeHint() {
   const ft = document.getElementById('q-filetype').value;
@@ -424,7 +467,39 @@ async function onDesignerChange() {
 
 function onTaskChange() {
   const val = document.getElementById('q-task').value;
+  const clientSel = document.getElementById('q-client');
+  const lockNote = document.getElementById('q-client-lock-note');
   document.getElementById('creative-name-field').style.display = val === 'adhoc' ? 'block' : 'none';
+
+  // Reset to unlocked state by default
+  clientSel.disabled = false;
+  if (lockNote) lockNote.style.display = 'none';
+
+  // Adhoc / no-task → let designer pick freely
+  if (val === '' || val === 'adhoc') {
+    clientSel.value = '';
+    return;
+  }
+
+  // Real task picked — read its Client column and lock the dropdown.
+  // This eliminates the entire mismatch class: a Kotak task can't be uploaded as Jindal Steel.
+  const idx = parseInt(val, 10);
+  const task = myTasks[idx];
+  if (!task) { clientSel.value = ''; return; }
+
+  // Tasks store Client either in the new Client column, or legacy codename in
+  // Assignee for already-morphed creatives; normalize either form to canonical.
+  const taskClient = normalizeClient(task.Client || (task.Type === 'creative' ? task.Assignee : ''));
+
+  if (taskClient && CLIENT_BY_NAME[taskClient]) {
+    clientSel.value = taskClient;
+    clientSel.disabled = true;
+    if (lockNote) lockNote.style.display = 'block';
+  } else {
+    // Task has no client tagged yet — leave open for the designer to pick.
+    // (Once they tag it, future uploads for the same task auto-lock.)
+    clientSel.value = '';
+  }
 }
 
 async function submitUpload(){
@@ -484,9 +559,9 @@ async function submitUpload(){
 
       // Branch: open files go to client folder direct, final files go to /REVIEW for Viplav
       const targetFolder = isOpenFile
-        ? (CLIENT_OPEN_FOLDERS[client] || `/${CLIENT_NAMES[client] || client}/Open Files`)
+        ? clientFolder(client, 'Open Files')
         : '/REVIEW';
-      const dropboxPath = `${targetFolder}/${safeName} — ${designer} — ${CLIENT_NAMES[client]||client}.${ext}`;
+      const dropboxPath = `${targetFolder}/${safeName} — ${designer} — ${client}.${ext}`;
       formData.append('file', file, file.name);
       formData.append('dropboxPath', dropboxPath);
 
@@ -531,7 +606,7 @@ async function submitUpload(){
         }
         // Tell ALL reviewers (Viplav, Kritya, Siddhesh, Suriti) — first-available wins.
         // Whoever has bandwidth grabs it from the shared queue.
-        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${CLIENT_NAMES[client]||client}${isRework ? '\n🔁 Rework' : ''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
+        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${client}${isRework ? '\n🔁 Rework' : ''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
         ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
           notifyTelegram(reviewer, reviewMsg);
         });
