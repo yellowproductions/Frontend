@@ -520,7 +520,12 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 
     <div class="card" id="card-open-tasks">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="margin:0;font-size:12px;color:#666;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">This month</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="margin:0;font-size:12px;color:#666;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">This month</div>
+          <span id="team-tasks-live-dot" title="Auto-refreshes every 60 seconds" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#86efac"></span>
+          <button onclick="loadTasks()" title="Pull latest task data right now — useful if Suriti just updated a client tag on the founder portal"
+            style="background:transparent;border:1px solid var(--border);color:#666;font-size:11px;padding:3px 10px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif">↻ Refresh</button>
+        </div>
         <span style="font-size:11px;color:var(--muted)">Open tasks · past months in archive below</span>
       </div>
       <div id="tasks-open"><div class="empty-state">Loading...</div></div>
@@ -2360,8 +2365,14 @@ function normalizeDate(d) {
 
 async function loadTasks() {
   try {
-    const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks');
+    // Cache-buster — Apps Script + browser caches can serve stale data, which
+    // is exactly why "Suriti updated client on founder, team portal still
+    // shows old" can happen. The _=timestamp forces a fresh request.
+    const res  = await fetch(SHEETDB + '?sheet=Type%3Atasks&_=' + Date.now(), { cache: 'no-store' });
     const raw  = await res.json();
+    // Heartbeat on the live dot so the user can SEE the refresh actually ran
+    const dot = document.getElementById('team-tasks-live-dot');
+    if (dot) { dot.style.background = '#fbbf24'; setTimeout(() => dot.style.background = '#86efac', 1200); }
     const data = Array.isArray(raw) ? raw.map(r => ({ ...r, Date: normalizeDate(r.Date) })) : [];
     const all  = data.filter(t =>
       t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
