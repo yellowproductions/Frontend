@@ -1384,7 +1384,9 @@ async function fetchSheetRows() {
       Assignee: c.client || '', Status: c.status || '', Notes: c.review_note || '',
       'Preview Link': c.preview_link || '', 'Open File Link': c.dropbox_path || '',
       Type: 'creative', Client: c.client || '',
-      _sb_id: c.id, _sb_table: 'creatives'
+      _sb_id: c.id, _sb_table: 'creatives',
+      // Track last decision time so the review history can sort newest-touched first
+      _sb_last_action_at: c.client_decided_at || c.created_at || ''
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -1543,10 +1545,53 @@ async function _supaInsertRow(row) {
 // Map a PATCH-by-Task payload → Supabase update.
 // Used when code edits a task by matching its description (the existing sheet workflow).
 async function _supaPatchByTask(taskDesc, data) {
-  // Try tasks first
-  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
+  // Try tasks first — but skip Closed tasks. Once a task has been converted to a
+  // creative (e.g., team uploaded a final file via Studio), the original task is
+  // marked Closed. Subsequent rework patches use the original task's description
+  // as match key — we want those to fall through to the creatives table here, not
+  // re-corrupt the closed task.
+  const { data: tasks } = await sb.from('tasks')
+    .select('id, assignee, client, status')
+    .eq('description', taskDesc)
+    .neq('status', 'Closed')
+    .limit(1);
   if (tasks && tasks.length) {
-    const id = tasks[0].id;
+    const task = tasks[0];
+    const id = task.id;
+
+    // SPECIAL CASE: Studio's "convert task to creative" patch.
+    // When team uploads a final file for an existing task, Studio sends:
+    //   { Task: "name | designer", Assignee: <client>, Type: 'creative', Status: 'Pending Review', ... }
+    // In the legacy sheet this just changed the row's Type column. In Supabase the row
+    // belongs to the tasks TABLE — we have to actually move it: insert into creatives,
+    // mark the task as Closed (preserving history but hiding from active list).
+    if (data.Type === 'creative') {
+      const newTaskField = data.Task || taskDesc;
+      let name = '', designer = task.assignee || 'unknown';
+      if (newTaskField.includes('|')) {
+        const idx = newTaskField.lastIndexOf('|');
+        name = newTaskField.substring(0, idx).trim();
+        designer = newTaskField.substring(idx + 1).trim();
+      } else {
+        name = newTaskField;
+      }
+      await sb.from('creatives').insert({
+        name: name || '(unnamed)',
+        designer: designer,
+        client: _normLegacy(data.Assignee || data.Client || task.client),
+        status: data.Status || 'Pending Review',
+        preview_link: data['Preview Link'] || null,
+        dropbox_path: data['Open File Link'] || null,
+        review_note: null,
+        task_id: id
+      });
+      // Close the original task so it falls off the active tasks list. Don't delete —
+      // preserve the history of what the team member worked on.
+      await sb.from('tasks').update({ status: 'Closed', closed_at: new Date().toISOString() }).eq('id', id);
+      return;
+    }
+
+    // Normal task patch
     const update = {};
     if (data.Date !== undefined)         update.due_date = data.Date || null;
     if (data.Title !== undefined)        update.title = data.Title;
@@ -2264,7 +2309,7 @@ function renderAgentChat() {
       };
       chat.innerHTML = `<div class="msg ai">${welcomes[s.agent] || 'How can I help?'}</div>`;
     } else {
-      chat.innerHTML = `<div class="msg ai">Pick an agent above to start a conversation. Recent chats appear on the left.</div>`;
+      chat.innerHTML = `<div class="msg ai">YELLOW! Let's chat 🪷</div>`;
     }
   } else {
     chat.innerHTML = s.display.map(m => {
@@ -3537,8 +3582,8 @@ function renderTasks(tasks) {
                 onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
               <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
                 title="Reassign — pick a different person"
-                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#fef9ee;border:1px solid #f0d080;color:#854f0b;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-                <option value="${t.Assignee||''}" selected>${t.Assignee||'— assign —'}</option>
+                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#fff8e1;border:1.5px solid #f59e0b;color:#854f0b;font-weight:700;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
                 ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
               </select>
               ${renderFosClientEditor(t)}
@@ -4145,14 +4190,29 @@ async function loadHR(skipFetch) {
     renderWorkOutput(data);
 
     // Leave requests
-    const pending = leaves.filter(r => r.Status === 'Pending');
+    // Split into actionable (today/future) vs stale (past — never resolved at the time)
+    const todayISO = new Date().toISOString().split('T')[0];
+    const allPending = leaves.filter(r => r.Status === 'Pending');
+    const pending = allPending.filter(l => !l.Task || l.Task >= todayISO);
+    const stalePending = allPending.filter(l => l.Task && l.Task < todayISO);
+
+    // Refresh the index map so updateLeave() can still match by index after the filter
+    window._leaveData = leaves;
+
     let leaveHtml = '';
     if(pending.length) {
-      pending.forEach((l, idx) => {
+      pending.forEach((l) => {
+        // Find original index in the full leaves array so updateLeave still works
+        const idx = leaves.indexOf(l);
+        const leaveDate = l.Task || l.Date || '—';
+        const isToday = leaveDate === todayISO;
+        const dateLabel = isToday
+          ? `<span style="color:var(--green);font-weight:700">${leaveDate} · today</span>`
+          : leaveDate;
         leaveHtml += `<div class="leave-card">
           <div>
             <div style="font-weight:700">${l.Assignee}</div>
-            <div style="font-size:11px;color:var(--muted)">${l.Date} → ${l.Task}</div>
+            <div style="font-size:11px;color:var(--muted)">Leave for ${dateLabel}</div>
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-green btn-sm" onclick="updateLeave(${idx},'Approved')">Approve</button>
@@ -4160,8 +4220,25 @@ async function loadHR(skipFetch) {
           </div>
         </div>`;
       });
-    } else {
+    } else if (!stalePending.length) {
       leaveHtml = '<div class="empty-state" style="padding:12px">No pending requests</div>';
+    }
+
+    // Stale pending — past-date requests that never got resolved. Show separately
+    // with a single "Clear all" action since they're effectively expired.
+    if (stalePending.length) {
+      leaveHtml += `<div style="margin-top:14px;padding:10px 12px;background:#fef3c7;border:1px solid #f0d080;border-radius:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#92640a">⏳ ${stalePending.length} expired pending leave${stalePending.length>1?'s':''}</div>
+            <div style="font-size:11px;color:#92640a;margin-top:2px">${stalePending.map(l => `${l.Assignee} (${l.Task || '—'})`).join(', ')}</div>
+          </div>
+          <button class="btn btn-sm" onclick="clearStaleLeaves()"
+            style="background:#fff;border:1px solid #f0d080;color:#92640a;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer">
+            Mark all expired
+          </button>
+        </div>
+      </div>`;
     }
     document.getElementById('leave-requests').innerHTML = leaveHtml;
 
@@ -4235,23 +4312,54 @@ async function openAttendanceOverride(name, currentStatus) {
 }
 
 async function updateLeave(idx, status) {
-  const leaves = (window._leaveData || []).filter(r => r.Status === 'Pending');
-  const leave = leaves[idx];
+  // idx now points into the FULL window._leaveData array (not the filtered Pending list)
+  // so the renderer can pass the original index even after filtering out stale rows.
+  const leave = (window._leaveData || [])[idx];
   if(!leave) return;
   try {
-    fetch(SHEETDB_URL, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({
-        action: 'patch',
-        sheet: 'Type:tasks',
-        matchColumn: 'Task',
-        matchValue: leave.Task,
-        data: { Status: status }
-      })
-    });
-    // Optimistic UI
-    setTimeout(loadHR, 800);
+    // Direct Supabase write via _sb_id — most precise, can't mismatch on date-string collisions
+    if (leave._sb_id) {
+      await sb.from('leaves').update({
+        status: status,
+        decided_at: new Date().toISOString()
+      }).eq('id', leave._sb_id);
+    } else {
+      // Fallback through the legacy fetch path (interceptor still routes to Supabase)
+      await fetch(SHEETDB_URL, {
+        method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+        body: JSON.stringify({
+          action: 'patch', sheet: 'Type:tasks',
+          matchColumn: 'Task', matchValue: leave.Task,
+          data: { Status: status }
+        })
+      });
+    }
+    setTimeout(loadHR, 300);
   } catch(e) { alert('Error updating leave: ' + e.message); }
+}
+
+// Bulk-clear stale pending leaves (start_date in the past, never resolved). These
+// can't be approved retroactively, so mark them all as Rejected with a note.
+async function clearStaleLeaves() {
+  const todayISO = new Date().toISOString().split('T')[0];
+  const stale = (window._leaveData || []).filter(l =>
+    l.Status === 'Pending' && l.Task && l.Task < todayISO
+  );
+  if (!stale.length) return;
+  if (!confirm(`Mark ${stale.length} expired pending leave${stale.length>1?'s':''} as resolved?`)) return;
+  for (const l of stale) {
+    if (!l._sb_id) continue;
+    try {
+      await sb.from('leaves').update({
+        status: 'Rejected',
+        feedback: 'auto-expired — past leave date',
+        decided_at: new Date().toISOString()
+      }).eq('id', l._sb_id);
+    } catch(e) {
+      console.warn('Could not clear stale leave', l._sb_id, e);
+    }
+  }
+  loadHR();
 }
 
 // ====== INSTAGRAM ======
@@ -4455,7 +4563,13 @@ async function renderReview() {
     const all = raw
       .filter(r => (r.Type === 'creative' || r.Status === 'Pending Review' || r.Status === 'Pending Viplav') && r.Task && r.Task.includes('|'))
       .map(r => ({ ...r, Date: normalizeDate(r.Date) }))
-      .sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
+      // Sort by last-action time desc — most recently approved/sent-back/rejected on top.
+      // Fall back to created_at for legacy items that never had a decision recorded.
+      .sort((a, b) => {
+        const at = a._sb_last_action_at || a.Date || '';
+        const bt = b._sb_last_action_at || b.Date || '';
+        return bt.localeCompare(at);
+      });
 
     // Split into pending queue (needs action) and history
     const pending = all.filter(r => r.Status === 'Pending Review' || r.Status === 'Pending Viplav');
@@ -4507,11 +4621,17 @@ async function renderReview() {
 
     // ===== HISTORY (read-only) =====
     if (history.length) {
+      window._reviewHistoryAll = history; // stash for "Show all" toggle
+      const showAll = window._reviewShowAll === true;
+      const PAGE_SIZE = 25;
+      const visible = showAll ? history : history.slice(0, PAGE_SIZE);
+      const hiddenCount = history.length - visible.length;
+
       html += `<div style="margin-top:24px"><div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Recent History · ${history.length}</div>
         <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
           <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span><span></span>
         </div>
-        ${history.slice(0, 30).map(c => {
+        ${visible.map(c => {
           const parts = c.Task.split('|');
           const fallbackName = (parts[0] || '').trim();
           const designer = (parts[1] || '').trim();
@@ -4536,6 +4656,11 @@ async function renderReview() {
             <button onclick="deleteReview('${safeTask}', '${(name || '').replace(/'/g, "\\'")}')" title="Delete from sheet" style="background:transparent;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:4px" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">🗑️</button>
           </div>`;
         }).join('')}
+        ${hiddenCount > 0 ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
+          <button onclick="window._reviewShowAll=true;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↓ Show all ${history.length} items (${hiddenCount} more)</button>
+        </div>` : (showAll && history.length > PAGE_SIZE ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
+          <button onclick="window._reviewShowAll=false;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↑ Show less</button>
+        </div>` : '')}
       </div>`;
     }
 
@@ -4572,13 +4697,27 @@ async function founderSubmitReview(idx, action) {
                            `sent back by Suriti: ${note}`;
 
   try {
-    await fetch(SHEETDB_URL, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({
-        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task,
-        data: { Status: newStatus, Notes: stamp }
-      })
-    });
+    // Direct Supabase write via _sb_id — guaranteed precise match, no string-comparison
+    // failures. This is the same pattern that fixed leaves.
+    if (item._sb_id && item._sb_table === 'creatives') {
+      const upd = {
+        status: newStatus,
+        review_note: stamp,
+        client_decided_at: new Date().toISOString()  // stamp last-action time so history sorts correctly
+      };
+      if (action === 'approve') upd.client_decision = null;       // back to client
+      if (action === 'reject')  upd.client_decision = 'Rejected'; // dead concept
+      await sb.from('creatives').update(upd).eq('id', item._sb_id);
+    } else {
+      // Fallback through interceptor (which routes to Supabase mirror anyway)
+      await fetch(SHEETDB_URL, {
+        method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+        body: JSON.stringify({
+          action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task,
+          data: { Status: newStatus, Notes: stamp }
+        })
+      });
+    }
 
     // Telegram ping to designer — three distinct messages so designer knows the verdict
     if (designer) {
@@ -4591,11 +4730,10 @@ async function founderSubmitReview(idx, action) {
       notifyTelegram(designer, msg);
     }
 
-    // With the Supabase-only interceptor, the await above already waits for the
-    // write to commit. Short timeout to give the UI a beat before re-render.
+    // The await above guarantees Supabase has the update before we re-render.
     setTimeout(renderReview, 200);
   } catch(e) {
-    alert('Could not save. Try again.');
+    alert('Could not save. Try again. (' + e.message + ')');
   }
 }
 
