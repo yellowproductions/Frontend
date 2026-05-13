@@ -1673,11 +1673,15 @@ window.fetch = function(url, options) {
       const payload = (typeof options.body === 'string')
         ? JSON.parse(options.body)
         : options.body;
-      // Fire-and-forget — don't block the user. Mirror runs in parallel with the
-      // Sheet write so neither blocks the other. If Supabase fails, the Sheet
-      // write still completes; if the Sheet fails, Supabase already has it.
-      _supaMirror(payload).catch(err => {
-        console.error('⚠ Supabase mirror failed (sheet write proceeded):', err);
+      // Debug log — visible in DevTools so we can see every mirror attempt
+      console.log('🪞 [supa-mirror] intercepted write:',
+        payload.action || 'insert',
+        payload.matchColumn ? `${payload.matchColumn}="${(payload.matchValue||'').toString().substring(0,40)}"` : '',
+        payload.data ? 'data=' + JSON.stringify(payload.data).substring(0, 120) : '');
+      _supaMirror(payload).then(() => {
+        console.log('✅ [supa-mirror] write succeeded');
+      }).catch(err => {
+        console.error('❌ [supa-mirror] FAILED:', err.message || err, payload);
       });
     } catch (e) {
       // Body wasn't parseable JSON — just let the sheet write continue
