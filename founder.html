@@ -1693,9 +1693,15 @@ async function _supaMirror(payload) {
   console.warn('[supa-mirror] Unrecognized payload shape (not mirrored):', payload);
 }
 
-// =============== FETCH INTERCEPTOR ===============
-// Wraps window.fetch so every existing fetch(SHEETDB, ...) call automatically
-// mirrors to Supabase. Existing call sites don't change.
+// =============== FETCH INTERCEPTOR — SUPABASE-ONLY ===============
+// Catches every fetch(SHEETDB, ...) and routes it to Supabase exclusively.
+// The Google Sheet is no longer written to — it's a frozen archive.
+//
+// The synthetic Response returned mimics a successful Sheet write so any
+// caller using await keeps working (most callers used mode:'no-cors' and
+// ignore the body anyway). With this interceptor, await actually waits for
+// the Supabase write to land — which eliminates the race condition where
+// the UI re-renders before the write commits.
 const _originalFetch = window.fetch.bind(window);
 window.fetch = function(url, options) {
   const isSheetWrite = (
@@ -1708,24 +1714,30 @@ window.fetch = function(url, options) {
       const payload = (typeof options.body === 'string')
         ? JSON.parse(options.body)
         : options.body;
-      // Debug log — visible in DevTools so we can see every mirror attempt
-      console.log('🪞 [supa-mirror] intercepted write:',
-        payload.action || 'insert',
-        payload.matchColumn ? `${payload.matchColumn}="${(payload.matchValue||'').toString().substring(0,40)}"` : '',
-        payload.data ? 'data=' + JSON.stringify(payload.data).substring(0, 120) : '');
-      _supaMirror(payload).then(() => {
-        console.log('✅ [supa-mirror] write succeeded');
-      }).catch(err => {
-        console.error('❌ [supa-mirror] FAILED:', err.message || err, payload);
-      });
+      // Route to Supabase only. Original Apps Script URL is NOT called.
+      return _supaMirror(payload).then(
+        () => new Response('{"ok":true}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }),
+        err => {
+          console.error('❌ Supabase write failed:', err.message || err, payload);
+          // Return a synthetic 500 so callers' .catch fires — they treat it
+          // as a write failure just like an Apps Script outage would.
+          return new Response(
+            JSON.stringify({ ok: false, error: err.message || String(err) }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      );
     } catch (e) {
-      // Body wasn't parseable JSON — just let the sheet write continue
+      // Body wasn't parseable JSON — fall through to original (rare)
     }
   }
   return _originalFetch(url, options);
 };
 
-console.log('%c📊 Supabase data layer + dual-write mirror active', 'color:#15803d;font-weight:bold');
+console.log('%c📊 Yellowverse · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 const TEAM = {
   Sandesh: 'sandesh@perkyowl.com',
@@ -4487,6 +4499,7 @@ async function renderReview() {
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
             <button class="btn btn-green btn-sm" onclick="founderSubmitReview(${idx}, 'approve')">✅ Approve → Send to Client</button>
             <button class="btn btn-orange btn-sm" onclick="founderSubmitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
+            <button class="btn btn-red btn-sm" onclick="founderSubmitReview(${idx}, 'reject')">❌ Reject — Scrap Concept</button>
           </div>
         </div>`;
       }).join('');
@@ -4542,13 +4555,24 @@ async function founderSubmitReview(idx, action) {
   const note = (document.getElementById('founder-note-' + idx)?.value || '').trim();
 
   if (action === 'sendback' && !note) { alert('Please add feedback before sending back.'); return; }
-  if (!confirm(action === 'approve' ? `Approve "${cName}" and send to client?` : `Send "${cName}" back to ${designer}?`)) return;
+  if (action === 'reject' && !note) { alert('Please add a reason before rejecting.'); return; }
+  const confirmMsg =
+    action === 'approve' ? `Approve "${cName}" and send to client?` :
+    action === 'reject'  ? `Reject "${cName}"? The designer will be told to scrap this concept.` :
+                           `Send "${cName}" back to ${designer}?`;
+  if (!confirm(confirmMsg)) return;
 
-  const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
-  const stamp = action === 'approve' ? 'approved by Suriti' : `sent back by Suriti: ${note}`;
+  const newStatus =
+    action === 'approve' ? 'Client Review' :
+    action === 'reject'  ? 'Rejected' :
+                           'Sent Back';
+  const stamp =
+    action === 'approve' ? 'approved by Suriti' :
+    action === 'reject'  ? `rejected by Suriti: ${note}` :
+                           `sent back by Suriti: ${note}`;
 
   try {
-    fetch(SHEETDB_URL, {
+    await fetch(SHEETDB_URL, {
       method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
       body: JSON.stringify({
         action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task,
@@ -4556,15 +4580,20 @@ async function founderSubmitReview(idx, action) {
       })
     });
 
-    // Telegram ping to designer
+    // Telegram ping to designer — three distinct messages so designer knows the verdict
     if (designer) {
-      const msg = action === 'approve'
-        ? `✅ <b>Creative approved</b> by Suriti\n\n<b>${cName}</b> · sent to client`
-        : `🔁 <b>Creative sent back</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nFeedback: ${note}\n\n<a href="https://theyellowverse.com/studio.html">Re-upload via Studio →</a>`;
+      const msg =
+        action === 'approve'
+          ? `✅ <b>Creative approved</b> by Suriti\n\n<b>${cName}</b> · sent to client`
+        : action === 'reject'
+          ? `❌ <b>Concept rejected</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nReason: ${note}\n\nThis concept won't move forward. No need to iterate.`
+        :  `🔁 <b>Creative sent back</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nFeedback: ${note}\n\n<a href="https://theyellowverse.com/studio.html">Re-upload via Studio →</a>`;
       notifyTelegram(designer, msg);
     }
 
-    setTimeout(renderReview, 800);
+    // With the Supabase-only interceptor, the await above already waits for the
+    // write to commit. Short timeout to give the UI a beat before re-render.
+    setTimeout(renderReview, 200);
   } catch(e) {
     alert('Could not save. Try again.');
   }
