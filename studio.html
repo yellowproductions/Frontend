@@ -611,7 +611,6 @@ async function _supaPatchByTask(taskDesc, data) {
     }
   }
 
-
   // Fall back: leave-row update (updateLeave sends matchValue = leave date as YYYY-MM-DD).
   // Prefer the most recent Pending leave matching the date — that's what the UI just approved/rejected.
   if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
@@ -648,13 +647,43 @@ async function _supaUpdateByMatch(match, update) {
   }
 }
 
-// Multi-field match delete
-async function _supaDeleteByMatch(match) {
-  if (match.Task) {
-    const { data: tasks } = await sb.from('tasks').select('id').eq('description', match.Task).limit(1);
-    if (tasks && tasks.length) {
-      await sb.from('tasks').delete().eq('id', tasks[0].id);
+// Delete by Task description (the matchColumn/matchValue form used by deleteTask).
+// Tries tasks first, then creatives, then leaves.
+async function _supaDeleteByTask(taskDesc) {
+  // Tasks table
+  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
+  if (tasks && tasks.length) {
+    await sb.from('tasks').delete().eq('id', tasks[0].id);
+    return;
+  }
+  // Creatives table (matched by "name | designer")
+  if (taskDesc.includes('|')) {
+    const { data: creatives } = await sb.from('creatives').select('id, name, designer');
+    const match = (creatives || []).find(c => `${c.name} | ${c.designer}` === taskDesc);
+    if (match) {
+      await sb.from('creatives').delete().eq('id', match.id);
+      return;
     }
+  }
+  // Leaves table (matchValue is a date string)
+  if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
+    const dateOnly = taskDesc.split('T')[0];
+    const { data: leaves } = await sb.from('leaves').select('id').eq('start_date', dateOnly).limit(1);
+    if (leaves && leaves.length) {
+      await sb.from('leaves').delete().eq('id', leaves[0].id);
+      return;
+    }
+  }
+  console.warn('[supa-mirror] DELETE target not found:', taskDesc.substring(0, 60));
+}
+
+// Multi-field match delete (used by prospect operations — no Supabase table for those yet)
+async function _supaDeleteByMatch(match) {
+  if (match.Type === 'prospect') return; // no prospects table, skip silently
+  if (match.Task) {
+    await _supaDeleteByTask(match.Task);
+  } else {
+    console.warn('[supa-mirror] delete-by-match without Task not supported:', match);
   }
 }
 
@@ -678,7 +707,12 @@ async function _supaMirror(payload) {
     await _supaUpdateByMatch(payload.match, payload.update || {});
     return;
   }
-  // DELETE pattern
+  // DELETE pattern (matchColumn/matchValue form — used by deleteTask, deleteCreative)
+  if (payload.action === 'delete' && payload.matchColumn === 'Task' && payload.matchValue) {
+    await _supaDeleteByTask(payload.matchValue);
+    return;
+  }
+  // DELETE pattern (match-object form — used by prospect operations)
   if (payload.action === 'delete' && payload.match) {
     await _supaDeleteByMatch(payload.match);
     return;
@@ -702,11 +736,15 @@ window.fetch = function(url, options) {
       const payload = (typeof options.body === 'string')
         ? JSON.parse(options.body)
         : options.body;
-      // Fire-and-forget — don't block the user. Mirror runs in parallel with the
-      // Sheet write so neither blocks the other. If Supabase fails, the Sheet
-      // write still completes; if the Sheet fails, Supabase already has it.
-      _supaMirror(payload).catch(err => {
-        console.error('⚠ Supabase mirror failed (sheet write proceeded):', err);
+      // Debug log — visible in DevTools so we can see every mirror attempt
+      console.log('🪞 [supa-mirror] intercepted write:',
+        payload.action || 'insert',
+        payload.matchColumn ? `${payload.matchColumn}="${(payload.matchValue||'').toString().substring(0,40)}"` : '',
+        payload.data ? 'data=' + JSON.stringify(payload.data).substring(0, 120) : '');
+      _supaMirror(payload).then(() => {
+        console.log('✅ [supa-mirror] write succeeded');
+      }).catch(err => {
+        console.error('❌ [supa-mirror] FAILED:', err.message || err, payload);
       });
     } catch (e) {
       // Body wasn't parseable JSON — just let the sheet write continue
