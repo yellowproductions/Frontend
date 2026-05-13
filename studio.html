@@ -597,7 +597,19 @@ async function submitUpload(){
       const targetFolder = isOpenFile
         ? clientFolder(client, 'Open Files')
         : '/REVIEW';
-      const dropboxPath = `${targetFolder}/${safeName} — ${designer} — ${client}.${ext}`;
+      // Build the path with our preferred em-dash separators, then ASCII-sanitize
+      // the WHOLE thing so the Dropbox-API-Arg header is guaranteed clean. Em
+      // dashes (U+2014) and any other non-ASCII bytes from designer or client
+      // names get converted to safe replacements — keeps the path readable
+      // while preventing "Invalid character in header content" errors from
+      // Dropbox, no matter what server.js version is running.
+      const rawPath = `${targetFolder}/${safeName} — ${designer} — ${client}.${ext}`;
+      const dropboxPath = rawPath
+        .replace(/[\u2010-\u2015]/g, '-')   // em dash / en dash / hyphens → ASCII hyphen
+        .replace(/[\u2018\u2019]/g, "'")    // smart single quotes → '
+        .replace(/[\u201C\u201D]/g, '"')    // smart double quotes → "
+        .replace(/[\u00A0]/g, ' ')          // non-breaking space → regular space
+        .replace(/[\u007f-\uffff]/g, '');   // strip anything else non-ASCII
       formData.append('file', file, file.name);
       formData.append('dropboxPath', dropboxPath);
 
