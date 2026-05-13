@@ -955,6 +955,31 @@ async function _supaPatchByTask(taskDesc, data) {
     }
   }
 
+
+  // Fall back: leave-row update (updateLeave sends matchValue = leave date as YYYY-MM-DD).
+  // Prefer the most recent Pending leave matching the date — that's what the UI just approved/rejected.
+  if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
+    const dateOnly = taskDesc.split('T')[0];
+    const { data: leaves } = await sb.from('leaves')
+      .select('id, person, status, start_date')
+      .eq('start_date', dateOnly)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (leaves && leaves.length) {
+      const target = leaves.find(l => l.status === 'Pending') || leaves[0];
+      const u = {};
+      if (data.Status !== undefined) {
+        u.status = data.Status;
+        u.decided_at = new Date().toISOString();
+      }
+      if (data.Notes !== undefined) u.feedback = data.Notes;
+      if (Object.keys(u).length) {
+        await sb.from('leaves').update(u).eq('id', target.id);
+      }
+      return;
+    }
+  }
+
   console.warn('[supa-mirror] PATCH target not found:', taskDesc.substring(0, 60));
 }
 
