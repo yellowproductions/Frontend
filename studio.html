@@ -535,26 +535,16 @@ async function submitUpload(){
   if (!client) { showErr('This task has no client tagged. Ask Suriti to tag it on Founder OS first — uploads need a client to route correctly.'); return; }
   if (!files || !files.length) { showErr('Please select at least one file.'); return; }
 
-  // Wake the Render server before starting the upload loop. Free-tier services
-  // sleep after 15 minutes of idle; the first request after sleep takes 15-30
-  // seconds to cold-start — long enough to fail with "Load failed" in the
-  // browser. A successful /health response means the server is warm; we proceed.
-  // If the wake-up itself times out at 30s, we surface a clean message instead
-  // of letting every file fail individually.
+  // Fire a background /health ping to wake Render in case it's been asleep.
+  // Non-blocking — we DON'T await this. If the server's already warm, this is
+  // a free no-op. If it's cold, this kicks it awake while the first upload
+  // request also makes its own attempt; the natural fetch timeout (~minutes)
+  // is generous enough to cover Render's cold-start. The retry-on-network-
+  // failure logic inside the upload loop is the real safety net.
+  fetch(BACKEND + '/health', { cache: 'no-store' }).catch(() => {});
+
   const btn = document.getElementById('submit-btn');
-  btn.textContent = '⏳ Waking server…';
   btn.disabled = true;
-  try {
-    const wakeCtl = new AbortController();
-    const wakeTimer = setTimeout(() => wakeCtl.abort(), 30000);
-    await fetch(BACKEND + '/health', { signal: wakeCtl.signal, cache: 'no-store' });
-    clearTimeout(wakeTimer);
-  } catch(e) {
-    btn.textContent = '⚡ Upload to Portal';
-    btn.disabled = false;
-    showErr('Server is still waking up. Wait 30 seconds and try again — the first upload after a quiet period takes longer.');
-    return;
-  }
 
   const isOpenFile = fileType === 'open';
 
@@ -613,23 +603,25 @@ async function submitUpload(){
       formData.append('file', file, file.name);
       formData.append('dropboxPath', dropboxPath);
 
-      // Upload with one retry on transient network failure. "Load failed" /
-      // TypeError from fetch usually means the connection dropped — a single
-      // retry after 3 seconds covers the common case where Render briefly
-      // closed the socket (e.g., it was juggling another request, or the
-      // mobile network glitched). Real server errors still come back as JSON
-      // with success:false and don't hit this retry path.
+      // Upload with up to 3 retries on transient network failure. Render's free
+      // tier can take 15-30 seconds to cold-start after idle; the browser may
+      // throw "Load failed" before the server is ready. Backoff: 3s, 8s, 20s
+      // between attempts (worst case ~30s of waiting on one file). Real server
+      // errors come back as JSON success:false and don't trigger retries —
+      // only network-level fetch throws do.
       let uploadRes, lastErr;
-      for (let attempt = 0; attempt < 2; attempt++) {
+      const backoffs = [0, 3000, 8000, 20000];
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) {
+          btn.textContent = `Retrying ${i+1} of ${total}… (${attempt}/3)`;
+          await new Promise(r => setTimeout(r, backoffs[attempt]));
+        }
         try {
           uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
-          break; // got a response, even if status is non-2xx
+          break;
         } catch(e) {
           lastErr = e;
-          if (attempt === 0) {
-            console.warn(`Upload network error for ${file.name}, retrying in 3s:`, e.message);
-            await new Promise(r => setTimeout(r, 3000));
-          }
+          console.warn(`Upload attempt ${attempt + 1} failed for ${file.name}:`, e.message);
         }
       }
       if (!uploadRes) throw lastErr || new Error('network');
