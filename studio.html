@@ -721,9 +721,15 @@ async function _supaMirror(payload) {
   console.warn('[supa-mirror] Unrecognized payload shape (not mirrored):', payload);
 }
 
-// =============== FETCH INTERCEPTOR ===============
-// Wraps window.fetch so every existing fetch(SHEETDB, ...) call automatically
-// mirrors to Supabase. Existing call sites don't change.
+// =============== FETCH INTERCEPTOR — SUPABASE-ONLY ===============
+// Catches every fetch(SHEETDB, ...) and routes it to Supabase exclusively.
+// The Google Sheet is no longer written to — it's a frozen archive.
+//
+// The synthetic Response returned mimics a successful Sheet write so any
+// caller using await keeps working (most callers used mode:'no-cors' and
+// ignore the body anyway). With this interceptor, await actually waits for
+// the Supabase write to land — which eliminates the race condition where
+// the UI re-renders before the write commits.
 const _originalFetch = window.fetch.bind(window);
 window.fetch = function(url, options) {
   const isSheetWrite = (
@@ -736,24 +742,30 @@ window.fetch = function(url, options) {
       const payload = (typeof options.body === 'string')
         ? JSON.parse(options.body)
         : options.body;
-      // Debug log — visible in DevTools so we can see every mirror attempt
-      console.log('🪞 [supa-mirror] intercepted write:',
-        payload.action || 'insert',
-        payload.matchColumn ? `${payload.matchColumn}="${(payload.matchValue||'').toString().substring(0,40)}"` : '',
-        payload.data ? 'data=' + JSON.stringify(payload.data).substring(0, 120) : '');
-      _supaMirror(payload).then(() => {
-        console.log('✅ [supa-mirror] write succeeded');
-      }).catch(err => {
-        console.error('❌ [supa-mirror] FAILED:', err.message || err, payload);
-      });
+      // Route to Supabase only. Original Apps Script URL is NOT called.
+      return _supaMirror(payload).then(
+        () => new Response('{"ok":true}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }),
+        err => {
+          console.error('❌ Supabase write failed:', err.message || err, payload);
+          // Return a synthetic 500 so callers' .catch fires — they treat it
+          // as a write failure just like an Apps Script outage would.
+          return new Response(
+            JSON.stringify({ ok: false, error: err.message || String(err) }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      );
     } catch (e) {
-      // Body wasn't parseable JSON — just let the sheet write continue
+      // Body wasn't parseable JSON — fall through to original (rare)
     }
   }
   return _originalFetch(url, options);
 };
 
-console.log('%c📊 Supabase data layer + dual-write mirror active', 'color:#15803d;font-weight:bold');
+console.log('%c📊 Yellowverse · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 // Telegram notify helper — uses auth token from team portal login (shared localStorage)
 function notifyTelegram(to, message) {
