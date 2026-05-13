@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Yellow Productions — Welcome Suriti!</title>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap');
 
@@ -1267,6 +1268,402 @@ const EMAILJS_KEY = '_sfXlprhHHUbt55qV';
 
 emailjs.init({ publicKey: EMAILJS_KEY });
 
+// ============================================================
+// SUPABASE DATA LAYER — full reads + dual-write mirror
+// ============================================================
+// READS: fetchSheetRows() pulls from Supabase and reshapes into the
+//   legacy {Type, Date, Title, Task, ...} row format the rendering
+//   code already expects.
+//
+// WRITES: A fetch() interceptor catches every SHEETDB POST and
+//   mirrors it to the right Supabase table. Existing write code at
+//   the call sites is untouched — `fetch(SHEETDB, {body: ...})` keeps
+//   working, AND now mirrors to Supabase in parallel.
+//
+// On error in Supabase mirror, the Sheet write still goes through
+// (logged warning only). On error in Sheet write, Supabase still has
+// the change.
+// ============================================================
+
+const SUPABASE_URL = 'https://qchvnnicsoxptmmokozy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_RbsT22PqnuSRqGUwWEwNDQ_hQGXZqmv';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// =============== HELPERS ===============
+
+const _LEGACY_CLIENT_MAP = {
+  'kotak': 'Kotak', 'steelcity': 'Jindal Steel', 'youthleague': 'Jindal League',
+  'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel',
+  'duqm': 'Jindal Steel Duqm', 'adhoc': 'Adhoc', 'Adhoc': 'Adhoc',
+  'pitches': 'Pitches', 'jindal': 'Jindal Steel'
+};
+function _normLegacy(client) {
+  if (!client) return null;
+  const v = String(client).trim();
+  if (!v) return null;
+  return _LEGACY_CLIENT_MAP[v] || v;
+}
+
+function _supaBracketDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `[${dd}-${mm}]`;
+}
+function _supaShortTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function _supaJoinUpdates(updates) {
+  if (!Array.isArray(updates) || !updates.length) return '';
+  const sorted = updates.slice().sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return ta - tb;
+  });
+  return sorted.map(u => {
+    const tick = u.ticked ? '✓ ' : '';
+    const bracket = _supaBracketDate(u.created_at);
+    return `${tick}${bracket ? bracket + ' ' : ''}${u.text || ''}`.trim();
+  }).join('\n');
+}
+
+// =============== READ PATH ===============
+
+async function fetchSheetRows() {
+  const [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR] = await Promise.all([
+    sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
+    sb.from('attendance').select('*').order('id', { ascending: true }),
+    sb.from('leaves').select('*').order('id', { ascending: true }),
+    sb.from('creatives').select('*').order('id', { ascending: true }),
+    sb.from('chat_messages').select('*').order('created_at', { ascending: true }),
+    sb.from('reminders').select('*').order('id', { ascending: true }),
+  ]);
+  for (const r of [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR]) {
+    if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
+  }
+  const rows = [];
+  for (const t of (tasksR.data || [])) {
+    rows.push({
+      Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
+      Update: _supaJoinUpdates(t.task_updates),
+      Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
+      'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
+      Type: 'task', Client: t.client || '',
+      _sb_id: t.id, _sb_table: 'tasks'
+    });
+  }
+  for (const a of (attendanceR.data || [])) {
+    rows.push({
+      Date: a.date || '', Title: _supaShortTime(a.marked_at), Task: '', Update: '',
+      Assignee: a.person || '', Status: a.status || '',
+      Notes: a.is_override ? (a.override_note || 'override by Suriti') : '',
+      'Preview Link': '', 'Open File Link': '', Type: 'attendance', Client: '',
+      _sb_id: a.id, _sb_table: 'attendance'
+    });
+  }
+  for (const l of (leavesR.data || [])) {
+    const requestDate = l.created_at ? l.created_at.split('T')[0] : (l.start_date || '');
+    rows.push({
+      Date: requestDate, Title: l.reason || '', Task: l.start_date || '', Update: '',
+      Assignee: l.person || '', Status: l.status || '', Notes: l.feedback || '',
+      'Preview Link': '', 'Open File Link': '', Type: 'leave', Client: '',
+      _sb_id: l.id, _sb_table: 'leaves',
+      _sb_start_date: l.start_date, _sb_end_date: l.end_date
+    });
+  }
+  for (const c of (creativesR.data || [])) {
+    const taskField = c.designer ? `${c.name || ''} | ${c.designer}` : (c.name || '');
+    rows.push({
+      Date: c.created_at ? c.created_at.split('T')[0] : '',
+      Title: c.name || '', Task: taskField, Update: '',
+      Assignee: c.client || '', Status: c.status || '', Notes: c.review_note || '',
+      'Preview Link': c.preview_link || '', 'Open File Link': c.dropbox_path || '',
+      Type: 'creative', Client: c.client || '',
+      _sb_id: c.id, _sb_table: 'creatives'
+    });
+  }
+  for (const m of (chatsR.data || [])) {
+    rows.push({
+      Date: m.created_at || '', Title: m.author || '', Task: m.text || '', Update: '',
+      Assignee: 'all', Status: '', Notes: '',
+      'Preview Link': '', 'Open File Link': '', Type: 'chat', Client: '',
+      _sb_id: m.id, _sb_table: 'chat_messages', _sb_mentions: m.mentions || []
+    });
+  }
+  for (const r of (remindersR.data || [])) {
+    rows.push({
+      Date: r.created_at ? r.created_at.split('T')[0] : '',
+      Title: r.message || '', Task: '', Update: '',
+      Assignee: r.for_person || '', Status: r.status || '', Notes: '',
+      'Preview Link': '', 'Open File Link': '', Type: 'reminder', Client: '',
+      _sb_id: r.id, _sb_table: 'reminders'
+    });
+  }
+  return rows;
+}
+
+// =============== WRITE PATH (mirror) ===============
+
+// Parse an Update column string into structured rows.
+// Each line is like "✓ [12-05] note text" or "[12-05] note" or just plain text.
+function _parseUpdateLines(s) {
+  if (!s) return [];
+  return s.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const ticked = line.startsWith('✓');
+    let cleaned = ticked ? line.substring(1).trim() : line;
+    const m = cleaned.match(/^\[(\d{1,2})-(\d{1,2})\]\s*/);
+    let createdAt = null;
+    if (m) {
+      cleaned = cleaned.substring(m[0].length);
+      const dd = parseInt(m[1]), mm = parseInt(m[2]);
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
+        const yr = new Date().getFullYear();
+        createdAt = `${yr}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}T12:00:00+05:30`;
+      }
+    }
+    return { text: cleaned, ticked, created_at: createdAt };
+  });
+}
+
+// Compare new Update string with existing task_updates rows. Insert new lines,
+// update ticked-state changes. Doesn't delete rows (preserves history).
+async function _syncTaskUpdates(taskId, updateStr) {
+  const parsed = _parseUpdateLines(updateStr);
+  if (!parsed.length) return;
+
+  const { data: existing } = await sb.from('task_updates').select('id, text, ticked').eq('task_id', taskId);
+  const existingByText = new Map((existing || []).map(r => [r.text, r]));
+
+  const toInsert = [];
+  const tickUpdates = [];
+  for (const p of parsed) {
+    const ex = existingByText.get(p.text);
+    if (!ex) {
+      toInsert.push({
+        task_id: taskId, text: p.text, ticked: p.ticked,
+        ...(p.created_at ? { created_at: p.created_at } : {})
+      });
+    } else if (ex.ticked !== p.ticked) {
+      tickUpdates.push({ id: ex.id, ticked: p.ticked });
+    }
+  }
+  if (toInsert.length) await sb.from('task_updates').insert(toInsert);
+  for (const u of tickUpdates) {
+    await sb.from('task_updates').update({ ticked: u.ticked }).eq('id', u.id);
+  }
+}
+
+// Map sheet-style row → Supabase insert based on Type
+async function _supaInsertRow(row) {
+  const type = (row.Type || '').toLowerCase();
+  if (type === 'task' || type === '') {
+    const r = await sb.from('tasks').insert({
+      due_date: row.Date || null,
+      title: row.Title || null,
+      description: row.Task || '(no description)',
+      assignee: row.Assignee || 'unassigned',
+      status: row.Status || 'Pending',
+      client: _normLegacy(row.Client),
+      notes: row.Notes || null,
+      preview_link: row['Preview Link'] || null,
+      open_file_link: row['Open File Link'] || null,
+    }).select().single();
+    if (r.data && row.Update) await _syncTaskUpdates(r.data.id, row.Update);
+  }
+  else if (type === 'attendance') {
+    let markedAt = null;
+    if (row.Title && /^\d{1,2}:\d{2}$/.test(row.Title)) {
+      const t = row.Title.padStart(5, '0');
+      markedAt = `${row.Date}T${t}:00+05:30`;
+    }
+    await sb.from('attendance').insert({
+      date: row.Date,
+      person: row.Assignee,
+      status: row.Status || 'Present',
+      marked_at: markedAt,
+      is_override: /override/i.test(row.Notes || ''),
+      override_note: /override/i.test(row.Notes || '') ? row.Notes : null,
+    });
+  }
+  else if (type === 'leave') {
+    await sb.from('leaves').insert({
+      person: row.Assignee,
+      start_date: row.Task || row.Date,
+      end_date: row.Task || row.Date,
+      reason: row.Title || null,
+      status: row.Status || 'Pending',
+      feedback: row.Notes || null,
+    });
+  }
+  else if (type === 'creative') {
+    const taskField = row.Task || '';
+    let name = row.Title || '';
+    let designer = 'unknown';
+    if (taskField.includes('|')) {
+      const idx = taskField.lastIndexOf('|');
+      if (!name) name = taskField.substring(0, idx).trim();
+      designer = taskField.substring(idx + 1).trim();
+    } else if (!name) {
+      name = taskField;
+    }
+    await sb.from('creatives').insert({
+      name: name || '(unnamed)',
+      designer: designer,
+      client: _normLegacy(row.Assignee || row.Client),
+      status: row.Status || 'Pending Review',
+      review_note: row.Notes || null,
+      preview_link: row['Preview Link'] || null,
+      dropbox_path: row['Open File Link'] || null,
+    });
+  }
+  else if (type === 'chat') {
+    const text = row.Task || '';
+    const mentions = (text.match(/@(\w+)/g) || []).map(m => m.substring(1));
+    await sb.from('chat_messages').insert({
+      author: row.Title || 'unknown', text: text, mentions: mentions,
+    });
+  }
+  else if (type === 'reminder') {
+    await sb.from('reminders').insert({
+      for_person: row.Assignee,
+      message: row.Title || row.Task,
+      status: row.Status || 'Pending',
+    });
+  }
+  else {
+    console.warn('[supa-mirror] Unknown row type for insert:', type, row);
+  }
+}
+
+// Map a PATCH-by-Task payload → Supabase update.
+// Used when code edits a task by matching its description (the existing sheet workflow).
+async function _supaPatchByTask(taskDesc, data) {
+  // Try tasks first
+  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
+  if (tasks && tasks.length) {
+    const id = tasks[0].id;
+    const update = {};
+    if (data.Date !== undefined)         update.due_date = data.Date || null;
+    if (data.Title !== undefined)        update.title = data.Title;
+    if (data.Task !== undefined)         update.description = data.Task;
+    if (data.Assignee !== undefined)     update.assignee = data.Assignee;
+    if (data.Status !== undefined)       update.status = data.Status;
+    if (data.Client !== undefined)       update.client = _normLegacy(data.Client);
+    if (data.Notes !== undefined)        update.notes = data.Notes;
+    if (data['Preview Link'] !== undefined)   update.preview_link = data['Preview Link'];
+    if (data['Open File Link'] !== undefined) update.open_file_link = data['Open File Link'];
+    if (Object.keys(update).length) {
+      await sb.from('tasks').update(update).eq('id', id);
+    }
+    if (data.Update !== undefined) await _syncTaskUpdates(id, data.Update);
+    return;
+  }
+
+  // Fall back: it might be a creative (matched by "name | designer")
+  if (taskDesc.includes('|')) {
+    const { data: creatives } = await sb.from('creatives').select('id, name, designer');
+    const match = (creatives || []).find(c => `${c.name} | ${c.designer}` === taskDesc);
+    if (match) {
+      const u = {};
+      if (data.Status !== undefined)       u.status = data.Status;
+      if (data.Notes !== undefined)        u.review_note = data.Notes;
+      if (data['Preview Link'] !== undefined)   u.preview_link = data['Preview Link'];
+      if (data['Open File Link'] !== undefined) u.dropbox_path = data['Open File Link'];
+      if (data.Client !== undefined)       u.client = _normLegacy(data.Client);
+      if (data.Assignee !== undefined)     u.client = _normLegacy(data.Assignee);
+      if (Object.keys(u).length) {
+        await sb.from('creatives').update(u).eq('id', match.id);
+      }
+      return;
+    }
+  }
+
+  console.warn('[supa-mirror] PATCH target not found:', taskDesc.substring(0, 60));
+}
+
+// Multi-field match update — used for prospects mostly
+async function _supaUpdateByMatch(match, update) {
+  if (match.Task) {
+    await _supaPatchByTask(match.Task, update);
+  } else {
+    console.warn('[supa-mirror] update-by-match without Task not supported:', match);
+  }
+}
+
+// Multi-field match delete
+async function _supaDeleteByMatch(match) {
+  if (match.Task) {
+    const { data: tasks } = await sb.from('tasks').select('id').eq('description', match.Task).limit(1);
+    if (tasks && tasks.length) {
+      await sb.from('tasks').delete().eq('id', tasks[0].id);
+    }
+  }
+}
+
+// Main dispatcher — figures out which write operation this payload represents
+async function _supaMirror(payload) {
+  if (!payload) return;
+  // INSERT pattern
+  if (payload.data && Array.isArray(payload.data)) {
+    for (const row of payload.data) {
+      await _supaInsertRow(row);
+    }
+    return;
+  }
+  // PATCH pattern (most common — by matchColumn=Task)
+  if (payload.action === 'patch' && payload.matchColumn === 'Task' && payload.matchValue) {
+    await _supaPatchByTask(payload.matchValue, payload.data || {});
+    return;
+  }
+  // UPDATE pattern (multi-field match)
+  if (payload.action === 'update' && payload.match) {
+    await _supaUpdateByMatch(payload.match, payload.update || {});
+    return;
+  }
+  // DELETE pattern
+  if (payload.action === 'delete' && payload.match) {
+    await _supaDeleteByMatch(payload.match);
+    return;
+  }
+  // Action 'patch' on a non-Task matchColumn or other edge cases
+  console.warn('[supa-mirror] Unrecognized payload shape (not mirrored):', payload);
+}
+
+// =============== FETCH INTERCEPTOR ===============
+// Wraps window.fetch so every existing fetch(SHEETDB, ...) call automatically
+// mirrors to Supabase. Existing call sites don't change.
+const _originalFetch = window.fetch.bind(window);
+window.fetch = function(url, options) {
+  const isSheetWrite = (
+    typeof url === 'string' &&
+    url.indexOf('script.google.com') !== -1 &&
+    options && options.method === 'POST' && options.body
+  );
+  if (isSheetWrite) {
+    try {
+      const payload = (typeof options.body === 'string')
+        ? JSON.parse(options.body)
+        : options.body;
+      // Fire-and-forget — don't block the user. Mirror runs in parallel with the
+      // Sheet write so neither blocks the other. If Supabase fails, the Sheet
+      // write still completes; if the Sheet fails, Supabase already has it.
+      _supaMirror(payload).catch(err => {
+        console.error('⚠ Supabase mirror failed (sheet write proceeded):', err);
+      });
+    } catch (e) {
+      // Body wasn't parseable JSON — just let the sheet write continue
+    }
+  }
+  return _originalFetch(url, options);
+};
+
+console.log('%c📊 Supabase data layer + dual-write mirror active', 'color:#15803d;font-weight:bold');
+// ============================================================
 const TEAM = {
   Sandesh: 'sandesh@perkyowl.com',
   Gayatri: 'gayatri.v@perkyowl.com',
@@ -2057,12 +2454,10 @@ function normalizeDate(d) {
 
 async function loadTasks() {
   try {
-    // Cache-buster + no-store header — Apps Script and intermediate CDN/browser
-    // caches can serve stale data, which is the most likely root cause when
-    // "I updated X on one portal and the other doesn't see it." Forces a fresh
-    // pull every time.
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks&_=' + Date.now(), { cache: 'no-store' });
-    const data = await res.json();
+    // Read path: Supabase (Turn 1). Writes still go to SHEETDB below.
+    // Returns the same {Type, Date, Title, Task, ...} row shape the existing
+    // rendering code expects — drop-in replacement for the Apps Script fetch.
+    const data = await fetchSheetRows();
     // Cache the FULL row list (tasks + attendance + leave + etc.) so renderMorningDigest's
     // idle calculation can read today's attendance/leave without waiting for the HR tab.
     window._allRowsCache = data.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
@@ -2092,8 +2487,7 @@ let allProspects = [];
 
 async function loadPipeline() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const data = await res.json();
+    const data = await fetchSheetRows();
     allProspects = data
       .filter(r => r.Type === 'prospect')
       .map(p => ({ ...p, Date: normalizeDate(p.Date) }));
@@ -3227,8 +3621,7 @@ async function updateTaskClient(encodedTask, assignee, date, newValue) {
     // that to the user as a real alert with a retry option.
     setTimeout(async () => {
       try {
-        const r = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks&_=' + Date.now());
-        const fresh = await r.json();
+        const fresh = await fetchSheetRows();
         const row = (Array.isArray(fresh) ? fresh : []).find(x => x.Task === task);
         if (!row) {
           console.warn('Verify: no row in sheet matched Task =', JSON.stringify(task));
@@ -3563,8 +3956,7 @@ async function loadHR(skipFetch) {
     if (skipFetch && window._allRowsCache) {
       data = window._allRowsCache;
     } else {
-      const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-      const raw = await res.json();
+      const raw = await fetchSheetRows();
       data = raw.map(r => ({ ...r, Date: normalizeDate(r.Date) }));
       window._allRowsCache = data;
     }
@@ -3947,8 +4339,7 @@ async function renderReview() {
   const el = document.getElementById('review-list');
   el.innerHTML = '<div class="empty-state">Loading...</div>';
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const raw = await res.json();
+    const raw = await fetchSheetRows();
     const all = raw
       .filter(r => (r.Type === 'creative' || r.Status === 'Pending Review' || r.Status === 'Pending Viplav') && r.Task && r.Task.includes('|'))
       .map(r => ({ ...r, Date: normalizeDate(r.Date) }))
@@ -4149,8 +4540,7 @@ let allClientCreatives = [];
 
 async function loadClientCreatives() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const data = await res.json();
+    const data = await fetchSheetRows();
     allClientCreatives = data.filter(r => r.Type === 'creative');
     renderClientList();
   } catch(e) {
@@ -4367,8 +4757,7 @@ async function loadPerformance() {
   document.getElementById('perf-month').textContent = new Date(month + '-01').toLocaleString('en-IN', { month: 'long', year: 'numeric' });
 
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const data = await res.json();
+    const data = await fetchSheetRows();
     const ratings = data.filter(r => r.Type === 'rating' && r.Month === month);
 
     if(!ratings.length) {
@@ -4525,8 +4914,7 @@ function toggleChat() {
 
 async function loadChat() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const raw = await res.json();
+    const raw = await fetchSheetRows();
     const rows = Array.isArray(raw) ? raw : [];
     const fetched = rows
       .filter(r => r.Type === 'chat')
@@ -4852,8 +5240,7 @@ let pendingRemindersFounder = [];
 
 async function loadFounderReminders() {
   try {
-    const res = await fetch(SHEETDB_URL + '?sheet=Type%3Atasks');
-    const raw = await res.json();
+    const raw = await fetchSheetRows();
     const rows = Array.isArray(raw) ? raw : [];
     pendingRemindersFounder = rows
       .filter(r => r.Type === 'reminder' && r.Assignee === 'Suriti' && (r.Status === 'Pending' || !r.Status))
