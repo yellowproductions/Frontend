@@ -750,7 +750,7 @@
         <div style="display:flex;align-items:center;gap:10px">
           <div class="card-title" style="margin:0">All Tasks</div>
           <span id="tasks-live-dot" title="Auto-refreshes every 60 seconds when you're not typing" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#86efac"></span>
-          <button onclick="loadTasks()" title="Pull latest task data right now"
+          <button id="task-refresh-btn" onclick="refreshTasksWithIndicator()" title="Pull latest task data right now"
             style="background:transparent;border:1px solid var(--border);color:#666;font-size:11px;padding:3px 10px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif">↻ Refresh</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -1578,6 +1578,30 @@ async function _supaPatchByTask(taskDesc, data) {
       if (data.Assignee !== undefined)     u.client = _normLegacy(data.Assignee);
       if (Object.keys(u).length) {
         await sb.from('creatives').update(u).eq('id', match.id);
+      }
+      return;
+    }
+  }
+
+  // Fall back: leave-row update (updateLeave sends matchValue = leave date as YYYY-MM-DD).
+  // Prefer the most recent Pending leave matching the date — that's what the UI just approved/rejected.
+  if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
+    const dateOnly = taskDesc.split('T')[0];
+    const { data: leaves } = await sb.from('leaves')
+      .select('id, person, status, start_date')
+      .eq('start_date', dateOnly)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (leaves && leaves.length) {
+      const target = leaves.find(l => l.status === 'Pending') || leaves[0];
+      const u = {};
+      if (data.Status !== undefined) {
+        u.status = data.Status;
+        u.decided_at = new Date().toISOString();
+      }
+      if (data.Notes !== undefined) u.feedback = data.Notes;
+      if (Object.keys(u).length) {
+        await sb.from('leaves').update(u).eq('id', target.id);
       }
       return;
     }
@@ -2454,9 +2478,8 @@ function normalizeDate(d) {
 
 async function loadTasks() {
   try {
-    // Read path: Supabase (Turn 1). Writes still go to SHEETDB below.
-    // Returns the same {Type, Date, Title, Task, ...} row shape the existing
-    // rendering code expects — drop-in replacement for the Apps Script fetch.
+    // Read path: Supabase. Returns the same {Type, Date, Title, Task, ...} row shape
+    // the existing rendering code expects — drop-in replacement for the Apps Script fetch.
     const data = await fetchSheetRows();
     // Cache the FULL row list (tasks + attendance + leave + etc.) so renderMorningDigest's
     // idle calculation can read today's attendance/leave without waiting for the HR tab.
@@ -2471,6 +2494,44 @@ async function loadTasks() {
     renderMorningDigest(allTasks); // 📋 Today's Brief — surfaces capacity issues, hot deadlines, slowdowns
   } catch(e) {
     document.getElementById('tasks-list').innerHTML = '<div class="empty-state">Could not load tasks.</div>';
+    console.error('loadTasks failed:', e);
+  }
+}
+
+// Refresh button wrapper — gives the user obvious visible feedback that the click
+// registered and the load is in progress. Suriti reported "refresh not working"
+// which turned out to mean "I clicked it and saw nothing happen" — this fixes that.
+async function refreshTasksWithIndicator() {
+  const btn = document.getElementById('task-refresh-btn');
+  const originalText = btn ? btn.textContent : '↻ Refresh';
+  if (btn) {
+    btn.textContent = '↻ Refreshing...';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+  }
+  try {
+    await loadTasks();
+    if (btn) {
+      btn.textContent = '✓ Up to date';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    if (btn) {
+      btn.textContent = '✗ Failed';
+      btn.style.borderColor = 'var(--red)';
+      btn.style.color = 'var(--red)';
+    }
+  } finally {
+    setTimeout(() => {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = '#666';
+      }
+    }, 1200);
   }
 }
 
