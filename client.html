@@ -779,6 +779,8 @@ async function fetchSheetRows() {
       Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
+      Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
+      ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
       _sb_id: t.id, _sb_table: 'tasks'
     });
   }
@@ -809,7 +811,12 @@ async function fetchSheetRows() {
       Assignee: c.client || '', Status: c.status || '', Notes: c.review_note || '',
       'Preview Link': c.preview_link || '', 'Open File Link': c.dropbox_path || '',
       Type: 'creative', Client: c.client || '',
-      _sb_id: c.id, _sb_table: 'creatives'
+      _sb_id: c.id, _sb_table: 'creatives',
+      // Track last decision time so the review history can sort newest-touched first
+      _sb_last_action_at: c.client_decided_at || c.created_at || '',
+      ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
+      // Per-file thumbnail URLs (new model — Studio collects all files per session)
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -968,10 +975,54 @@ async function _supaInsertRow(row) {
 // Map a PATCH-by-Task payload → Supabase update.
 // Used when code edits a task by matching its description (the existing sheet workflow).
 async function _supaPatchByTask(taskDesc, data) {
-  // Try tasks first
-  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
+  // Try tasks first — but skip Closed tasks. Once a task has been converted to a
+  // creative (e.g., team uploaded a final file via Studio), the original task is
+  // marked Closed. Subsequent rework patches use the original task's description
+  // as match key — we want those to fall through to the creatives table here, not
+  // re-corrupt the closed task.
+  const { data: tasks } = await sb.from('tasks')
+    .select('id, assignee, client, status')
+    .eq('description', taskDesc)
+    .neq('status', 'Closed')
+    .limit(1);
   if (tasks && tasks.length) {
-    const id = tasks[0].id;
+    const task = tasks[0];
+    const id = task.id;
+
+    // SPECIAL CASE: Studio's "convert task to creative" patch.
+    // When team uploads a final file for an existing task, Studio sends:
+    //   { Task: "name | designer", Assignee: <client>, Type: 'creative', Status: 'Pending Review', ... }
+    // In the legacy sheet this just changed the row's Type column. In Supabase the row
+    // belongs to the tasks TABLE — we have to actually move it: insert into creatives,
+    // mark the task as Closed (preserving history but hiding from active list).
+    if (data.Type === 'creative') {
+      const newTaskField = data.Task || taskDesc;
+      let name = '', designer = task.assignee || 'unknown';
+      if (newTaskField.includes('|')) {
+        const idx = newTaskField.lastIndexOf('|');
+        name = newTaskField.substring(0, idx).trim();
+        designer = newTaskField.substring(idx + 1).trim();
+      } else {
+        name = newTaskField;
+      }
+      await sb.from('creatives').insert({
+        name: name || '(unnamed)',
+        designer: designer,
+        client: _normLegacy(data.Assignee || data.Client || task.client),
+        status: data.Status || 'Pending Review',
+        preview_link: data['Preview Link'] || null,
+        dropbox_path: data['Open File Link'] || null,
+        review_note: null,
+        task_id: id
+      });
+      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
+      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Don't touch description or assignee — those stay as the original task's values.
+      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      return;
+    }
+
+    // Normal task patch
     const update = {};
     if (data.Date !== undefined)         update.due_date = data.Date || null;
     if (data.Title !== undefined)        update.title = data.Title;
