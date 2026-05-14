@@ -3021,16 +3021,28 @@ async function loadTasks() {
     // Heuristic: no "Closed Date" column exists on the sheet, so we use the
     // task's Date (due date) as a proxy. Tasks are usually closed near their
     // due date — close enough for the 7-day visibility window Suriti wants.
-    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    // VISIBILITY RULE (Suriti's spec):
+    //   • Non-terminal tasks (Pending, In Progress, Awaiting Review, Awaiting
+    //     Client, On Hold, SA Approved, etc.) → ALWAYS show in main task bar,
+    //     regardless of due date. A task is active until someone actually
+    //     finishes it — old in-progress work shouldn't be hidden.
+    //   • Terminal tasks (Done, Closed, Approved, Rejected) → show in main bar
+    //     for the rest of the month they were closed in. After that month ends,
+    //     they move into a month folder below.
+    //
+    // Source of truth for "when was this closed" = ClosedAt (set by trigger when
+    // status moves to a terminal state). Falls back to Date (due_date) for
+    // legacy rows that don't have a closed_at stamp.
+    const TERMINAL_STATUSES_FOR_ARCHIVE = ['Done', 'Closed', 'Approved', 'Rejected'];
 
     const currentOpen = sorted.filter(t => {
       const s = t.Status || 'Pending';
-      const m = (t.Date || '').substring(0, 7);
-      const isOpen = OPEN_STATUSES.includes(s);
-      const isCurrentMonth = m === currentMonth;
-      const isRecentlyClosed = DONE_STATUSES.includes(s) && (t.Date || '') >= sevenDaysAgoStr;
-      return (isCurrentMonth && isOpen) || isRecentlyClosed;
+      // Non-terminal — always visible in main bar
+      if (!TERMINAL_STATUSES_FOR_ARCHIVE.includes(s)) return true;
+      // Terminal — visible in main bar if closed during THIS calendar month
+      const stamp = t.ClosedAt || t.Date || '';
+      const taskMonth = stamp.substring(0, 7);
+      return taskMonth === currentMonth;
     });
     const archived = sorted.filter(t => !currentOpen.includes(t));
 
@@ -3062,7 +3074,7 @@ async function loadTasks() {
           monthLabel = m === 'No date' ? 'No date' : new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
         } catch(e) { monthLabel = m; }
         const doneCount = monthTasks.filter(t => (t.Status === 'Done' || t.Status === 'done' || t.Status === 'Closed' || t.Status === 'closed')).length;
-        html += `<details style="background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">
+        html += `<details open style="background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">
           <summary style="cursor:pointer;padding:12px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span><span style="font-size:16px;margin-right:8px">📁</span><strong>${monthLabel}</strong>
               <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:'DM Mono',monospace">${monthTasks.length} task${monthTasks.length!==1?'s':''} · ${doneCount} done</span>
