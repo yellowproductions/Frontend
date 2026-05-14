@@ -727,6 +727,7 @@ async function fetchSheetRows() {
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
+      ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
       _sb_id: t.id, _sb_table: 'tasks'
     });
   }
@@ -760,6 +761,7 @@ async function fetchSheetRows() {
       _sb_id: c.id, _sb_table: 'creatives',
       // Track last decision time so the review history can sort newest-touched first
       _sb_last_action_at: c.client_decided_at || c.created_at || '',
+      ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
     });
