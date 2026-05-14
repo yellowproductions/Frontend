@@ -726,6 +726,7 @@ async function fetchSheetRows() {
       Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
+      Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
       _sb_id: t.id, _sb_table: 'tasks'
     });
   }
@@ -758,7 +759,9 @@ async function fetchSheetRows() {
       Type: 'creative', Client: c.client || '',
       _sb_id: c.id, _sb_table: 'creatives',
       // Track last decision time so the review history can sort newest-touched first
-      _sb_last_action_at: c.client_decided_at || c.created_at || ''
+      _sb_last_action_at: c.client_decided_at || c.created_at || '',
+      // Per-file thumbnail URLs (new model — Studio collects all files per session)
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -957,9 +960,10 @@ async function _supaPatchByTask(taskDesc, data) {
         review_note: null,
         task_id: id
       });
-      // Close the original task so it falls off the active tasks list. Don't delete —
-      // preserve the history of what the team member worked on.
-      await sb.from('tasks').update({ status: 'Closed', closed_at: new Date().toISOString() }).eq('id', id);
+      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
+      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Don't touch description or assignee — those stay as the original task's values.
+      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
       return;
     }
 
@@ -1655,7 +1659,7 @@ function buildInboxItems() {
 
   // 2. Tasks newly assigned by someone else (filter out self-added)
   const myTasks = (window._allTasks || []).filter(t =>
-    t.Type === 'task' && t.Assignee === currentUser
+    t.Type === 'task' && (t.Assignee === currentUser || (t.Collaborators || []).includes(currentUser))
   );
   myTasks.forEach(t => {
     const notes = (t.Notes || '').trim();
@@ -2547,6 +2551,7 @@ const STATUS_SELECT = {
   'Awaiting Review': 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
   'Awaiting Client': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
   'Approved':        'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
+  'SA Approved':     'background:#facc15;color:#713f12;border-color:#facc15;font-weight:800;',
   'Closed':          'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
   'On Hold':         'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
   'Done':            'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
@@ -2661,6 +2666,41 @@ function jumpToTaskRow(taskKey) {
 // Append a new dated update line to a task. Used by the "+ Add update for today..."
 // inputs under every task row — mirrors the founder OS addUpdate so designers can
 // log progress in the same conversational style Suriti uses on her side.
+async function addCollaborator(encodedTask, sbId, name) {
+  if (!name) return;
+  const task = decodeURIComponent(encodedTask);
+  try {
+    if (sbId) {
+      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+      const current = (row && row.collaborators) || [];
+      if (current.includes(name)) return;
+      await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
+    }
+    // Telegram if the added person is a lead
+    if (['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
+      notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\nTagged by: ${currentUser}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+    }
+    loadTasks();
+  } catch(e) {
+    alert('Could not add collaborator: ' + e.message);
+  }
+}
+
+async function removeCollaborator(encodedTask, sbId, name) {
+  if (!name) return;
+  if (!confirm(`Remove ${name} as collaborator?`)) return;
+  try {
+    if (sbId) {
+      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+      const current = (row && row.collaborators) || [];
+      await sb.from('tasks').update({ collaborators: current.filter(c => c !== name) }).eq('id', sbId);
+    }
+    loadTasks();
+  } catch(e) {
+    alert('Could not remove collaborator: ' + e.message);
+  }
+}
+
 async function addUpdate(encodedTask, inputEl) {
   const text = (inputEl.value || '').trim();
   if (!text) return;
@@ -2820,6 +2860,20 @@ function renderTaskRows(tasks, startIdx) {
         <div class="task-title-cell" style="min-width:0;overflow-wrap:anywhere">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
             <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${renderClientEditor(t)}${dateText}${filePendingChip}
+            ${(t.Collaborators || []).map(c => `<span title="Collaborator"
+              style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f3e8ff;border:1px solid #c4b5fd;color:#5b21b6;font-weight:600;display:inline-flex;align-items:center;gap:3px">
+              👥 ${c}
+              ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser)
+                ? `<button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#5b21b6;cursor:pointer;font-size:11px;padding:0;line-height:1;font-weight:700">×</button>`
+                : ''}
+            </span>`).join('')}
+            ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser) ? `
+              <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
+                title="Add collaborator"
+                style="font-size:10px;padding:2px 6px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                <option value="" selected>+ Tag</option>
+                ${VALID_TEAM.filter(n => n !== t.Assignee && n !== currentUser && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
+              </select>` : ''}
           </div>
           ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
 
@@ -2847,6 +2901,7 @@ function renderTaskRows(tasks, startIdx) {
         </div>
         <div class="task-cell" data-label="Status" style="min-width:0">
           <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
+            ${status === 'SA Approved' ? '<option value="SA Approved" selected disabled>🌟 SA Approved</option>' : ''}
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
             <option value="Awaiting Review" ${status==='Awaiting Review'?'selected':''}>Feedback</option>
@@ -2889,7 +2944,7 @@ async function loadTasks() {
     if (dot) { dot.style.background = '#fbbf24'; setTimeout(() => dot.style.background = '#86efac', 1200); }
     const data = Array.isArray(raw) ? raw.map(r => ({ ...r, Date: normalizeDate(r.Date) })) : [];
     const all  = data.filter(t =>
-      t.Assignee === currentUser && (t.Type === 'task' || t.Type === '' || !t.Type)
+      (t.Assignee === currentUser || (t.Collaborators || []).includes(currentUser)) && (t.Type === 'task' || t.Type === '' || !t.Type)
     );
 
     // Reconcile any pending client-tag writes that the sheet may not have
