@@ -2849,7 +2849,7 @@ function renderTaskRows(tasks, startIdx) {
           <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
-            <option ${status==='Awaiting Review'?'selected':''}>Awaiting Review</option>
+            <option value="Awaiting Review" ${status==='Awaiting Review'?'selected':''}>Feedback</option>
             <option ${status==='Awaiting Client'?'selected':''}>Awaiting Client</option>
             <option ${status==='Approved'?'selected':''}>Approved</option>
             <option ${status==='Closed'?'selected':''}>Closed</option>
