@@ -213,20 +213,9 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
 
         <div class="field">
           <label>Task</label>
-          <input type="hidden" id="q-task" value="" onchange="onTaskChange()">
-          <button type="button" id="q-task-trigger" onclick="toggleTaskPicker()" disabled
-            style="width:100%;padding:10px 12px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;display:flex;justify-content:space-between;align-items:center;color:#1a1a1a;font-family:inherit">
-            <span id="q-task-label" style="color:#888;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Select your name first...</span>
-            <span id="q-task-caret" style="color:#999;margin-left:8px">▾</span>
-          </button>
-          <div id="q-task-picker" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;background:#fff;max-height:400px;overflow:auto;margin-top:-1px">
-            <div style="position:sticky;top:0;background:#fff;padding:8px;border-bottom:1px solid var(--border);z-index:2">
-              <input type="text" id="q-task-search" placeholder="🔍 Search tasks..."
-                oninput="filterTasksBySearch()"
-                style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box">
-            </div>
-            <div id="q-task-list"></div>
-          </div>
+          <select id="q-task" onchange="onTaskChange()" disabled>
+            <option value="">Select your name first...</option>
+          </select>
         </div>
 
         <div class="field" id="creative-name-field" style="display:none">
@@ -394,6 +383,7 @@ async function fetchSheetRows() {
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
+      ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
       _sb_id: t.id, _sb_table: 'tasks'
     });
   }
@@ -427,6 +417,7 @@ async function fetchSheetRows() {
       _sb_id: c.id, _sb_table: 'creatives',
       // Track last decision time so the review history can sort newest-touched first
       _sb_last_action_at: c.client_decided_at || c.created_at || '',
+      ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
     });
@@ -936,31 +927,22 @@ let myTasks = [];
 
 async function onDesignerChange() {
   const designer = document.getElementById('q-designer').value;
-  const taskHidden = document.getElementById('q-task');
-  const trigger = document.getElementById('q-task-trigger');
-  const label = document.getElementById('q-task-label');
-  const list = document.getElementById('q-task-list');
+  const taskSelect = document.getElementById('q-task');
   document.getElementById('creative-name-field').style.display = 'none';
-  // Reset the client display — stale info from a previous designer's task shouldn't carry over
   const clientInfo = document.getElementById('client-info');
   if (clientInfo) clientInfo.style.display = 'none';
   const clientSel = document.getElementById('q-client');
   if (clientSel) clientSel.value = '';
   myTasks = [];
-  taskHidden.value = '';
-  closeTaskPicker(); // close picker in case it was open
-  list.innerHTML = '';
 
   if (!designer) {
-    trigger.disabled = true;
-    label.textContent = 'Select your name first...';
-    label.style.color = '#888';
+    taskSelect.innerHTML = '<option value="">Select your name first...</option>';
+    taskSelect.disabled = true;
     return;
   }
 
-  trigger.disabled = true;
-  label.textContent = 'Loading your tasks...';
-  label.style.color = '#888';
+  taskSelect.innerHTML = '<option value="">Loading your tasks...</option>';
+  taskSelect.disabled = true;
 
   try {
     const data = await fetchSheetRows();
@@ -974,23 +956,25 @@ async function onDesignerChange() {
       return !isNaN(d.getTime()) && d.getTime() >= cutoff;
     };
 
+    // 7-day visibility window — anchored to when a task actually became terminal,
+    // not its due date. Falls back to due date if closed_at isn't populated (legacy rows).
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const isWithinClosedWindow = (closedAt, fallbackDate) => {
+      const stamp = closedAt || fallbackDate || '';
+      if (!stamp) return false;
+      const d = new Date(stamp);
+      if (isNaN(d.getTime())) return false;
+      return (Date.now() - d.getTime()) <= SEVEN_DAYS_MS;
+    };
+
+    // Terminal statuses — the task is done in some form. Visible 7 days from closed_at.
+    const TERMINAL_STATUSES = ['Done', 'Closed', 'Approved', 'Rejected'];
+
     myTasks = data.filter(r => {
-      // If a Done/Approved task already has its Open File uploaded, hide it — fully complete.
-      const isFullyComplete = (r.Status === 'Done' || r.Status === 'Approved') && (r['Open File Link'] || '').trim();
-      if (isFullyComplete) return false;
-
-      // Suriti's directive: only show actionable tasks. Closed tasks are done —
-      // no upload expected. Hide them entirely (designer can't do anything useful
-      // with a Closed task from this screen).
-      if (r.Status === 'Closed' || r.Status === 'closed') return false;
-
       // Hide legacy multi-file fragments. Before today's multi-file → single-folder
       // fix, each uploaded file became its own creative row named "BaseName — filename".
-      // Those pollute the picker (21 "Kotak bheance mockups — 18/19/20…" entries for
-      // one logical creative). New-flow creatives always have file_urls populated,
-      // so any creative WITHOUT file_urls AND with the "— <suffix>" pattern in its
-      // name is a legacy fragment we should hide. Designer can re-upload fresh
-      // via the parent task if any of these need rework.
+      // New-flow creatives always have file_urls populated, so any creative WITHOUT
+      // file_urls AND with the "— <suffix>" pattern in its name is a legacy fragment.
       if (r.Type === 'creative') {
         const baseName = (r.Task || '').replace(/\| .*$/, '').trim();
         const hasFragmentSuffix = / — \S/.test(baseName);
@@ -998,170 +982,63 @@ async function onDesignerChange() {
         if (hasFragmentSuffix && !hasFileUrls) return false;
       }
 
-      // Open tasks assigned to this designer
+      // Tasks owned or collaborated by this designer
       if ((r.Type === 'task' || !r.Type || r.Type === '') && (r.Assignee === designer || (r.Collaborators || []).includes(designer))) {
-        if (r.Status !== 'Done') return true; // active task — always show
-        return isWithinWindow(r.Date); // recently done — keep for a week so designer can upload open file
+        if (!TERMINAL_STATUSES.includes(r.Status)) return true;  // active — always show
+        return isWithinClosedWindow(r.ClosedAt, r.Date);          // terminal — show for 7 days
       }
       // Creatives by this designer (rework flow)
       if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
-        if (r.Status === 'Sent Back') return true; // rework — always show
-        if (['Approved', 'Rejected', 'Done'].includes(r.Status)) return isWithinWindow(r.Date);
+        if (r.Status === 'Sent Back') return true;                                 // rework — always show
+        if (TERMINAL_STATUSES.includes(r.Status)) return isWithinClosedWindow(r.ClosedAt, r.Date);
       }
       return false;
     });
 
-    // Group myTasks by month of due date (YYYY-MM) for the collapsible picker.
-    // Tasks with no date go into a "No date" group at the top.
-    const groups = {}; // { 'YYYY-MM': [taskIdx, ...], 'no-date': [...] }
+    // Group myTasks by month for visual organization via <optgroup>.
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const groups = {};
     myTasks.forEach((t, i) => {
       const d = t.Date || '';
       const monthKey = /^\d{4}-\d{2}/.test(d) ? d.substring(0, 7) : 'no-date';
       if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push(i);
+      groups[monthKey].push({ t, i });
     });
 
-    // Sort months: most recent first, "no-date" last
     const sortedKeys = Object.keys(groups).sort((a, b) => {
       if (a === 'no-date') return 1;
       if (b === 'no-date') return -1;
-      return b.localeCompare(a); // YYYY-MM string sort, newest first
+      return b.localeCompare(a); // newest month first
     });
 
-    // Build the picker HTML
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const currentMonth = new Date().toISOString().substring(0, 7);
-
-    const sections = sortedKeys.map(key => {
-      const indices = groups[key];
-      let monthLabel = 'No date';
+    let opts = ['<option value="">Select task...</option>'];
+    sortedKeys.forEach(key => {
+      let label = 'No date';
       if (key !== 'no-date') {
         const [y, m] = key.split('-');
-        monthLabel = `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+        label = `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
       }
-      // Current month + no-date open by default; past months collapsed
-      const isOpen = (key === currentMonth || key === 'no-date');
-
-      const taskRows = indices.map(i => {
-        const t = myTasks[i];
+      opts.push(`<optgroup label="${label}">`);
+      // Sort within month: earliest due date first
+      groups[key].sort((a, b) => (a.t.Date || '').localeCompare(b.t.Date || ''));
+      groups[key].forEach(({ t, i }) => {
         const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
-        const displayName = rawName.length > 80 ? rawName.substring(0, 80) + '…' : rawName;
-        const dueText = t.Date ? `📅 ${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '';
-        const clientText = t.Client ? `🏷 ${t.Client}` : '';
-        const reworkBadge = t.Status === 'Sent Back' ? '<span style="font-size:9px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:700">REWORK</span>' : '';
-        const meta = [dueText, clientText].filter(Boolean).join(' · ');
-        // data-search-key holds the lowercased name so filterTasksBySearch can match without re-reading DOM text
-        return `<div class="task-item" data-search-key="${(rawName + ' ' + (t.Client || '')).toLowerCase()}" data-idx="${i}"
-          onclick="selectTaskFromPicker(${i})"
-          style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f5f5f5;font-size:13px;line-height:1.4">
-          <div style="font-weight:500;color:#1a1a1a">${displayName}${reworkBadge}</div>
-          ${meta ? `<div style="font-size:11px;color:#888;margin-top:2px">${meta}</div>` : ''}
-        </div>`;
-      }).join('');
+        const displayName = rawName.length > 60 ? rawName.substring(0, 60) + '…' : rawName;
+        const reworkTag = t.Status === 'Sent Back' ? ' [rework]' : '';
+        const dueShort = t.Date ? ` (${t.Date.substring(8,10)}/${t.Date.substring(5,7)})` : '';
+        opts.push(`<option value="${i}">${displayName}${dueShort}${reworkTag}</option>`);
+      });
+      opts.push('</optgroup>');
+    });
+    opts.push('<option value="" disabled>— No matching task? Add one in your Team portal —</option>');
 
-      return `<div class="month-group" data-month-key="${key}">
-        <button type="button" onclick="toggleMonthGroup('${key}')"
-          style="width:100%;padding:9px 14px;background:#fafaf7;border:none;border-bottom:1px solid var(--border);text-align:left;cursor:pointer;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.04em;display:flex;justify-content:space-between;align-items:center;font-family:inherit">
-          <span>${monthLabel} · ${indices.length}</span>
-          <span class="month-arrow" style="font-size:10px;color:#999;transition:transform 0.15s">${isOpen ? '▾' : '▸'}</span>
-        </button>
-        <div class="month-tasks" style="display:${isOpen ? 'block' : 'none'}">${taskRows}</div>
-      </div>`;
-    }).join('');
-
-    const emptyHint = '<div style="padding:14px;text-align:center;font-size:12px;color:#888">No matching task? Add one in your Team portal.</div>';
-    document.getElementById('q-task-list').innerHTML = sections + emptyHint;
-
-    // Enable the trigger button
-    const trigger = document.getElementById('q-task-trigger');
-    const label = document.getElementById('q-task-label');
-    trigger.disabled = false;
-    label.textContent = 'Select task...';
-    label.style.color = '#888';
-    document.getElementById('q-task').value = ''; // reset hidden input
+    taskSelect.innerHTML = opts.join('');
+    taskSelect.disabled = false;
   } catch(e) {
-    document.getElementById('q-task-list').innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:#dc2626">Could not load tasks. Refresh and try again.</div>';
-    document.getElementById('q-task-trigger').disabled = false;
-    document.getElementById('q-task-label').textContent = 'Could not load — tap to retry';
+    taskSelect.innerHTML = '<option value="">Could not load tasks. Refresh and try again.</option>';
+    taskSelect.disabled = false;
   }
 }
-
-// ============================================================
-// TASK PICKER CONTROLS — custom searchable + month-grouped widget
-// ============================================================
-function toggleTaskPicker() {
-  const picker = document.getElementById('q-task-picker');
-  const caret = document.getElementById('q-task-caret');
-  const isOpen = picker.style.display === 'block';
-  picker.style.display = isOpen ? 'none' : 'block';
-  caret.textContent = isOpen ? '▾' : '▴';
-  if (!isOpen) {
-    // Auto-focus search when opening so designer can just start typing
-    setTimeout(() => document.getElementById('q-task-search')?.focus(), 50);
-  }
-}
-
-function closeTaskPicker() {
-  document.getElementById('q-task-picker').style.display = 'none';
-  document.getElementById('q-task-caret').textContent = '▾';
-}
-
-function filterTasksBySearch() {
-  const q = (document.getElementById('q-task-search').value || '').toLowerCase().trim();
-  const items = document.querySelectorAll('#q-task-list .task-item');
-
-  // Show/hide individual tasks based on search term
-  items.forEach(el => {
-    const key = el.getAttribute('data-search-key') || '';
-    const match = !q || key.includes(q);
-    el.style.display = match ? 'block' : 'none';
-  });
-
-  // For each month group, hide it entirely if no tasks visible inside.
-  // Also when searching, force-expand all groups so the user sees results.
-  document.querySelectorAll('#q-task-list .month-group').forEach(group => {
-    const visibleInGroup = group.querySelectorAll('.task-item:not([style*="display: none"])').length;
-    group.style.display = visibleInGroup === 0 ? 'none' : 'block';
-    if (q && visibleInGroup > 0) {
-      const tasks = group.querySelector('.month-tasks');
-      const arrow = group.querySelector('.month-arrow');
-      if (tasks) tasks.style.display = 'block';
-      if (arrow) arrow.textContent = '▾';
-    }
-  });
-}
-
-function toggleMonthGroup(monthKey) {
-  const group = document.querySelector(`.month-group[data-month-key="${monthKey}"]`);
-  if (!group) return;
-  const tasks = group.querySelector('.month-tasks');
-  const arrow = group.querySelector('.month-arrow');
-  const isOpen = tasks.style.display !== 'none';
-  tasks.style.display = isOpen ? 'none' : 'block';
-  if (arrow) arrow.textContent = isOpen ? '▸' : '▾';
-}
-
-function selectTaskFromPicker(idx) {
-  const t = myTasks[idx];
-  if (!t) return;
-  const hidden = document.getElementById('q-task');
-  const label = document.getElementById('q-task-label');
-  hidden.value = String(idx);
-  const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
-  label.textContent = rawName.length > 60 ? rawName.substring(0, 60) + '…' : rawName;
-  label.style.color = '#1a1a1a';
-  closeTaskPicker();
-  onTaskChange(); // existing handler fires
-}
-
-// Close the picker if user taps outside it
-document.addEventListener('click', (e) => {
-  const picker = document.getElementById('q-task-picker');
-  const trigger = document.getElementById('q-task-trigger');
-  if (!picker || picker.style.display !== 'block') return;
-  if (picker.contains(e.target) || (trigger && trigger.contains(e.target))) return;
-  closeTaskPicker();
-});
 
 function onTaskChange() {
   const val = document.getElementById('q-task').value;
