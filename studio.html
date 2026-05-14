@@ -412,7 +412,11 @@ async function fetchSheetRows() {
       Assignee: c.client || '', Status: c.status || '', Notes: c.review_note || '',
       'Preview Link': c.preview_link || '', 'Open File Link': c.dropbox_path || '',
       Type: 'creative', Client: c.client || '',
-      _sb_id: c.id, _sb_table: 'creatives'
+      _sb_id: c.id, _sb_table: 'creatives',
+      // Track last decision time so the review history can sort newest-touched first
+      _sb_last_action_at: c.client_decided_at || c.created_at || '',
+      // Per-file thumbnail URLs (new model — Studio collects all files per session)
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -571,10 +575,54 @@ async function _supaInsertRow(row) {
 // Map a PATCH-by-Task payload → Supabase update.
 // Used when code edits a task by matching its description (the existing sheet workflow).
 async function _supaPatchByTask(taskDesc, data) {
-  // Try tasks first
-  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
+  // Try tasks first — but skip Closed tasks. Once a task has been converted to a
+  // creative (e.g., team uploaded a final file via Studio), the original task is
+  // marked Closed. Subsequent rework patches use the original task's description
+  // as match key — we want those to fall through to the creatives table here, not
+  // re-corrupt the closed task.
+  const { data: tasks } = await sb.from('tasks')
+    .select('id, assignee, client, status')
+    .eq('description', taskDesc)
+    .neq('status', 'Closed')
+    .limit(1);
   if (tasks && tasks.length) {
-    const id = tasks[0].id;
+    const task = tasks[0];
+    const id = task.id;
+
+    // SPECIAL CASE: Studio's "convert task to creative" patch.
+    // When team uploads a final file for an existing task, Studio sends:
+    //   { Task: "name | designer", Assignee: <client>, Type: 'creative', Status: 'Pending Review', ... }
+    // In the legacy sheet this just changed the row's Type column. In Supabase the row
+    // belongs to the tasks TABLE — we have to actually move it: insert into creatives,
+    // mark the task as Closed (preserving history but hiding from active list).
+    if (data.Type === 'creative') {
+      const newTaskField = data.Task || taskDesc;
+      let name = '', designer = task.assignee || 'unknown';
+      if (newTaskField.includes('|')) {
+        const idx = newTaskField.lastIndexOf('|');
+        name = newTaskField.substring(0, idx).trim();
+        designer = newTaskField.substring(idx + 1).trim();
+      } else {
+        name = newTaskField;
+      }
+      await sb.from('creatives').insert({
+        name: name || '(unnamed)',
+        designer: designer,
+        client: _normLegacy(data.Assignee || data.Client || task.client),
+        status: data.Status || 'Pending Review',
+        preview_link: data['Preview Link'] || null,
+        dropbox_path: data['Open File Link'] || null,
+        review_note: null,
+        task_id: id
+      });
+      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
+      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Don't touch description or assignee — those stay as the original task's values.
+      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      return;
+    }
+
+    // Normal task patch
     const update = {};
     if (data.Date !== undefined)         update.due_date = data.Date || null;
     if (data.Title !== undefined)        update.title = data.Title;
@@ -1041,36 +1089,40 @@ async function submitUpload(){
 
   setProgress(5);
 
+  // ============== SESSION FOLDER PATH ==============
+  // All files in this upload session go into ONE folder.
+  // Folder name = creative name + designer + client (sanitized for Dropbox).
+  // After all files upload, we get the FOLDER share URL — that becomes the
+  // single preview_link the reviewer + client see. Per-file URLs are also kept
+  // (in file_urls) so the review card can show inline thumbnails.
+  const safeBase = baseCreativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
+  const sessionFolderRaw = isOpenFile
+    ? `${clientFolder(client, 'Open Files')}/${safeBase} — ${designer}`
+    : `/REVIEW/${safeBase} — ${designer} — ${client}`;
+  const sessionFolder = sessionFolderRaw
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u00A0]/g, ' ')
+    .replace(/[\u007f-\uffff]/g, '');
+
+  const fileUrls = [];   // per-file share URLs (for thumbnails)
+  const filePaths = [];  // per-file Dropbox paths (for any future move/cleanup)
+
   for (let i = 0; i < total; i++) {
     const file = files[i];
     btn.textContent = `Uploading ${i+1} of ${total}...`;
-    setProgress(Math.round((i / total) * 90) + 5);
+    setProgress(Math.round((i / total) * 85) + 5);
 
-    const fileBase = file.name.replace(/\.[^.]+$/, '');
-    const creativeName = total > 1 ? `${baseCreativeName} — ${fileBase}` : baseCreativeName;
+    const ext = file.name.split('.').pop();
+    const safeFileName = file.name.replace(/[\u2010-\u2015]/g, '-').replace(/[\u007f-\uffff]/g, '');
 
     try {
       const formData = new FormData();
-      const safeName = creativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-      const ext = file.name.split('.').pop();
-
-      // Branch: open files go to client folder direct, final files go to /REVIEW for Viplav
-      const targetFolder = isOpenFile
-        ? clientFolder(client, 'Open Files')
-        : '/REVIEW';
-      // Build the path with our preferred em-dash separators, then ASCII-sanitize
-      // the WHOLE thing so the Dropbox-API-Arg header is guaranteed clean. Em
-      // dashes (U+2014) and any other non-ASCII bytes from designer or client
-      // names get converted to safe replacements — keeps the path readable
-      // while preventing "Invalid character in header content" errors from
-      // Dropbox, no matter what server.js version is running.
-      const rawPath = `${targetFolder}/${safeName} — ${designer} — ${client}.${ext}`;
-      const dropboxPath = rawPath
-        .replace(/[\u2010-\u2015]/g, '-')   // em dash / en dash / hyphens → ASCII hyphen
-        .replace(/[\u2018\u2019]/g, "'")    // smart single quotes → '
-        .replace(/[\u201C\u201D]/g, '"')    // smart double quotes → "
-        .replace(/[\u00A0]/g, ' ')          // non-breaking space → regular space
-        .replace(/[\u007f-\uffff]/g, '');   // strip anything else non-ASCII
+      // Each file lives inside the session folder. We use the actual filename
+      // (sanitized) — no need to re-include designer/client in the filename since
+      // the parent folder already encodes that context.
+      const dropboxPath = `${sessionFolder}/${safeFileName}`;
       formData.append('file', file, file.name);
       formData.append('dropboxPath', dropboxPath);
 
@@ -1101,49 +1153,114 @@ async function submitUpload(){
       const fileUrl = uploadData.url || uploadData.path;
       const dropPath = uploadData.path || '';
 
-      if (isOpenFile) {
-        // OPEN FILE flow — patch the row's Open File Link only. Don't change status/type.
-        // If the task is Done & has Preview Link already, this completes the cycle and the task vanishes from the studio dropdown next refresh.
-        if (i === 0 && originalTaskText) {
-          fetch(SHEETDB, {
-            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-            body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': fileUrl } })
-          });
-        } else {
-          // Adhoc or extra files — create a row to track the open-file upload
-          const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': fileUrl, Type:'open' };
-          fetch(SHEETDB, {
-            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-            body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-          });
-        }
-      } else {
-        // FINAL FILE flow — existing review pipeline
-        if (i === 0 && originalTaskText) {
-          const patchData = isRework
-            ? { Task: `${creativeName} | ${designer}`, Status: 'Pending Review', 'Preview Link': fileUrl, Notes: '' }
-            : { Task: `${creativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': fileUrl, Type: 'creative' };
-          fetch(SHEETDB, {
-            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-            body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: patchData })
-          });
-        } else {
-          const row = { Date: new Date().toISOString().split('T')[0], Task: `${creativeName} | ${designer}`, Assignee: client, Status:'Pending Review', 'Preview Link': fileUrl, Type:'creative' };
-          fetch(SHEETDB, {
-            method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-            body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-          });
-        }
-        // Tell ALL reviewers (Viplav, Kritya, Siddhesh, Suriti) — first-available wins.
-        // Whoever has bandwidth grabs it from the shared queue.
-        const reviewMsg = `🎨 <b>New file for review</b>\n\n<b>${creativeName}</b>\n👤 ${designer} · ${client}${isRework ? '\n🔁 Rework' : ''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
-        ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
-          notifyTelegram(reviewer, reviewMsg);
-        });
-      }
+      // Collect URLs — the row write + telegram happens ONCE at end of session
+      fileUrls.push(fileUrl);
+      filePaths.push(dropPath);
       successCount++;
     } catch(e) {
       errors.push(`${file.name}: ${e.message}`);
+    }
+  }
+
+  // ============== POST-LOOP: ONE row write, ONE telegram batch ==============
+  setProgress(92);
+  if (successCount > 0) {
+    btn.textContent = 'Finalizing...';
+
+    // Get the FOLDER share URL — this is what the reviewer + client click
+    let folderUrl = '';
+    try {
+      const fres = await fetch(`${BACKEND}/api/dropbox-share-folder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderPath: sessionFolder })
+      });
+      const fdata = await fres.json();
+      if (fdata.success && fdata.url) folderUrl = fdata.url;
+    } catch(e) {
+      console.warn('Folder share URL failed, falling back to first file URL:', e.message);
+    }
+    // Fallback: if folder share endpoint isn't available (e.g. backend not yet
+    // deployed with new endpoint), use first file URL as preview_link.
+    const previewLink = folderUrl || fileUrls[0] || '';
+
+    if (isOpenFile) {
+      // OPEN FILE flow — patch the task's Open File Link to point at the folder
+      if (originalTaskText) {
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink } })
+        });
+      } else {
+        const row = { Date: new Date().toISOString().split('T')[0], Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': previewLink, Type:'open' };
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
+        });
+      }
+    } else {
+      // FINAL FILE flow — one creative row per session with folder URL + thumbnail URLs
+      if (isRework) {
+        // Rework: patch existing creative, append new file URLs to whatever's there.
+        // Direct Supabase update via name/designer match — handles the append cleanly.
+        try {
+          const { data: existing } = await sb.from('creatives')
+            .select('id, file_urls')
+            .eq('name', baseCreativeName).eq('designer', designer).limit(1);
+          if (existing && existing.length) {
+            const prev = existing[0].file_urls || [];
+            await sb.from('creatives').update({
+              status: 'Pending Review',
+              preview_link: previewLink,
+              file_urls: [...prev, ...fileUrls],
+              review_note: null
+            }).eq('id', existing[0].id);
+          } else {
+            // Edge case — creative not found, fall back to insert
+            await sb.from('creatives').insert({
+              name: baseCreativeName, designer, client,
+              status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
+            });
+          }
+        } catch(e) {
+          console.error('Rework update failed:', e);
+        }
+      } else if (originalTaskText) {
+        // First-time submission: convert the original task. Interceptor handles
+        // the task→creative migration; we add file_urls via direct Supabase write
+        // since the legacy patch shape doesn't include it.
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({
+            action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText,
+            data: { Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': previewLink, Type: 'creative' }
+          })
+        });
+        // After the interceptor creates the creatives row, patch file_urls onto it.
+        // Small delay to give the insert time to land.
+        setTimeout(async () => {
+          try {
+            await sb.from('creatives').update({ file_urls: fileUrls })
+              .eq('name', baseCreativeName).eq('designer', designer);
+          } catch(e) { console.warn('file_urls patch failed:', e); }
+        }, 600);
+      } else {
+        // Adhoc / standalone creative (no originating task)
+        try {
+          await sb.from('creatives').insert({
+            name: baseCreativeName, designer, client,
+            status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
+          });
+        } catch(e) { console.error('Creative insert failed:', e); }
+      }
+
+      // ONE Telegram per reviewer — summarizing the whole session
+      const reviewMsg = isRework
+        ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`
+        : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
+      ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
+        notifyTelegram(reviewer, reviewMsg);
+      });
     }
   }
 
