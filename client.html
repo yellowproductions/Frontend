@@ -1486,6 +1486,9 @@ async function loadClientTasks() {
 
     // Group by status for clearer scanning
     const STATUS_ORDER = ['New Request','Pending','In Progress','Awaiting Review','Awaiting Client','Approved','Closed','Done','On Hold'];
+    // Display labels — what the client SEES. DB values stay the same so all
+    // existing filters/lookups keep working. We just rename in the UI.
+    const STATUS_LABEL = { 'Awaiting Review': 'Feedback' };
     const STATUS_STYLE = {
       'New Request':     { bg:'#fff8e1', fg:'#92640a' },
       'Pending':         { bg:'#fef3c7', fg:'#854f0b' },
@@ -1547,7 +1550,7 @@ async function loadClientTasks() {
       }).join('');
 
       return `<div style="margin-bottom:18px">
-        <div style="font-size:11px;color:${style.fg};font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;padding-left:4px">${status} · ${items.length}</div>
+        <div style="font-size:11px;color:${style.fg};font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;padding-left:4px">${STATUS_LABEL[status] || status} · ${items.length}</div>
         <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">${rows}</div>
       </div>`;
     }).join('');
