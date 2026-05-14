@@ -529,6 +529,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
         </div>
         <span style="font-size:11px;color:var(--muted)">Open tasks · past months in archive below</span>
       </div>
+      <input type="text" id="team-task-search" placeholder="🔍 Search your tasks..."
+        oninput="filterTeamTasks()"
+        style="width:100%;padding:8px 12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box">
       <div id="tasks-open"><div class="empty-state">Loading...</div></div>
     </div>
 
@@ -2933,6 +2936,28 @@ function normalizeDate(d) {
     return `${y}-${m}-${day}`;
   }
   return s;
+}
+
+// Live-filter the task list by search term. Matches against the row's text
+// content (title, description, client, etc.) so any visible word can be
+// searched. Empty months in the archive auto-collapse to keep the list tidy.
+function filterTeamTasks() {
+  const q = (document.getElementById('team-task-search')?.value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#tasks-open .task-row');
+
+  rows.forEach(row => {
+    const text = (row.innerText || '').toLowerCase();
+    const match = !q || text.includes(q);
+    row.style.display = match ? '' : 'none';
+  });
+
+  // Hide archive <details> sections that have no visible rows left.
+  // Also auto-expand sections with matches so user doesn't have to click them open.
+  document.querySelectorAll('#tasks-open details').forEach(det => {
+    const visibleRows = det.querySelectorAll('.task-row:not([style*="display: none"])').length;
+    det.style.display = visibleRows === 0 ? 'none' : '';
+    if (q && visibleRows > 0) det.open = true;
+  });
 }
 
 async function loadTasks() {
