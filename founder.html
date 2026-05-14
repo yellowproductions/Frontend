@@ -585,6 +585,7 @@
   </div>
   <div class="nav-item" onclick="showPanel('review')">
     <span class="nav-icon">✅</span> Review
+    <span id="nav-review-count" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:6px;min-width:18px;text-align:center;font-family:'Poppins',sans-serif">0</span>
   </div>
   <div class="nav-item" onclick="showPanel('finance')">
     <span class="nav-icon">💰</span> Finance
@@ -1968,6 +1969,49 @@ function formatDateDMY(iso) {
 // ====== AUTH (backend-based) ======
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 const BACKEND_NOTIFY = 'https://yellowbackend.onrender.com/api/notify';
+
+// Extract @Name mentions from a text. Matches against TAGGABLE list so only
+// real team members get pinged (typos like @Vipla won't match). Returns deduped names.
+// Used to fan out feedback notifications: when Suriti types "Need copy @Viplav @Siddhesh"
+// in a send-back note, both get a separate Telegram on top of the designer's main message.
+function extractMentions(text) {
+  if (!text || typeof text !== 'string') return [];
+  const found = new Set();
+  // Match @ followed by letters; we'll case-insensitively look up against TAGGABLE
+  const matches = text.match(/@([A-Za-z]+)/g) || [];
+  matches.forEach(m => {
+    const name = m.substring(1); // drop @
+    const canonical = (typeof TAGGABLE !== 'undefined' ? TAGGABLE : []).find(n => n.toLowerCase() === name.toLowerCase());
+    if (canonical && canonical !== 'team') found.add(canonical);
+  });
+  return Array.from(found);
+}
+
+// Lightweight count poll for the Review nav badge — runs every 30s in the
+// background so Suriti sees pending count update even when she's not on the
+// Review tab. HEAD query, no data download, just the count.
+async function updateReviewBadge() {
+  try {
+    if (typeof sb === 'undefined' || !sb) return;
+    const r = await sb.from('creatives')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Pending Review');
+    const count = r.count || 0;
+    const badge = document.getElementById('nav-review-count');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {
+    // silent — non-critical
+  }
+}
+// Initial fetch + 30s polling
+setTimeout(updateReviewBadge, 1500);
+setInterval(updateReviewBadge, 30000);
 
 // Send a Telegram notification — fire-and-forget, silently fails if recipient not registered
 function notifyTelegram(to, message) {
@@ -4653,6 +4697,18 @@ async function renderReview() {
 
     window._reviewItems = pending; // stash for approve/reject lookup
 
+    // Update the nav badge — shows how many creatives are waiting for review.
+    // Stays visible until she acts on them; auto-clears when count hits 0.
+    const navBadge = document.getElementById('nav-review-count');
+    if (navBadge) {
+      if (pending.length > 0) {
+        navBadge.textContent = pending.length;
+        navBadge.style.display = 'inline-block';
+      } else {
+        navBadge.style.display = 'none';
+      }
+    }
+
     // ===== PENDING QUEUE (interactive) =====
     let html = '';
     if (!pending.length) {
@@ -4811,6 +4867,12 @@ async function sendBackFile(idx, fileIdx) {
       notifyTelegram(designer, `↻ <b>Send back — file-specific feedback</b>\n\n<b>${cName}</b>\nFile ${fileIdx + 1}: ${comment}\n\nRework the noted file and re-upload via Studio (it'll go to the same folder).\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
     }
 
+    // Fan out any @mentions in the per-file comment
+    const mentioned = extractMentions(comment).filter(n => n !== designer && n !== 'Suriti');
+    mentioned.forEach(name => {
+      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b> (File ${fileIdx + 1})\nBy: ${designer}\nSuriti's note: ${comment}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+    });
+
     // Clear the input + visual confirmation
     if (input) {
       input.value = '';
@@ -4821,6 +4883,7 @@ async function sendBackFile(idx, fileIdx) {
       }, 2000);
     }
     // Don't re-render immediately — let her send back multiple files in sequence
+    updateReviewBadge();
   } catch(e) {
     alert('Could not send back: ' + e.message);
   }
@@ -4848,6 +4911,7 @@ async function quickScrap(idx) {
       notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. No need to iterate.\n\n<a href="https://theyellowverse.com/team.html">View →</a>`);
     }
     renderReview();
+    updateReviewBadge();
   } catch(e) {
     alert('Could not scrap: ' + e.message);
   }
@@ -4951,8 +5015,16 @@ async function founderSubmitReview(idx, action) {
       notifyTelegram(designer, msg);
     }
 
+    // Fan out @mentions in the note — anyone tagged (other than designer who already
+    // got the verdict message) gets a separate Telegram pulling them in for the task.
+    const mentioned = extractMentions(note).filter(n => n !== designer && n !== 'Suriti');
+    mentioned.forEach(name => {
+      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b>\nBy: ${designer}\nSuriti's note: ${note}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+    });
+
     // The await above guarantees Supabase has the update before we re-render.
     setTimeout(renderReview, 200);
+    setTimeout(updateReviewBadge, 250); // update nav badge so count drops immediately
   } catch(e) {
     alert('Could not save. Try again. (' + e.message + ')');
   }
