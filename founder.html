@@ -4798,6 +4798,8 @@ async function sendBackFile(idx, fileIdx) {
         review_note: combined,
         client_decided_at: new Date().toISOString()
       }).eq('id', item._sb_id);
+      // Cascade — task goes back to In Progress so designer sees it in their queue
+      await cascadeTaskFromCreative(item, 'Sent Back', null);
     }
     // Update local cache so the change is visible without waiting for refresh
     item.Status = 'Sent Back';
@@ -4837,6 +4839,8 @@ async function quickScrap(idx) {
         review_note: 'rejected by Suriti: scrapped',
         client_decided_at: new Date().toISOString()
       }).eq('id', item._sb_id);
+      // Cascade — task moves to Closed since concept is dead
+      await cascadeTaskFromCreative(item, 'Rejected', null);
     }
     if (designer) {
       notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. No need to iterate.\n\n<a href="https://theyellowverse.com/team.html">View →</a>`);
@@ -4844,6 +4848,40 @@ async function quickScrap(idx) {
     renderReview();
   } catch(e) {
     alert('Could not scrap: ' + e.message);
+  }
+}
+
+// When a creative's status changes (founder review, per-file sendback, scrap),
+// cascade the change to the originating task row so it shows up in the right
+// place. The creative carries task_id (set during Studio's conversion patch)
+// which gives us a precise link without heuristics.
+//   creative='Client Review'  → task='Awaiting Client' + copy preview_link so client sees View button
+//   creative='Approved'       → task='Approved'
+//   creative='Sent Back'      → task='In Progress' (designer rework)
+//   creative='Rejected'       → task='Closed' (dead concept)
+async function cascadeTaskFromCreative(creativeRow, newCreativeStatus, previewLink) {
+  if (!creativeRow || !creativeRow._sb_id) return;
+  try {
+    // Pull task_id off the creative row
+    const { data: c } = await sb.from('creatives').select('task_id').eq('id', creativeRow._sb_id).single();
+    if (!c || !c.task_id) return;
+    const taskStatusMap = {
+      'Client Review': 'Awaiting Client',
+      'Approved':      'Approved',
+      'Sent Back':     'In Progress',
+      'Rejected':      'Closed'
+    };
+    const newTaskStatus = taskStatusMap[newCreativeStatus];
+    if (!newTaskStatus) return;
+    const update = { status: newTaskStatus };
+    // When sending to client, copy preview link onto the task so the client
+    // portal's View button works without needing to dig into the creatives table.
+    if (newCreativeStatus === 'Client Review' && previewLink) {
+      update.preview_link = previewLink;
+    }
+    await sb.from('tasks').update(update).eq('id', c.task_id);
+  } catch(e) {
+    console.warn('Task cascade failed:', e.message);
   }
 }
 
@@ -4881,9 +4919,14 @@ async function founderSubmitReview(idx, action) {
         review_note: stamp,
         client_decided_at: new Date().toISOString()  // stamp last-action time so history sorts correctly
       };
+      // Only client portal actions should touch client_decision. Founder approve/reject
+      // is a separate axis — don't pollute the client decision field.
       if (action === 'approve') upd.client_decision = null;       // back to client
-      if (action === 'reject')  upd.client_decision = 'Rejected'; // dead concept
       await sb.from('creatives').update(upd).eq('id', item._sb_id);
+      // Cascade to the linked task — so it leaves the 'Awaiting Review' bucket
+      // and either becomes client-visible ('Awaiting Client'), goes Closed (rejected),
+      // or goes back to In Progress (sent back for rework).
+      await cascadeTaskFromCreative(item, newStatus, item['Preview Link']);
     } else {
       // Fallback through interceptor (which routes to Supabase mirror anyway)
       await fetch(SHEETDB_URL, {
