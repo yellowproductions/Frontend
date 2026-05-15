@@ -101,6 +101,8 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
   border-radius:12px; padding:13px; font-family:'Poppins',sans-serif;
   font-size:14px; font-weight:700; cursor:pointer; margin-top:8px;
   transition:opacity 0.15s;
+  position:sticky; bottom:8px; z-index:5;
+  box-shadow:0 4px 12px rgba(254,188,6,0.35);
 }
 .upload-btn:hover { opacity:0.88; }
 .err { color:#c0392b; font-size:11px; display:none; margin-top:6px; }
@@ -267,7 +269,7 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
             <input type="file" id="q-file" multiple accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
             <div class="drop-icon" id="drop-icon">📎</div>
             <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">Pick one file or several at once</span></div>
-            <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px"></div>
+            <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px;max-height:160px;overflow-y:auto;text-align:left;padding-right:4px;line-height:1.6"></div></div>
           </div>
         </div>
 
@@ -970,6 +972,20 @@ async function onDesignerChange() {
     // Terminal statuses — the task is done in some form. Visible 7 days from closed_at.
     const TERMINAL_STATUSES = ['Done', 'Closed', 'Approved', 'Rejected'];
 
+    // First pass: build a set of task names that WILL be shown so we can dedupe
+    // creatives that already have a task in the picker. Otherwise designer sees
+    // both "Marico organization vision" (task) AND "Marico organization vision
+    // [rework]" (creative at Sent Back) — same logical work shown twice.
+    const shownTaskNames = new Set();
+    data.forEach(r => {
+      if (!((r.Type === 'task' || !r.Type || r.Type === '') &&
+            (r.Assignee === designer || (r.Collaborators || []).includes(designer)))) return;
+      const willShow = !TERMINAL_STATUSES.includes(r.Status) || isWithinClosedWindow(r.ClosedAt, r.Date);
+      if (!willShow) return;
+      const name = (r.Title || r.Task || '').toLowerCase().trim();
+      if (name) shownTaskNames.add(name);
+    });
+
     myTasks = data.filter(r => {
       // Hide legacy multi-file fragments. Before today's multi-file → single-folder
       // fix, each uploaded file became its own creative row named "BaseName — filename".
@@ -989,6 +1005,12 @@ async function onDesignerChange() {
       }
       // Creatives by this designer (rework flow)
       if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
+        // Dedupe: if a task with the same name is already shown, hide the creative.
+        // Studio's upload code below detects an existing creative on task pick and
+        // routes the upload through the rework path. So designer doesn't lose the
+        // ability to rework — they just see one entry, not two.
+        const creativeName = (r.Title || (r.Task || '').replace(/\| .*$/, '').trim()).toLowerCase().trim();
+        if (shownTaskNames.has(creativeName)) return false;
         if (r.Status === 'Sent Back') return true;                                 // rework — always show
         if (TERMINAL_STATUSES.includes(r.Status)) return isWithinClosedWindow(r.ClosedAt, r.Date);
       }
@@ -1124,6 +1146,28 @@ async function submitUpload(){
       baseCreativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
     }
     originalTaskText = item.Task;
+
+    // Even when the user picked a TASK (not a creative), check if a matching
+    // creative already exists for this task+designer. After dedupe, the
+    // creative isn't shown separately in the picker — but it's still in the DB
+    // (likely at Sent Back from a previous review cycle). Treating this upload
+    // as rework appends new files to the existing creative row instead of
+    // creating a duplicate.
+    if (!isRework) {
+      try {
+        const { data: existing } = await sb
+          .from('creatives')
+          .select('id, status')
+          .eq('name', baseCreativeName)
+          .eq('designer', designer)
+          .limit(1);
+        if (existing && existing.length) {
+          isRework = true;
+        }
+      } catch(e) {
+        console.warn('Existing-creative lookup failed:', e);
+      }
+    }
   }
 
   const total = files.length;
@@ -1248,7 +1292,7 @@ async function submitUpload(){
         // Direct Supabase update via name/designer match — handles the append cleanly.
         try {
           const { data: existing } = await sb.from('creatives')
-            .select('id, file_urls')
+            .select('id, file_urls, task_id')
             .eq('name', baseCreativeName).eq('designer', designer).limit(1);
           if (existing && existing.length) {
             const prev = existing[0].file_urls || [];
@@ -1258,6 +1302,11 @@ async function submitUpload(){
               file_urls: [...prev, ...fileUrls],
               review_note: null
             }).eq('id', existing[0].id);
+            // Cascade: move the linked task back to Awaiting Review so Suriti
+            // and team see the task in review state, mirroring the creative.
+            if (existing[0].task_id) {
+              await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', existing[0].task_id);
+            }
           } else {
             // Edge case — creative not found, fall back to insert
             await sb.from('creatives').insert({
