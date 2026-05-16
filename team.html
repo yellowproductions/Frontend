@@ -2977,29 +2977,30 @@ async function loadFeedback() {
   if (!wrap) return;
   wrap.innerHTML = '<div class="empty-state">Loading...</div>';
   try {
-    const rows = await fetchSheetRows();
-    // Filter: creatives at Sent Back status assigned to this designer (by name match in Task field)
-    const mine = (rows || []).filter(r =>
-      r.Type === 'creative' &&
-      r.Status === 'Sent Back' &&
-      (r.Task || '').toLowerCase().includes(`| ${(currentUser || '').toLowerCase()}`)
-    );
+    // Query Supabase directly — same filter the badge uses, guaranteed to match.
+    // ilike for case-insensitive equality on designer.
+    const r = await sb.from('creatives')
+      .select('id, name, designer, client, status, review_note, preview_link, file_urls, client_decided_at, created_at')
+      .eq('status', 'Sent Back')
+      .ilike('designer', currentUser || '');
+    if (r.error) throw new Error(r.error.message);
+    const mine = r.data || [];
 
     if (!mine.length) {
       wrap.innerHTML = '<div class="empty-state" style="padding:30px;text-align:center;color:var(--muted)">No rework pending. You\'re all caught up. 🪷</div>';
       return;
     }
 
-    // Sort newest action first — most recent sendback at the top
-    mine.sort((a, b) => (b._sb_last_action_at || '').localeCompare(a._sb_last_action_at || ''));
+    // Sort newest action first
+    mine.sort((a, b) => (b.client_decided_at || b.created_at || '').localeCompare(a.client_decided_at || a.created_at || ''));
 
     wrap.innerHTML = mine.map(c => {
-      const cleanName = (c.Task || '').replace(/\| .*$/, '').trim();
-      const client = c.Client || c.Assignee || '—';
-      const note = (c.Notes || '').trim();
-      const urls = Array.isArray(c._sb_file_urls) && c._sb_file_urls.length
-        ? c._sb_file_urls
-        : (c['Preview Link'] ? [c['Preview Link']] : []);
+      const cleanName = c.name || '(unnamed)';
+      const client = c.client || '—';
+      const note = (c.review_note || '').trim();
+      const urls = Array.isArray(c.file_urls) && c.file_urls.length
+        ? c.file_urls
+        : (c.preview_link ? [c.preview_link] : []);
 
       // Parse review_note for "File N: comment" lines into a {fileIdx: comment} map.
       // Founder's per-file send-back emits exactly this pattern, multiple lines if
@@ -3047,16 +3048,16 @@ async function loadFeedback() {
   }
 }
 
-// Lightweight count poll for the Feedback nav badge — runs every 30s and on
-// page load so designer sees pending count without manually opening the tab.
+// Lightweight count poll for the Feedback nav badge — must use the SAME filter
+// as loadFeedback so counts match content. Filters by designer column directly.
 async function updateFeedbackBadge() {
   try {
     if (typeof sb === 'undefined' || !sb || !currentUser) return;
-    // We can't filter Task field with `LIKE` against the join easily from JS-side,
-    // so fetch all sent-back creatives and filter client-side.
-    const r = await sb.from('creatives').select('id, designer').eq('status', 'Sent Back');
-    if (r.error) return;
-    const count = (r.data || []).filter(c => (c.designer || '').toLowerCase() === currentUser.toLowerCase()).length;
+    const r = await sb.from('creatives')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Sent Back')
+      .ilike('designer', currentUser);
+    const count = r.count || 0;
     const badge = document.getElementById('feedback-badge');
     if (!badge) return;
     if (count > 0) {
