@@ -4976,13 +4976,30 @@ async function founderSubmitReview(idx, action) {
     action === 'reject'  ? `rejected by Suriti: ${note}` :
                            `sent back by Suriti: ${note}`;
 
+  // For sendback: preserve any per-file notes ("File N: ...") that Suriti
+  // added earlier via the per-file ↻ buttons. The general note is appended
+  // alongside them, not as a replacement. Approve/reject still overwrite (it's
+  // a terminal decision).
+  let finalNote = stamp;
+  if (action === 'sendback' && item._sb_id && item._sb_table === 'creatives') {
+    try {
+      const r = await sb.from('creatives').select('review_note').eq('id', item._sb_id).single();
+      const existing = ((r.data && r.data.review_note) || '').trim();
+      if (existing && /^File\s+\d+:/im.test(existing)) {
+        finalNote = `${existing}\n${stamp}`;
+      }
+    } catch(e) {
+      console.warn('Could not fetch existing review_note, using stamp only:', e);
+    }
+  }
+
   try {
     // Direct Supabase write via _sb_id — guaranteed precise match, no string-comparison
     // failures. This is the same pattern that fixed leaves.
     if (item._sb_id && item._sb_table === 'creatives') {
       const upd = {
         status: newStatus,
-        review_note: stamp,
+        review_note: finalNote,
         client_decided_at: new Date().toISOString()  // stamp last-action time so history sorts correctly
       };
       // Only client portal actions should touch client_decision. Founder approve/reject
