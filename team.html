@@ -315,6 +315,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div id="att-status-pill" style="font-size:9px;font-weight:600;color:#bbb;letter-spacing:0.06em">—</div>
   </div>
   <div class="nav-item active" onclick="showPanel('tasks')"><span>📋</span> My Tasks</div>
+  <div class="nav-item" onclick="showPanel('feedback')"><span>🔁</span> Feedback <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px;display:none" id="feedback-badge"></span></div>
   <div class="nav-item" onclick="showPanel('attendance')"><span>✅</span> Attendance</div>
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
@@ -636,6 +637,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="panel-title">🎨 Creative Review</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Review creatives before they go to the client. AI checks brand guidelines automatically.</p>
     <div id="review-list"><div class="empty-state">Loading creatives...</div></div>
+  <!-- FEEDBACK (designers — see your sent-back creatives + per-file feedback from Suriti) -->
+  <div class="panel" id="panel-feedback">
+    <div class="panel-title">🔁 Feedback on your work</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Creatives Suriti sent back for rework. Per-file feedback is shown under each thumbnail. Re-upload via Studio when ready — files go to the same Dropbox folder.</p>
+    <div id="feedback-list"><div class="empty-state">Loading...</div></div>
   </div>
 
 </div>
@@ -2343,6 +2349,7 @@ function showPanel(name) {
   document.getElementById('panel-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
   if (name === 'calendar') renderCalendar();
+  if (name === 'feedback') loadFeedback();
   if (name === 'agent' && agentHistory.length === 0) restoreAgentHistory();
 }
 
@@ -2959,6 +2966,112 @@ function filterTeamTasks() {
     if (q && visibleRows > 0) det.open = true;
   });
 }
+
+// =================== FEEDBACK PANEL ===================
+// Designer view: shows creatives Suriti sent back for rework, with per-file
+// feedback parsed from review_note. The "File N: comment" pattern that
+// sendBackFile() builds on the founder side maps cleanly to thumbnails here —
+// designer sees exactly which file needs what.
+async function loadFeedback() {
+  const wrap = document.getElementById('feedback-list');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="empty-state">Loading...</div>';
+  try {
+    const rows = await fetchSheetRows();
+    // Filter: creatives at Sent Back status assigned to this designer (by name match in Task field)
+    const mine = (rows || []).filter(r =>
+      r.Type === 'creative' &&
+      r.Status === 'Sent Back' &&
+      (r.Task || '').toLowerCase().includes(`| ${(currentUser || '').toLowerCase()}`)
+    );
+
+    if (!mine.length) {
+      wrap.innerHTML = '<div class="empty-state" style="padding:30px;text-align:center;color:var(--muted)">No rework pending. You\'re all caught up. 🪷</div>';
+      return;
+    }
+
+    // Sort newest action first — most recent sendback at the top
+    mine.sort((a, b) => (b._sb_last_action_at || '').localeCompare(a._sb_last_action_at || ''));
+
+    wrap.innerHTML = mine.map(c => {
+      const cleanName = (c.Task || '').replace(/\| .*$/, '').trim();
+      const client = c.Client || c.Assignee || '—';
+      const note = (c.Notes || '').trim();
+      const urls = Array.isArray(c._sb_file_urls) && c._sb_file_urls.length
+        ? c._sb_file_urls
+        : (c['Preview Link'] ? [c['Preview Link']] : []);
+
+      // Parse review_note for "File N: comment" lines into a {fileIdx: comment} map.
+      // Founder's per-file send-back emits exactly this pattern, multiple lines if
+      // multiple files were flagged in one session.
+      const perFile = {};
+      const generalNotes = [];
+      note.split('\n').forEach(line => {
+        const m = line.match(/^\s*File\s+(\d+)\s*:\s*(.*)$/i);
+        if (m) {
+          perFile[parseInt(m[1], 10) - 1] = m[2].trim(); // store 0-indexed
+        } else if (line.trim()) {
+          generalNotes.push(line.trim());
+        }
+      });
+
+      const thumbs = urls.map((u, ui) => {
+        const direct = (u || '').replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
+        const isImg = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(u);
+        const fileNote = perFile[ui];
+        const thumb = isImg
+          ? `<img src="${direct}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" onerror="this.style.display='none'" title="File ${ui+1}">`
+          : `<a href="${u}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1/1;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:11px;color:#666;text-decoration:none">📄 File ${ui+1}</a>`;
+        return `<div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+          ${thumb}
+          <div style="font-size:9px;color:#999;text-align:center;font-weight:700;letter-spacing:0.04em">FILE ${ui+1}</div>
+          ${fileNote ? `<div style="font-size:11px;color:#7c2d12;background:#fef3c7;padding:5px 7px;border-radius:5px;border-left:2px solid #f59e0b;line-height:1.4">${fileNote}</div>` : '<div style="font-size:10px;color:#bbb;text-align:center;font-style:italic">No specific feedback</div>'}
+        </div>`;
+      }).join('');
+
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#1a1a1a">${cleanName}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">🏷 ${client}</div>
+          </div>
+          <span style="font-size:11px;background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-weight:600;border:1px solid #fca5a5;white-space:nowrap">🔁 Sent back</span>
+        </div>
+        ${generalNotes.length ? `<div style="font-size:12px;color:#444;background:#fffbeb;padding:8px 12px;border-radius:6px;border-left:3px solid #f59e0b;margin-bottom:12px"><strong style="color:#92702e">Notes:</strong> ${generalNotes.join(' · ')}</div>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:10px;margin-bottom:12px">${thumbs}</div>
+        <a href="studio.html" style="display:inline-block;background:#FEBC06;color:#000;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700">↺ Re-upload via Studio</a>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    wrap.innerHTML = `<div class="empty-state" style="color:#c0392b">Could not load feedback: ${e.message}</div>`;
+  }
+}
+
+// Lightweight count poll for the Feedback nav badge — runs every 30s and on
+// page load so designer sees pending count without manually opening the tab.
+async function updateFeedbackBadge() {
+  try {
+    if (typeof sb === 'undefined' || !sb || !currentUser) return;
+    // We can't filter Task field with `LIKE` against the join easily from JS-side,
+    // so fetch all sent-back creatives and filter client-side.
+    const r = await sb.from('creatives').select('id, designer').eq('status', 'Sent Back');
+    if (r.error) return;
+    const count = (r.data || []).filter(c => (c.designer || '').toLowerCase() === currentUser.toLowerCase()).length;
+    const badge = document.getElementById('feedback-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {
+    // silent — non-critical
+  }
+}
+// Initial fetch + 30s polling — gated by currentUser being set so it only runs after login
+setTimeout(() => { if (typeof currentUser !== 'undefined' && currentUser) updateFeedbackBadge(); }, 2000);
+setInterval(() => { if (typeof currentUser !== 'undefined' && currentUser) updateFeedbackBadge(); }, 30000);
 
 async function loadTasks() {
   try {
