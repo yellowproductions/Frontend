@@ -3786,7 +3786,7 @@ function renderFosClientEditor(t) {
   const chipStyle = c
     ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
     : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
-  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value)" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
+  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
     <option value="" selected>${placeholder}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
@@ -3813,53 +3813,42 @@ function renderFosClientEditor(t) {
 // optimistic update survives the auto-refresh race.
 window._pendingClientUpdates = window._pendingClientUpdates || {};
 
-async function updateTaskClient(encodedTask, assignee, date, newValue) {
+async function updateTaskClient(encodedTask, assignee, date, newValue, sbId, sbTable) {
   const task = decodeURIComponent(encodedTask);
   if (!newValue) return;
   const finalValue = newValue === '__clear__' ? '' : newValue;
-  // Register the write so reconcilePendingClientUpdates can re-apply if the
-  // 60s auto-refresh refetches the sheet before Apps Script commits.
-  window._pendingClientUpdates[task] = { client: finalValue, attempts: 1, lastTry: Date.now() };
+
+  // Direct Supabase write via _sb_id when available. The previous shim path
+  // matched by description AND filtered `.neq('status','Closed')`, which
+  // silently dropped client-tag updates on any Closed task — making them
+  // invisible to Studio. Direct ID write avoids that filter entirely.
   try {
-    await fetch(SHEETDB_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      mode: 'no-cors',
-      body: JSON.stringify({
-        action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
-        matchValue: task, data: { Client: finalValue }
-      })
-    });
+    if (sbId && (sbTable === 'tasks' || !sbTable)) {
+      const { error } = await sb.from('tasks').update({ client: finalValue }).eq('id', sbId);
+      if (error) throw new Error(error.message);
+    } else if (sbId && sbTable === 'creatives') {
+      const { error } = await sb.from('creatives').update({ client: finalValue }).eq('id', sbId);
+      if (error) throw new Error(error.message);
+    } else {
+      // No _sb_id available — fall back to the legacy shim path. Will skip
+      // Closed tasks but is at least a best-effort write for non-Supabase rows.
+      window._pendingClientUpdates[task] = { client: finalValue, attempts: 1, lastTry: Date.now() };
+      await fetch(SHEETDB_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        mode: 'no-cors',
+        body: JSON.stringify({
+          action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task',
+          matchValue: task, data: { Client: finalValue }
+        })
+      });
+    }
+    // Update in-memory + re-render the row chip
     const local = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if (local) { local.Client = finalValue; renderTasks(allTasks); }
-
-    // VERIFY the write actually landed. With no-cors we can't read the patch
-    // response, so we explicitly refetch 6 seconds later and check whether the
-    // Client field actually persisted on the matching row. If not, the sheet
-    // silently dropped the write — most often because the Task string in the
-    // sheet doesn't exact-match (whitespace, smart-quotes, encoding). Surface
-    // that to the user as a real alert with a retry option.
-    setTimeout(async () => {
-      try {
-        const fresh = await fetchSheetRows();
-        const row = (Array.isArray(fresh) ? fresh : []).find(x => x.Task === task);
-        if (!row) {
-          console.warn('Verify: no row in sheet matched Task =', JSON.stringify(task));
-          return; // task gone (deleted) — not a sync issue
-        }
-        if ((row.Client || '') !== finalValue) {
-          console.error('Sheet did not pick up Client tag.\n  Expected:', finalValue, '\n  Sheet has:', row.Client, '\n  Task:', task);
-          // Don't alert on the first miss — Apps Script can be slow. Let the
-          // pending-writes reconciler retry on the next auto-refresh. If it's
-          // STILL missing after 3 attempts the registry gives up and warns.
-        } else {
-          // Confirmed — remove from pending registry
-          delete window._pendingClientUpdates[task];
-          console.log('Client tag confirmed in sheet for:', task.substring(0, 60));
-        }
-      } catch(e) { console.warn('Verify fetch failed:', e.message); }
-    }, 6000);
-  } catch(e) { alert('Error updating client tag: ' + e.message); }
+  } catch(e) {
+    alert('Error updating client tag: ' + e.message);
+  }
 }
 
 // Reconcile pending client writes against fresh sheet data. Called inside
