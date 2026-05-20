@@ -1301,7 +1301,8 @@ async function submitUpload(){
               status: 'Pending Review',
               preview_link: previewLink,
               file_urls: [...prev, ...fileUrls],
-              review_note: null
+              review_note: null,
+              rejected_files: []
             }).eq('id', existing[0].id);
             // Cascade: move the linked task back to Awaiting Review so Suriti
             // and team see the task in review state, mirroring the creative.

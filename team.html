@@ -2980,14 +2980,18 @@ async function loadFeedback() {
   if (!wrap) return;
   wrap.innerHTML = '<div class="empty-state">Loading...</div>';
   try {
-    // Query Supabase directly — same filter the badge uses, guaranteed to match.
-    // ilike for case-insensitive equality on designer.
+    // Fetch this designer's creatives, then filter for ones needing rework.
+    // Per-file reject records files in `rejected_files` WITHOUT changing the
+    // creative's status — so we can't filter on status alone. We include both:
+    // new flow (rejected_files non-empty) and legacy flow (status='Sent Back').
     const r = await sb.from('creatives')
       .select('id, name, designer, client, status, review_note, preview_link, file_urls, rejected_files, client_decided_at, created_at')
-      .eq('status', 'Sent Back')
       .ilike('designer', currentUser || '');
     if (r.error) throw new Error(r.error.message);
-    const mine = r.data || [];
+    const mine = (r.data || []).filter(c => {
+      const rf = Array.isArray(c.rejected_files) ? c.rejected_files : [];
+      return rf.length > 0 || c.status === 'Sent Back';
+    });
 
     if (!mine.length) {
       wrap.innerHTML = '<div class="empty-state" style="padding:30px;text-align:center;color:var(--muted)">No rework pending. You\'re all caught up. 🪷</div>';
@@ -3074,10 +3078,13 @@ async function updateFeedbackBadge() {
   try {
     if (typeof sb === 'undefined' || !sb || !currentUser) return;
     const r = await sb.from('creatives')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'Sent Back')
+      .select('id, status, rejected_files')
       .ilike('designer', currentUser);
-    const count = r.count || 0;
+    if (r.error) return;
+    const count = (r.data || []).filter(c => {
+      const rf = Array.isArray(c.rejected_files) ? c.rejected_files : [];
+      return rf.length > 0 || c.status === 'Sent Back';
+    }).length;
     const badge = document.getElementById('feedback-badge');
     if (!badge) return;
     if (count > 0) {

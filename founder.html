@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HELLO YELLOW — Welcome Suriti!</title>
+<title>Yellow Productions — Welcome Suriti!</title>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -4875,18 +4875,17 @@ async function sendBackFile(idx, fileIdx) {
     const combined = existingNote ? `${existingNote}\n${newLine}` : newLine;
 
     if (item._sb_id) {
+      // Reject ONE file only — do NOT change the creative's overall status.
+      // The creative stays in review so Suriti can keep reviewing the other
+      // files. The designer picks up rework from rejected_files (their Feedback
+      // tab reads that), not from a creative-wide Sent Back status.
       await sb.from('creatives').update({
-        status: 'Sent Back',
         review_note: combined,
         file_urls: newFileUrls,
-        rejected_files: newRejected,
-        client_decided_at: new Date().toISOString()
+        rejected_files: newRejected
       }).eq('id', item._sb_id);
-      // Cascade — task goes back to In Progress so designer sees it in their queue
-      await cascadeTaskFromCreative(item, 'Sent Back', null);
     }
-    // Update local cache
-    item.Status = 'Sent Back';
+    // Update local cache — status stays whatever it was
     item.Notes = combined;
     item._sb_file_urls = newFileUrls;
     item._sb_rejected_files = newRejected;
