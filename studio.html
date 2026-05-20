@@ -421,7 +421,8 @@ async function fetchSheetRows() {
       _sb_last_action_at: c.client_decided_at || c.created_at || '',
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
-      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -818,7 +819,7 @@ window.fetch = function(url, options) {
   return _originalFetch(url, options);
 };
 
-console.log('%c📊 Yellowverse · Supabase-only data layer', 'color:#15803d;font-weight:bold');
+console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 // Telegram notify helper — uses auth token from team portal login (shared localStorage)
 function notifyTelegram(to, message) {
@@ -1348,8 +1349,8 @@ async function submitUpload(){
 
       // ONE Telegram per reviewer — summarizing the whole session
       const reviewMsg = isRework
-        ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`
-        : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://theyellowverse.com/team.html">Open review queue →</a>`;
+        ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`
+        : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`;
       ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
         notifyTelegram(reviewer, reviewMsg);
       });
@@ -1412,7 +1413,7 @@ function resetForm(){
 </script>
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Yellowverse"></a>
+<a href="https://madebyyellow.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Made By Yellow"></a>
 
 </body>
 </html>

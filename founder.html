@@ -466,7 +466,7 @@
 
   <!-- Nav -->
   <div style="position:absolute;top:0;left:0;width:100%;display:flex;justify-content:space-between;align-items:center;padding:20px 40px">
-    <div style="font-size:13px;font-weight:700;color:#1a1a1a;letter-spacing:0.08em">THE YELLOW VERSE</div>
+    <div style="font-size:13px;font-weight:700;color:#1a1a1a;letter-spacing:0.08em">THE MADE BY YELLOW</div>
     
   </div>
 
@@ -517,7 +517,7 @@
       <!-- Login card -->
       <div style="background:#fff;border:1px solid #e8e3db;border-radius:24px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.06)">
         <div style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:4px">Welcome Suriti!</div>
-        <div style="font-size:12px;color:#aaa;margin-bottom:24px;font-style:italic">Yellowverse · Founder Access Only</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:24px;font-style:italic">Made By Yellow · Founder Access Only</div>
         <label style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px">Password</label>
         <input type="password" id="pwd-input" placeholder="Enter password..." onkeydown="if(event.key==='Enter')checkPassword()" style="width:100%;background:#f5f4f1;border:1px solid #e0ddd8;border-radius:10px;padding:12px 14px;font-family:'Poppins',sans-serif;font-size:14px;color:#1a1a1a;outline:none;margin-bottom:14px">
         <div id="pwd-error" style="color:#c0392b;font-size:11px;margin-bottom:10px;display:none">Incorrect password. Try again.</div>
@@ -1392,7 +1392,8 @@ async function fetchSheetRows() {
       _sb_last_action_at: c.client_decided_at || c.created_at || '',
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
-      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -1789,7 +1790,7 @@ window.fetch = function(url, options) {
   return _originalFetch(url, options);
 };
 
-console.log('%c📊 Yellowverse · Supabase-only data layer', 'color:#15803d;font-weight:bold');
+console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 const TEAM = {
   Sandesh: 'sandesh@perkyowl.com',
@@ -4032,7 +4033,7 @@ async function addCollaborator(encodedTask, sbId, name) {
     }
     // Telegram ping if the added person is a lead (designers don't use Telegram)
     if (['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
-      notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+      notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     }
   } catch(e) {
     alert('Could not add collaborator: ' + e.message);
@@ -4742,8 +4743,8 @@ async function renderReview() {
                 <div style="font-size:9px;color:#999;text-align:center;font-weight:600">FILE ${ui+1}</div>
                 <input type="text" id="file-comment-${idx}-${ui}" placeholder="Feedback on this file..."
                   style="font-size:10px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;width:100%;box-sizing:border-box">
-                <button onclick="sendBackFile(${idx}, ${ui})"
-                  style="font-size:10px;padding:4px 6px;border:1px solid #fde68a;background:#fffbea;color:#92400e;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;width:100%">↻ Send back</button>
+                <button onclick="sendBackFile(${idx}, ${ui})" title="Rejects just this file — moves it to the REJECTED folder and removes it from this review"
+                  style="font-size:10px;padding:4px 6px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;width:100%">✕ Reject file</button>
               </div>`;
             }).join('');
             const folderBtn = folderUrl
@@ -4832,9 +4833,43 @@ async function sendBackFile(idx, fileIdx) {
   const designer = parts[1] ? parts[1].trim() : '';
 
   try {
-    // Compose the new note: append "File N: <comment>" to existing review_note.
-    // If multiple files get sent back in one session, the notes accumulate as
-    // separate lines so the designer sees all the feedback together.
+    const urls = (item._sb_file_urls && item._sb_file_urls.length)
+      ? item._sb_file_urls.slice()
+      : [];
+    const fileUrl = urls[fileIdx];
+    if (!fileUrl) { alert('That file is no longer in the list — try refreshing.'); return; }
+
+    // 1. Move the rejected file to Dropbox /REJECTED so the designer's next
+    //    upload doesn't pile up next to the old version. Date-prefixed
+    //    filename lets the 30-day cleanup job find it later.
+    const datePrefix = new Date().toISOString().split('T')[0];
+    const origName = (fileUrl.split('/').pop() || `file${fileIdx+1}`).split('?')[0];
+    const safeName = `${datePrefix}_${cName.replace(/[^a-zA-Z0-9]/g, '-')}_File${fileIdx+1}_${origName}`;
+    try {
+      const moveResp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
+      });
+      const moveJson = await moveResp.json().catch(() => ({}));
+      if (!moveJson.success) console.warn('Dropbox move did not confirm:', moveJson.error || 'unknown');
+    } catch(e) {
+      // Non-fatal — the DB-level removal still happens so the review stays clean.
+      console.warn('Dropbox move call failed:', e.message);
+    }
+
+    // 2. Remove the file from the active list, record it in rejected_files
+    const newFileUrls = urls.filter((_, i) => i !== fileIdx);
+    const rejectedEntry = {
+      url: fileUrl,
+      feedback: comment,
+      file_label: `File ${fileIdx + 1}`,
+      rejected_at: new Date().toISOString()
+    };
+    const existingRejected = Array.isArray(item._sb_rejected_files) ? item._sb_rejected_files.slice() : [];
+    const newRejected = [...existingRejected, rejectedEntry];
+
+    // 3. Compose review note — keeps "File N: comment" lines accumulating
     const existingNote = (item.Notes || '').trim();
     const newLine = `File ${fileIdx + 1}: ${comment}`;
     const combined = existingNote ? `${existingNote}\n${newLine}` : newLine;
@@ -4843,35 +4878,31 @@ async function sendBackFile(idx, fileIdx) {
       await sb.from('creatives').update({
         status: 'Sent Back',
         review_note: combined,
+        file_urls: newFileUrls,
+        rejected_files: newRejected,
         client_decided_at: new Date().toISOString()
       }).eq('id', item._sb_id);
       // Cascade — task goes back to In Progress so designer sees it in their queue
       await cascadeTaskFromCreative(item, 'Sent Back', null);
     }
-    // Update local cache so the change is visible without waiting for refresh
+    // Update local cache
     item.Status = 'Sent Back';
     item.Notes = combined;
+    item._sb_file_urls = newFileUrls;
+    item._sb_rejected_files = newRejected;
 
     if (designer) {
-      notifyTelegram(designer, `↻ <b>Send back — file-specific feedback</b>\n\n<b>${cName}</b>\nFile ${fileIdx + 1}: ${comment}\n\nRework the noted file and re-upload via Studio (it'll go to the same folder).\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+      notifyTelegram(designer, `↻ <b>Send back — file-specific feedback</b>\n\n<b>${cName}</b>\nFile ${fileIdx + 1}: ${comment}\n\nRework the noted file and re-upload via Studio (it'll go to the same folder).\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     }
 
     // Fan out any @mentions in the per-file comment
     const mentioned = extractMentions(comment).filter(n => n !== designer && n !== 'Suriti');
     mentioned.forEach(name => {
-      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b> (File ${fileIdx + 1})\nBy: ${designer}\nSuriti's note: ${comment}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b> (File ${fileIdx + 1})\nBy: ${designer}\nSuriti's note: ${comment}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     });
 
-    // Clear the input + visual confirmation
-    if (input) {
-      input.value = '';
-      input.style.background = '#dcfce7';
-      input.placeholder = '✓ Sent back';
-      setTimeout(() => {
-        if (input) { input.style.background = ''; input.placeholder = 'Feedback on this file...'; }
-      }, 2000);
-    }
-    // Don't re-render immediately — let her send back multiple files in sequence
+    // Re-render so the rejected file disappears from the review immediately.
+    renderReview();
     updateReviewBadge();
   } catch(e) {
     alert('Could not send back: ' + e.message);
@@ -4897,7 +4928,7 @@ async function quickScrap(idx) {
       await cascadeTaskFromCreative(item, 'Rejected', null);
     }
     if (designer) {
-      notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. No need to iterate.\n\n<a href="https://theyellowverse.com/team.html">View →</a>`);
+      notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. No need to iterate.\n\n<a href="https://madebyyellow.com/team.html">View →</a>`);
     }
     renderReview();
     updateReviewBadge();
@@ -5017,7 +5048,7 @@ async function founderSubmitReview(idx, action) {
           ? `✅ <b>Creative approved</b> by Suriti\n\n<b>${cName}</b> · sent to client`
         : action === 'reject'
           ? `❌ <b>Concept rejected</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nReason: ${note}\n\nThis concept won't move forward. No need to iterate.`
-        :  `🔁 <b>Creative sent back</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nFeedback: ${note}\n\n<a href="https://theyellowverse.com/studio.html">Re-upload via Studio →</a>`;
+        :  `🔁 <b>Creative sent back</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nFeedback: ${note}\n\n<a href="https://madebyyellow.com/studio.html">Re-upload via Studio →</a>`;
       notifyTelegram(designer, msg);
     }
 
@@ -5025,7 +5056,7 @@ async function founderSubmitReview(idx, action) {
     // got the verdict message) gets a separate Telegram pulling them in for the task.
     const mentioned = extractMentions(note).filter(n => n !== designer && n !== 'Suriti');
     mentioned.forEach(name => {
-      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b>\nBy: ${designer}\nSuriti's note: ${note}\n\n<a href="https://theyellowverse.com/team.html">Open team portal →</a>`);
+      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b>\nBy: ${designer}\nSuriti's note: ${note}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     });
 
     // The await above guarantees Supabase has the update before we re-render.
@@ -5459,7 +5490,7 @@ function startChatPollingFounder() {
 function toggleChat() {
   const panel = document.getElementById('chat-panel');
   const isOpen = panel.style.right === '0px';
-  const homeDot = document.querySelector('a[title*="Yellowverse" i]');
+  const homeDot = document.querySelector('a[title*="Made By Yellow" i]');
   const chatFab = document.getElementById('chat-fab');
   if (isOpen) {
     panel.style.right = '-420px';
@@ -5716,7 +5747,7 @@ async function sendTeamChat() {
     const mentions = (messageBody.match(/@(\w+)/g) || []).map(m => m.slice(1));
     [...new Set(mentions)].forEach(name => {
       if (name === 'Suriti') return; // don't ping self
-      const msg = `💬 <b>Suriti</b> mentioned you in Yellow Verse\n\n${messageBody}\n\n<a href="https://theyellowverse.com/team.html">Open chat →</a>`;
+      const msg = `💬 <b>Suriti</b> mentioned you in Made By Yellow\n\n${messageBody}\n\n<a href="https://madebyyellow.com/team.html">Open chat →</a>`;
       notifyTelegram(name === 'team' ? 'team' : name, msg);
     });
   } catch(e) {
@@ -5870,7 +5901,7 @@ setInterval(() => {
 </div><!-- end main-app -->
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer" title="Go to Yellowverse home"></a>
+<a href="https://madebyyellow.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer" title="Go to Made By Yellow home"></a>
 
 <!-- TEAM CHAT — small button stacked above home dot -->
 <button id="chat-fab" onclick="toggleChat()" style="position:fixed;bottom:74px;right:20px;width:42px;height:42px;border-radius:50%;background:#fff;color:#1a1a1a;border:1px solid #e0ddd8;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.10);z-index:999998;display:none;align-items:center;justify-content:center" title="Team Chat">
@@ -5882,7 +5913,7 @@ setInterval(() => {
   <div style="background:#ffffff;color:#1a1a1a;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid #ece6d8">
     <div style="width:34px;height:34px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#1a1a1a">YV</div>
     <div style="flex:1">
-      <div style="font-weight:700;font-size:14px">Team Yellowverse</div>
+      <div style="font-weight:700;font-size:14px">Team Made By Yellow</div>
       <div style="font-size:11px;color:#888;font-weight:400">all team members</div>
     </div>
     <button onclick="toggleChatSearch()" id="chat-search-btn" title="Search messages" style="background:transparent;border:none;color:#666;cursor:pointer;padding:4px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%">

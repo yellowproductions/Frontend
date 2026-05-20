@@ -211,7 +211,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="login-nav">
     <div class="login-nav-brand">THE YELLOW DOOR</div>
     <div class="login-nav-right">
-      <span style="font-size:11px;color:#999">Powered by Yellow Productions</span>
+      <span style="font-size:11px;color:#999">Powered by The Yellowverse</span>
 
     </div>
   </div>
@@ -254,7 +254,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div style="width:36px;height:36px;background:var(--yellow);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🟡</div>
       <div>
         <div style="font-size:15px;font-weight:800">The Yellow Door</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Powered by Yellow Verse</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Powered by The Yellowverse</div>
       </div>
     </div>
     <div style="font-size:13px;color:var(--muted)">
@@ -816,7 +816,8 @@ async function fetchSheetRows() {
       _sb_last_action_at: c.client_decided_at || c.created_at || '',
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
-      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : []
+      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -1213,7 +1214,7 @@ window.fetch = function(url, options) {
   return _originalFetch(url, options);
 };
 
-console.log('%c📊 Yellowverse · Supabase-only data layer', 'color:#15803d;font-weight:bold');
+console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 const EJS_SVC = 'service_786h8bh';
 const EJS_TPL = 'template_w1gbhz9';
@@ -2112,7 +2113,7 @@ function switchTab(tabId, btn) {
 </script>
 
 <!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://theyellowverse.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Yellowverse"></a>
+<a href="https://madebyyellow.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Made By Yellow"></a>
 
 </body>
 </html>
