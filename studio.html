@@ -1,1420 +1,838 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YOS Upload</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap');
-* { margin:0; padding:0; box-sizing:border-box; }
-html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:hidden; }
-.page {
-  width:100%; height:100vh;
-  background:#f7f5f0;
-  background-image:linear-gradient(rgba(0,0,0,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.04) 1px,transparent 1px);
-  background-size:32px 32px;
-  display:flex; align-items:center; justify-content:center;
-  position:relative;
-}
-.page-inner {
-  display:grid; grid-template-columns:1fr 1fr;
-  align-items:center;
-  gap:48px;
-  max-width:920px;
-  width:100%;
-  padding:0 32px;
-}
+const https = require('https');
+const http = require('http');
+const crypto = require('crypto');
+const PORT = process.env.PORT || 10000;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN;
+const DROPBOX_APP_KEY = process.env.DROPBOX_APP_KEY;
+const DROPBOX_APP_SECRET = process.env.DROPBOX_APP_SECRET;
 
-.nav { position:absolute; top:0; left:0; width:100%; display:flex; justify-content:space-between; align-items:center; padding:20px 40px; }
-.nav-brand { font-size:13px; font-weight:700; color:#1a1a1a; letter-spacing:0.08em; }
-.nav-dot { width:32px; height:32px; border-radius:50%; background:#FEBC06; }
-
-/* LEFT SIDE */
-.left { display:flex; flex-direction:column; align-items:flex-start; }
-.headline { font-size:clamp(36px,4.5vw,58px); font-weight:900; color:#1a1a1a; letter-spacing:-2px; line-height:1.05; margin-bottom:16px; }
-.headline span { color:#FEBC06; }
-.tagline { font-size:14px; color:#888; margin-bottom:40px; line-height:1.6; }
-
-/* BAG ANIMATION */
-.bag-scene { width:280px; height:280px; position:relative; display:flex; align-items:flex-end; justify-content:center; }
-
-@keyframes swing {
-  0%,100% { transform:rotate(-8deg); }
-  50% { transform:rotate(8deg); }
-}
-@keyframes handBounce {
-  0%,100% { transform:translateY(0); }
-  50% { transform:translateY(-8px); }
-}
-@keyframes bagWiggle {
-  0%,100% { transform:rotate(-8deg) translateY(0); }
-  25% { transform:rotate(-8deg) translateY(-4px); }
-  50% { transform:rotate(8deg) translateY(0); }
-  75% { transform:rotate(8deg) translateY(-4px); }
-}
-
-.bag-wrap {
-  transform-origin: top center;
-  animation: bagWiggle 2.5s ease-in-out infinite;
-  position:absolute;
-  bottom:0;
-}
-
-.hand-wrap {
-  position:absolute;
-  top:0; left:50%; transform:translateX(-50%);
-  animation: handBounce 2.5s ease-in-out infinite;
-  z-index:10;
-}
-
-/* RIGHT SIDE */
-.right { display:flex; flex-direction:column; justify-content:center; }
-.form-card {
-  background:#fff;
-  border:1px solid #e8e3db;
-  border-radius:24px;
-  padding:40px 36px;
-  box-shadow:0 4px 24px rgba(0,0,0,0.06);
-  max-width:380px;
-}
-.form-title { font-size:22px; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
-.form-sub { font-size:12px; color:#aaa; margin-bottom:28px; font-style:italic; }
-.field { margin-bottom:16px; }
-.field label { display:block; font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
-.field select, .field input {
-  width:100%; background:#f5f4f1; border:1px solid #e0ddd8;
-  border-radius:10px; padding:12px 14px; font-family:'Poppins',sans-serif;
-  font-size:13px; color:#1a1a1a; outline:none; transition:border-color 0.15s;
-}
-.field select:focus, .field input:focus { border-color:#FEBC06; }
-.drop-zone {
-  border:2px dashed #e0ddd8; border-radius:12px; padding:24px 16px;
-  text-align:center; cursor:pointer; transition:all 0.2s; position:relative;
-}
-.drop-zone:hover { border-color:#FEBC06; background:#fffbf0; }
-.drop-zone input { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
-.drop-icon { font-size:28px; margin-bottom:6px; }
-.drop-text { font-size:12px; color:#aaa; }
-.drop-text strong { color:#FEBC06; }
-.upload-btn {
-  width:100%; background:#FEBC06; color:#000; border:none;
-  border-radius:12px; padding:13px; font-family:'Poppins',sans-serif;
-  font-size:14px; font-weight:700; cursor:pointer; margin-top:8px;
-  transition:opacity 0.15s;
-  position:sticky; bottom:8px; z-index:5;
-  box-shadow:0 4px 12px rgba(254,188,6,0.35);
-}
-.upload-btn:hover { opacity:0.88; }
-.err { color:#c0392b; font-size:11px; display:none; margin-top:6px; }
-.success { display:none; text-align:center; padding:20px 0; }
-.success-icon { font-size:48px; margin-bottom:12px; }
-.success-title { font-size:18px; font-weight:700; color:#22c55e; margin-bottom:6px; }
-.success-sub { font-size:13px; color:#888; margin-bottom:20px; }
-.again-btn { background:transparent; border:1px solid #e0ddd8; border-radius:10px; padding:10px 20px; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; cursor:pointer; color:#1a1a1a; }
-.again-btn:hover { border-color:#FEBC06; color:#FEBC06; }
-.progress-bar { background:#f0eeea; border-radius:100px; height:5px; margin:10px 0; display:none; overflow:hidden; }
-.progress-fill { height:100%; background:#FEBC06; border-radius:100px; transition:width 0.3s; width:0%; }
-.footer { position:absolute; bottom:12px; right:24px; font-size:11px; color:#1a1a1a; }
-
-
-/* ===== MOBILE ===== */
-@media (max-width: 768px) {
-  .page { overflow-y: auto !important; align-items: flex-start !important; }
-  .page-inner {
-    grid-template-columns: 1fr !important;
-    padding: 80px 20px 20px !important;
-    gap: 20px !important;
-    max-width: 100% !important;
-  }
-  /* Show bag but smaller */
-  .left { align-items: center !important; }
-  .headline { font-size: 32px !important; letter-spacing: -1px !important; text-align: center !important; }
-  .tagline { text-align: center !important; }
-  .bag-scene { width: 180px !important; height: 180px !important; }
-  /* Form full width */
-  .form-card { max-width: 100% !important; padding: 20px !important; }
-  input, select { font-size: 16px !important; }
-  .nav { padding: 16px 20px !important; }
-}
-</style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-<div class="page">
-  <div class="nav">
-    <div class="nav-brand">YELLOW STUDIO</div>
-  </div>
-
-  <div class="page-inner">
-  <!-- LEFT -->
-  <div class="left">
-    <div class="headline">Your files are<br>ready to be<br><span>uploaded.</span></div>
-    <div class="tagline">Drop your creatives into the portal.<br></div>
-
-    <!-- ANIMATED BAG -->
-    <div class="bag-scene">
-      <!-- Hand -->
-      <div class="hand-wrap">
-        <svg width="120" height="90" viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg">
-          <!-- Fist/hand holding strings -->
-          <ellipse cx="60" cy="55" rx="48" ry="35" fill="#FEBC06"/>
-          <!-- Fingers -->
-          <ellipse cx="28" cy="38" rx="14" ry="18" fill="#FEBC06"/>
-          <ellipse cx="46" cy="30" rx="14" ry="20" fill="#FEBC06"/>
-          <ellipse cx="65" cy="28" rx="14" ry="20" fill="#FEBC06"/>
-          <ellipse cx="84" cy="32" rx="13" ry="18" fill="#FEBC06"/>
-          <ellipse cx="98" cy="40" rx="12" ry="16" fill="#FEBC06"/>
-          <!-- Knuckle lines -->
-          <path d="M 30,35 Q 38,28 46,32" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          <path d="M 48,27 Q 56,20 64,24" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          <path d="M 66,25 Q 74,18 82,22" stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          <!-- Strings coming from fist -->
-          <line x1="44" y1="75" x2="54" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-          <line x1="76" y1="75" x2="66" y2="90" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-      </div>
-
-      <!-- Bag -->
-      <div class="bag-wrap">
-        <svg width="200" height="210" viewBox="0 0 200 210" xmlns="http://www.w3.org/2000/svg">
-          <!-- Strings -->
-          <line x1="62" y1="0" x2="72" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-          <line x1="138" y1="0" x2="128" y2="48" stroke="#3730a3" stroke-width="3" stroke-linecap="round"/>
-          <!-- Bag body -->
-          <rect x="10" y="48" width="180" height="150" rx="12" fill="#3b82f6"/>
-          <!-- Bag fold/top rim -->
-          <rect x="10" y="48" width="180" height="20" rx="8" fill="#2563eb"/>
-
-          <!-- YOS logo on bag -->
-          <text x="100" y="145" font-size="42" font-family="Poppins,sans-serif" font-weight="900" fill="#1d4ed8" text-anchor="middle">FILES</text>
-          <!-- Upload arrow on bag -->
-          <path d="M 85,100 L 100,82 L 115,100" stroke="#60a5fa" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="100" y1="82" x2="100" y2="115" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
-        </svg>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT -->
-  <div class="right">
-    <div class="form-card">
-      <div id="form-view">
-        <div class="form-title">Upload Creative</div>
-        <div class="form-sub">Pick a task, drop the file, done</div>
-
-        <div class="field">
-          <label>Team</label>
-          <select id="q-designer" onchange="onDesignerChange()">
-            <option value="">Select your name</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
-            <option>Siddhesh</option><option>Ajay</option><option>Kritya</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Task</label>
-          <select id="q-task" onchange="onTaskChange()" disabled>
-            <option value="">Select your name first...</option>
-          </select>
-        </div>
-
-        <div class="field" id="creative-name-field" style="display:none">
-          <label>Creative Name</label>
-          <input type="text" id="q-name" placeholder="What are you uploading?">
-        </div>
-
-        <!-- Client is auto-set from the picked task — no manual selection.
-             Hidden select keeps the rest of the form code working without touching
-             submitUpload's client handling. Visible read-only line shows the
-             resolved client so the designer can confirm before uploading. -->
-        <div class="field" id="client-info" style="display:none">
-          <label>Client</label>
-          <div id="q-client-display" style="font-size:14px;font-weight:600;color:#1e40af;padding:8px 0">—</div>
-        </div>
-        <select id="q-client" style="display:none">
-          <option value="">Select client...</option>
-          <optgroup label="Jindal Group">
-            <option value="Jindal Steel">Jindal Steel</option>
-            <option value="Jindal League">Jindal League</option>
-            <option value="Jindal Youth League">Jindal Youth League</option>
-            <option value="Jindal Steel Duqm">Jindal Steel Duqm</option>
-            <option value="Sohar Steel">Sohar Steel</option>
-          </optgroup>
-          <option value="RM Universal">RM Universal</option>
-          <option value="Kotak">Kotak</option>
-          <option value="TEAM YP">TEAM YP</option>
-          <option value="Pitches">Pitches</option>
-          <option value="Marico">Marico</option>
-          <option value="Zouk">Zouk</option>
-          <option value="TATA Mutual Funds">TATA Mutual Funds</option>
-          <option value="HZL">HZL</option>
-          <option value="Adhoc">Adhoc / One-time client</option>
-        </select>
-        <div id="q-client-lock-note" style="display:none"></div>
-
-        <div class="field">
-          <label>File type</label>
-          <select id="q-filetype" onchange="updateFileTypeHint()">
-            <option value="final">📄 Final / Preview (JPEG, PDF, MP4) — goes for review</option>
-            <option value="open">📂 Open file (PSD, AI, source) — goes straight to client folder</option>
-          </select>
-          <div id="filetype-hint" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Final files flow through Viplav → client. Open files skip review and land directly in the client's source folder.</div>
-        </div>
-
-        <div class="field">
-          <label>File</label>
-          <div class="drop-zone" id="drop-zone">
-            <input type="file" id="q-file" multiple accept="image/*,.pdf,.ai,.psd,.png,.jpg,.jpeg,.mp4,.mov" onchange="handleFile(this)">
-            <div class="drop-icon" id="drop-icon">📎</div>
-            <div class="drop-text" id="drop-text">Tap to select or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">Pick one file or several at once</span></div>
-            <div id="file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px;max-height:160px;overflow-y:auto;text-align:left;padding-right:4px;line-height:1.6"></div></div>
-          </div>
-        </div>
-
-        <div class="progress-bar" id="progress-bar">
-          <div class="progress-fill" id="progress-fill"></div>
-        </div>
-        <div class="err" id="err-msg"></div>
-
-        <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
-      </div>
-
-      <div class="success" id="success-view">
-        <div class="success-icon">✅</div>
-        <div class="success-title">Uploaded!</div>
-        <div class="success-sub" id="success-detail">File is live on the portal.</div>
-        <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
-      </div>
-    </div>
-  </div>
-
-  </div>
-  <div class="footer">🪷 Radhe Shyam</div>
-</div>
-
-<script>
-const BACKEND='https://yellowbackend.onrender.com';
-const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
-
-// ============================================================
-// SUPABASE DATA LAYER — full reads + dual-write mirror
-// ============================================================
-// READS: fetchSheetRows() pulls from Supabase and reshapes into the
-//   legacy {Type, Date, Title, Task, ...} row format the rendering
-//   code already expects.
+// =================== AUTH (Step 1) ===================
+// Passwords live in Render env vars — never in code, never in browser source.
 //
-// WRITES: A fetch() interceptor catches every SHEETDB POST and
-//   mirrors it to the right Supabase table. Existing write code at
-//   the call sites is untouched — `fetch(SHEETDB, {body: ...})` keeps
-//   working, AND now mirrors to Supabase in parallel.
-//
-// On error in Supabase mirror, the Sheet write still goes through
-// (logged warning only). On error in Sheet write, Supabase still has
-// the change.
-// ============================================================
+// Required env vars:
+//   TEAM_PASSWORDS    "Faizan:faizan47,Sandesh:sandesh82,..."  (Name:password, comma-separated)
+//   CLIENT_PASSWORDS  "jindal:Jindal2026,kotak:Kotak2026,adhoc:Adhoc2026,pitches:Pitches2026"
+//   MASTER_PASSWORD   "Yellow@1234"   (founder + universal client unlock)
+//   JWT_SECRET        "<random long string>"  (rotate to invalidate everyone's session)
+const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_ME_IN_RENDER_ENV';
+const MASTER_PASSWORD = process.env.MASTER_PASSWORD || '';
 
-const SUPABASE_URL = 'https://qchvnnicsoxptmmokozy.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_RbsT22PqnuSRqGUwWEwNDQ_hQGXZqmv';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// =============== HELPERS ===============
-
-const _LEGACY_CLIENT_MAP = {
-  'kotak': 'Kotak', 'steelcity': 'Jindal Steel', 'youthleague': 'Jindal League',
-  'jindal-youth': 'Jindal Youth League', 'sohar-steel': 'Sohar Steel',
-  'duqm': 'Jindal Steel Duqm', 'adhoc': 'Adhoc', 'Adhoc': 'Adhoc',
-  'pitches': 'Pitches', 'jindal': 'Jindal Steel'
-};
-function _normLegacy(client) {
-  if (!client) return null;
-  const v = String(client).trim();
-  if (!v) return null;
-  return _LEGACY_CLIENT_MAP[v] || v;
-}
-
-function _supaBracketDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `[${dd}-${mm}]`;
-}
-function _supaShortTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-function _supaJoinUpdates(updates) {
-  if (!Array.isArray(updates) || !updates.length) return '';
-  const sorted = updates.slice().sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return ta - tb;
+function parseEnvMap(raw) {
+  const out = {};
+  (raw || '').split(',').forEach(pair => {
+    const [k, v] = pair.split(':');
+    if (k && v) out[k.trim()] = v.trim();
   });
-  return sorted.map(u => {
-    const tick = u.ticked ? '✓ ' : '';
-    const bracket = _supaBracketDate(u.created_at);
-    return `${tick}${bracket ? bracket + ' ' : ''}${u.text || ''}`.trim();
-  }).join('\n');
+  return out;
 }
+const TEAM_PASSWORDS   = parseEnvMap(process.env.TEAM_PASSWORDS);   // {Faizan:'faizan47',...}
+const CLIENT_PASSWORDS = parseEnvMap(process.env.CLIENT_PASSWORDS); // {jindal:'Jindal2026',...}
 
-// =============== READ PATH ===============
+const SESSION_DAYS = 7;
 
-async function fetchSheetRows() {
-  const [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR] = await Promise.all([
-    sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
-    sb.from('attendance').select('*').order('id', { ascending: true }),
-    sb.from('leaves').select('*').order('id', { ascending: true }),
-    sb.from('creatives').select('*').order('id', { ascending: true }),
-    sb.from('chat_messages').select('*').order('created_at', { ascending: true }),
-    sb.from('reminders').select('*').order('id', { ascending: true }),
-  ]);
-  for (const r of [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR]) {
-    if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
-  }
-  const rows = [];
-  for (const t of (tasksR.data || [])) {
-    rows.push({
-      Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
-      Update: _supaJoinUpdates(t.task_updates),
-      Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
-      'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
-      Type: 'task', Client: t.client || '',
-      Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
-      ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
-      _sb_id: t.id, _sb_table: 'tasks'
+// =================== TELEGRAM NOTIFICATIONS ===================
+// Required Render env vars:
+//   TELEGRAM_BOT_TOKEN  → from @BotFather, e.g. "8528860335:AAGF..."
+//   TELEGRAM_CHATS      → "Suriti:8751122054,Viplav:1234567,Faizan:9876543"
+//                         The bot only sends to people listed here. New people
+//                         need to register their Telegram ID first.
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHATS     = parseEnvMap(process.env.TELEGRAM_CHATS); // {Suriti:'8751...', Viplav:'...'}
+
+// Send a message to a specific Telegram chat ID via the Bot API
+function sendTelegram(chatId, text) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return Promise.resolve({ ok: false, skipped: true });
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      chat_id: String(chatId),
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: false
     });
-  }
-  for (const a of (attendanceR.data || [])) {
-    rows.push({
-      Date: a.date || '', Title: _supaShortTime(a.marked_at), Task: '', Update: '',
-      Assignee: a.person || '', Status: a.status || '',
-      Notes: a.is_override ? (a.override_note || 'override by Suriti') : '',
-      'Preview Link': '', 'Open File Link': '', Type: 'attendance', Client: '',
-      _sb_id: a.id, _sb_table: 'attendance'
-    });
-  }
-  for (const l of (leavesR.data || [])) {
-    const requestDate = l.created_at ? l.created_at.split('T')[0] : (l.start_date || '');
-    rows.push({
-      Date: requestDate, Title: l.reason || '', Task: l.start_date || '', Update: '',
-      Assignee: l.person || '', Status: l.status || '', Notes: l.feedback || '',
-      'Preview Link': '', 'Open File Link': '', Type: 'leave', Client: '',
-      _sb_id: l.id, _sb_table: 'leaves',
-      _sb_start_date: l.start_date, _sb_end_date: l.end_date
-    });
-  }
-  for (const c of (creativesR.data || [])) {
-    const taskField = c.designer ? `${c.name || ''} | ${c.designer}` : (c.name || '');
-    rows.push({
-      Date: c.created_at ? c.created_at.split('T')[0] : '',
-      Title: c.name || '', Task: taskField, Update: '',
-      Assignee: c.client || '', Status: c.status || '', Notes: c.review_note || '',
-      'Preview Link': c.preview_link || '', 'Open File Link': c.dropbox_path || '',
-      Type: 'creative', Client: c.client || '',
-      _sb_id: c.id, _sb_table: 'creatives',
-      // Track last decision time so the review history can sort newest-touched first
-      _sb_last_action_at: c.client_decided_at || c.created_at || '',
-      ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
-      // Per-file thumbnail URLs (new model — Studio collects all files per session)
-      _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
-      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
-    });
-  }
-  for (const m of (chatsR.data || [])) {
-    rows.push({
-      Date: m.created_at || '', Title: m.author || '', Task: m.text || '', Update: '',
-      Assignee: 'all', Status: '', Notes: '',
-      'Preview Link': '', 'Open File Link': '', Type: 'chat', Client: '',
-      _sb_id: m.id, _sb_table: 'chat_messages', _sb_mentions: m.mentions || []
-    });
-  }
-  for (const r of (remindersR.data || [])) {
-    rows.push({
-      Date: r.created_at ? r.created_at.split('T')[0] : '',
-      Title: r.message || '', Task: '', Update: '',
-      Assignee: r.for_person || '', Status: r.status || '', Notes: '',
-      'Preview Link': '', 'Open File Link': '', Type: 'reminder', Client: '',
-      _sb_id: r.id, _sb_table: 'reminders'
-    });
-  }
-  return rows;
-}
-
-// =============== WRITE PATH (mirror) ===============
-
-// Parse an Update column string into structured rows.
-// Each line is like "✓ [12-05] note text" or "[12-05] note" or just plain text.
-function _parseUpdateLines(s) {
-  if (!s) return [];
-  return s.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-    const ticked = line.startsWith('✓');
-    let cleaned = ticked ? line.substring(1).trim() : line;
-    const m = cleaned.match(/^\[(\d{1,2})-(\d{1,2})\]\s*/);
-    let createdAt = null;
-    if (m) {
-      cleaned = cleaned.substring(m[0].length);
-      const dd = parseInt(m[1]), mm = parseInt(m[2]);
-      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
-        const yr = new Date().getFullYear();
-        createdAt = `${yr}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}T12:00:00+05:30`;
-      }
-    }
-    return { text: cleaned, ticked, created_at: createdAt };
-  });
-}
-
-// Compare new Update string with existing task_updates rows. Insert new lines,
-// update ticked-state changes. Doesn't delete rows (preserves history).
-async function _syncTaskUpdates(taskId, updateStr) {
-  const parsed = _parseUpdateLines(updateStr);
-  if (!parsed.length) return;
-
-  const { data: existing } = await sb.from('task_updates').select('id, text, ticked').eq('task_id', taskId);
-  const existingByText = new Map((existing || []).map(r => [r.text, r]));
-
-  const toInsert = [];
-  const tickUpdates = [];
-  for (const p of parsed) {
-    const ex = existingByText.get(p.text);
-    if (!ex) {
-      toInsert.push({
-        task_id: taskId, text: p.text, ticked: p.ticked,
-        ...(p.created_at ? { created_at: p.created_at } : {})
-      });
-    } else if (ex.ticked !== p.ticked) {
-      tickUpdates.push({ id: ex.id, ticked: p.ticked });
-    }
-  }
-  if (toInsert.length) await sb.from('task_updates').insert(toInsert);
-  for (const u of tickUpdates) {
-    await sb.from('task_updates').update({ ticked: u.ticked }).eq('id', u.id);
-  }
-}
-
-// Map sheet-style row → Supabase insert based on Type
-async function _supaInsertRow(row) {
-  const type = (row.Type || '').toLowerCase();
-  if (type === 'task' || type === '') {
-    const r = await sb.from('tasks').insert({
-      due_date: row.Date || null,
-      title: row.Title || null,
-      description: row.Task || '(no description)',
-      assignee: row.Assignee || 'unassigned',
-      status: row.Status || 'Pending',
-      client: _normLegacy(row.Client),
-      notes: row.Notes || null,
-      preview_link: row['Preview Link'] || null,
-      open_file_link: row['Open File Link'] || null,
-    }).select().single();
-    if (r.data && row.Update) await _syncTaskUpdates(r.data.id, row.Update);
-  }
-  else if (type === 'attendance') {
-    let markedAt = null;
-    if (row.Title && /^\d{1,2}:\d{2}$/.test(row.Title)) {
-      const t = row.Title.padStart(5, '0');
-      markedAt = `${row.Date}T${t}:00+05:30`;
-    }
-    await sb.from('attendance').insert({
-      date: row.Date,
-      person: row.Assignee,
-      status: row.Status || 'Present',
-      marked_at: markedAt,
-      is_override: /override/i.test(row.Notes || ''),
-      override_note: /override/i.test(row.Notes || '') ? row.Notes : null,
-    });
-  }
-  else if (type === 'leave') {
-    await sb.from('leaves').insert({
-      person: row.Assignee,
-      start_date: row.Task || row.Date,
-      end_date: row.Task || row.Date,
-      reason: row.Title || null,
-      status: row.Status || 'Pending',
-      feedback: row.Notes || null,
-    });
-  }
-  else if (type === 'creative') {
-    const taskField = row.Task || '';
-    let name = row.Title || '';
-    let designer = 'unknown';
-    if (taskField.includes('|')) {
-      const idx = taskField.lastIndexOf('|');
-      if (!name) name = taskField.substring(0, idx).trim();
-      designer = taskField.substring(idx + 1).trim();
-    } else if (!name) {
-      name = taskField;
-    }
-    await sb.from('creatives').insert({
-      name: name || '(unnamed)',
-      designer: designer,
-      client: _normLegacy(row.Assignee || row.Client),
-      status: row.Status || 'Pending Review',
-      review_note: row.Notes || null,
-      preview_link: row['Preview Link'] || null,
-      dropbox_path: row['Open File Link'] || null,
-    });
-  }
-  else if (type === 'chat') {
-    const text = row.Task || '';
-    const mentions = (text.match(/@(\w+)/g) || []).map(m => m.substring(1));
-    await sb.from('chat_messages').insert({
-      author: row.Title || 'unknown', text: text, mentions: mentions,
-    });
-  }
-  else if (type === 'reminder') {
-    await sb.from('reminders').insert({
-      for_person: row.Assignee,
-      message: row.Title || row.Task,
-      status: row.Status || 'Pending',
-    });
-  }
-  else {
-    console.warn('[supa-mirror] Unknown row type for insert:', type, row);
-  }
-}
-
-// Map a PATCH-by-Task payload → Supabase update.
-// Used when code edits a task by matching its description (the existing sheet workflow).
-async function _supaPatchByTask(taskDesc, data) {
-  // Try tasks first — but skip Closed tasks. Once a task has been converted to a
-  // creative (e.g., team uploaded a final file via Studio), the original task is
-  // marked Closed. Subsequent rework patches use the original task's description
-  // as match key — we want those to fall through to the creatives table here, not
-  // re-corrupt the closed task.
-  const { data: tasks } = await sb.from('tasks')
-    .select('id, assignee, client, status')
-    .eq('description', taskDesc)
-    .neq('status', 'Closed')
-    .limit(1);
-  if (tasks && tasks.length) {
-    const task = tasks[0];
-    const id = task.id;
-
-    // SPECIAL CASE: Studio's "convert task to creative" patch.
-    // When team uploads a final file for an existing task, Studio sends:
-    //   { Task: "name | designer", Assignee: <client>, Type: 'creative', Status: 'Pending Review', ... }
-    // In the legacy sheet this just changed the row's Type column. In Supabase the row
-    // belongs to the tasks TABLE — we have to actually move it: insert into creatives,
-    // mark the task as Closed (preserving history but hiding from active list).
-    if (data.Type === 'creative') {
-      const newTaskField = data.Task || taskDesc;
-      let name = '', designer = task.assignee || 'unknown';
-      if (newTaskField.includes('|')) {
-        const idx = newTaskField.lastIndexOf('|');
-        name = newTaskField.substring(0, idx).trim();
-        designer = newTaskField.substring(idx + 1).trim();
-      } else {
-        name = newTaskField;
-      }
-      await sb.from('creatives').insert({
-        name: name || '(unnamed)',
-        designer: designer,
-        client: _normLegacy(data.Assignee || data.Client || task.client),
-        status: data.Status || 'Pending Review',
-        preview_link: data['Preview Link'] || null,
-        dropbox_path: data['Open File Link'] || null,
-        review_note: null,
-        task_id: id
-      });
-      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
-      // 'Feedback' to the designer) so they can see their submission is in review.
-      // Don't touch description or assignee — those stay as the original task's values.
-      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
-      return;
-    }
-
-    // Normal task patch
-    const update = {};
-    if (data.Date !== undefined)         update.due_date = data.Date || null;
-    if (data.Title !== undefined)        update.title = data.Title;
-    if (data.Task !== undefined)         update.description = data.Task;
-    if (data.Assignee !== undefined)     update.assignee = data.Assignee;
-    if (data.Status !== undefined)       update.status = data.Status;
-    if (data.Client !== undefined)       update.client = _normLegacy(data.Client);
-    if (data.Notes !== undefined)        update.notes = data.Notes;
-    if (data['Preview Link'] !== undefined)   update.preview_link = data['Preview Link'];
-    if (data['Open File Link'] !== undefined) update.open_file_link = data['Open File Link'];
-    if (Object.keys(update).length) {
-      await sb.from('tasks').update(update).eq('id', id);
-    }
-    if (data.Update !== undefined) await _syncTaskUpdates(id, data.Update);
-    return;
-  }
-
-  // Fall back: it might be a creative (matched by "name | designer")
-  if (taskDesc.includes('|')) {
-    const { data: creatives } = await sb.from('creatives').select('id, name, designer');
-    const match = (creatives || []).find(c => `${c.name} | ${c.designer}` === taskDesc);
-    if (match) {
-      const u = {};
-      if (data.Status !== undefined)       u.status = data.Status;
-      if (data.Notes !== undefined)        u.review_note = data.Notes;
-      if (data['Preview Link'] !== undefined)   u.preview_link = data['Preview Link'];
-      if (data['Open File Link'] !== undefined) u.dropbox_path = data['Open File Link'];
-      if (data.Client !== undefined)       u.client = _normLegacy(data.Client);
-      if (data.Assignee !== undefined)     u.client = _normLegacy(data.Assignee);
-      if (Object.keys(u).length) {
-        await sb.from('creatives').update(u).eq('id', match.id);
-      }
-      return;
-    }
-  }
-
-  // Fall back: leave-row update (updateLeave sends matchValue = leave date as YYYY-MM-DD).
-  // Prefer the most recent Pending leave matching the date — that's what the UI just approved/rejected.
-  if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
-    const dateOnly = taskDesc.split('T')[0];
-    const { data: leaves } = await sb.from('leaves')
-      .select('id, person, status, start_date')
-      .eq('start_date', dateOnly)
-      .order('created_at', { ascending: false })
-      .limit(10);
-    if (leaves && leaves.length) {
-      const target = leaves.find(l => l.status === 'Pending') || leaves[0];
-      const u = {};
-      if (data.Status !== undefined) {
-        u.status = data.Status;
-        u.decided_at = new Date().toISOString();
-      }
-      if (data.Notes !== undefined) u.feedback = data.Notes;
-      if (Object.keys(u).length) {
-        await sb.from('leaves').update(u).eq('id', target.id);
-      }
-      return;
-    }
-  }
-
-  console.warn('[supa-mirror] PATCH target not found:', taskDesc.substring(0, 60));
-}
-
-// Multi-field match update — used for prospects mostly
-async function _supaUpdateByMatch(match, update) {
-  if (match.Task) {
-    await _supaPatchByTask(match.Task, update);
-  } else {
-    console.warn('[supa-mirror] update-by-match without Task not supported:', match);
-  }
-}
-
-// Delete by Task description (the matchColumn/matchValue form used by deleteTask).
-// Tries tasks first, then creatives, then leaves.
-async function _supaDeleteByTask(taskDesc) {
-  // Tasks table
-  const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
-  if (tasks && tasks.length) {
-    await sb.from('tasks').delete().eq('id', tasks[0].id);
-    return;
-  }
-  // Creatives table (matched by "name | designer")
-  if (taskDesc.includes('|')) {
-    const { data: creatives } = await sb.from('creatives').select('id, name, designer');
-    const match = (creatives || []).find(c => `${c.name} | ${c.designer}` === taskDesc);
-    if (match) {
-      await sb.from('creatives').delete().eq('id', match.id);
-      return;
-    }
-  }
-  // Leaves table (matchValue is a date string)
-  if (/^\d{4}-\d{2}-\d{2}/.test(taskDesc)) {
-    const dateOnly = taskDesc.split('T')[0];
-    const { data: leaves } = await sb.from('leaves').select('id').eq('start_date', dateOnly).limit(1);
-    if (leaves && leaves.length) {
-      await sb.from('leaves').delete().eq('id', leaves[0].id);
-      return;
-    }
-  }
-  console.warn('[supa-mirror] DELETE target not found:', taskDesc.substring(0, 60));
-}
-
-// Multi-field match delete (used by prospect operations — no Supabase table for those yet)
-async function _supaDeleteByMatch(match) {
-  if (match.Type === 'prospect') return; // no prospects table, skip silently
-  if (match.Task) {
-    await _supaDeleteByTask(match.Task);
-  } else {
-    console.warn('[supa-mirror] delete-by-match without Task not supported:', match);
-  }
-}
-
-// Main dispatcher — figures out which write operation this payload represents
-async function _supaMirror(payload) {
-  if (!payload) return;
-  // INSERT pattern
-  if (payload.data && Array.isArray(payload.data)) {
-    for (const row of payload.data) {
-      await _supaInsertRow(row);
-    }
-    return;
-  }
-  // PATCH pattern (most common — by matchColumn=Task)
-  if (payload.action === 'patch' && payload.matchColumn === 'Task' && payload.matchValue) {
-    await _supaPatchByTask(payload.matchValue, payload.data || {});
-    return;
-  }
-  // UPDATE pattern (multi-field match)
-  if (payload.action === 'update' && payload.match) {
-    await _supaUpdateByMatch(payload.match, payload.update || {});
-    return;
-  }
-  // DELETE pattern (matchColumn/matchValue form — used by deleteTask, deleteCreative)
-  if (payload.action === 'delete' && payload.matchColumn === 'Task' && payload.matchValue) {
-    await _supaDeleteByTask(payload.matchValue);
-    return;
-  }
-  // DELETE pattern (match-object form — used by prospect operations)
-  if (payload.action === 'delete' && payload.match) {
-    await _supaDeleteByMatch(payload.match);
-    return;
-  }
-  // Action 'patch' on a non-Task matchColumn or other edge cases
-  console.warn('[supa-mirror] Unrecognized payload shape (not mirrored):', payload);
-}
-
-// =============== FETCH INTERCEPTOR — SUPABASE-ONLY ===============
-// Catches every fetch(SHEETDB, ...) and routes it to Supabase exclusively.
-// The Google Sheet is no longer written to — it's a frozen archive.
-//
-// The synthetic Response returned mimics a successful Sheet write so any
-// caller using await keeps working (most callers used mode:'no-cors' and
-// ignore the body anyway). With this interceptor, await actually waits for
-// the Supabase write to land — which eliminates the race condition where
-// the UI re-renders before the write commits.
-const _originalFetch = window.fetch.bind(window);
-window.fetch = function(url, options) {
-  const isSheetWrite = (
-    typeof url === 'string' &&
-    url.indexOf('script.google.com') !== -1 &&
-    options && options.method === 'POST' && options.body
-  );
-  if (isSheetWrite) {
-    try {
-      const payload = (typeof options.body === 'string')
-        ? JSON.parse(options.body)
-        : options.body;
-      // Route to Supabase only. Original Apps Script URL is NOT called.
-      return _supaMirror(payload).then(
-        () => new Response('{"ok":true}', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }),
-        err => {
-          console.error('❌ Supabase write failed:', err.message || err, payload);
-          // Return a synthetic 500 so callers' .catch fires — they treat it
-          // as a write failure just like an Apps Script outage would.
-          return new Response(
-            JSON.stringify({ ok: false, error: err.message || String(err) }),
-            { status: 500, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      );
-    } catch (e) {
-      // Body wasn't parseable JSON — fall through to original (rare)
-    }
-  }
-  return _originalFetch(url, options);
-};
-
-console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
-// ============================================================
-// Telegram notify helper — uses auth token from team portal login (shared localStorage)
-function notifyTelegram(to, message) {
-  if (!to || !message) return;
-  try {
-    const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
-    if (!auth?.token) return; // silent — designer hasn't logged into team portal
-    fetch(BACKEND + '/api/notify', {
+    const req = https.request({
+      hostname: 'api.telegram.org',
+      path: `/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth.token },
-      body: JSON.stringify({ to, message })
-    }).catch(() => {});
-  } catch(e) {}
-}
-// Canonical client registry — single source of truth.
-// `name` is what's written to the sheet (Assignee and Client columns).
-// `folder` is the Dropbox base path. New clients auto-create on first move.
-const CLIENT_REGISTRY = [
-  { name: 'Jindal Steel',         folder: '/JINDAL' },
-  { name: 'Jindal League',        folder: '/Jindal League' },
-  { name: 'Jindal Youth League',  folder: '/Jindal Youth League' },
-  { name: 'Jindal Steel Duqm',    folder: '/Jindal Steel Duqm' },
-  { name: 'Sohar Steel',          folder: '/Sohar Steel' },
-  { name: 'RM Universal',         folder: '/RM Universal' },
-  { name: 'Kotak',                folder: '/KOTAK' },
-  { name: 'TEAM YP',              folder: '/TEAM YP' },
-  { name: 'Pitches',              folder: '/PITCHES' },
-  { name: 'Marico',               folder: '/Marico' },
-  { name: 'Zouk',                 folder: '/Zouk' },
-  { name: 'TATA Mutual Funds',    folder: '/TATA Mutual Funds' },
-  { name: 'HZL',                  folder: '/HZL' },
-  { name: 'Adhoc',                folder: '/ADHOC' }
-];
-const CLIENT_BY_NAME = Object.fromEntries(CLIENT_REGISTRY.map(c => [c.name, c]));
-
-// Legacy codename → canonical name map. Old sheet rows used codenames in the
-// Assignee column ('steelcity', 'kotak', etc.); this lets us read those rows
-// without breaking. New writes always use canonical names.
-const LEGACY_CLIENT_MAP = {
-  steelcity:     'Jindal Steel',
-  youthleague:   'Jindal League',
-  'jindal-youth':'Jindal Youth League',
-  'sohar-steel': 'Sohar Steel',
-  duqm:          'Jindal Steel Duqm',
-  kotak:         'Kotak',
-  adhoc:         'Adhoc',
-  pitches:       'Pitches'
-};
-function normalizeClient(raw) {
-  if (!raw) return '';
-  const v = String(raw).trim();
-  return LEGACY_CLIENT_MAP[v] || v;
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    }, (r) => {
+      let data = '';
+      r.on('data', d => data += d);
+      r.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { resolve({ ok: false, parseError: true }); }
+      });
+    });
+    req.on('error', (e) => resolve({ ok: false, error: e.message }));
+    req.write(body);
+    req.end();
+  });
 }
 
-// Build the Dropbox path for a client's subfolder. Throws if the client isn't
-// registered — better to fail loudly than silently route to /JINDAL like before.
-function clientFolder(clientName, subfolder) {
-  const entry = CLIENT_BY_NAME[normalizeClient(clientName)];
-  if (!entry) throw new Error(`Unknown client: "${clientName}". Add it to CLIENT_REGISTRY first.`);
-  return entry.folder + (subfolder ? '/' + subfolder : '');
-}
-
-function updateFileTypeHint() {
-  const ft = document.getElementById('q-filetype').value;
-  const hint = document.getElementById('filetype-hint');
-  if (ft === 'open') {
-    hint.innerHTML = '📂 Open file mode — file will go directly to the client\'s <strong>Open Files</strong> folder. No review step. Use this for PSDs, AI files, working masters.';
-    hint.style.color = '#15803d';
-  } else {
-    hint.innerHTML = 'Final files flow through Viplav → client. Open files skip review and land directly in the client\'s source folder.';
-    hint.style.color = 'var(--muted)';
+// Resolve a "to" target (person name or "team") to chat IDs
+function resolveChats(to) {
+  if (!to) return [];
+  if (to === 'team' || to === 'all') {
+    // Broadcast to everyone registered
+    return Object.entries(TELEGRAM_CHATS).map(([name, id]) => ({ name, id }));
   }
+  const id = TELEGRAM_CHATS[to];
+  return id ? [{ name: to, id }] : [];
 }
 
-// Warmup Render on page load so backend is hot by the time user clicks upload
-fetch(BACKEND+'/health').catch(()=>{});
-// Keep it warm while the studio tab stays open (Render sleeps after 15 min idle)
-setInterval(()=>fetch(BACKEND+'/health').catch(()=>{}),10*60*1000);
-
-const dz=document.getElementById('drop-zone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='#FEBC06';dz.style.background='#fffbf0';});
-dz.addEventListener('dragleave',()=>{dz.style.borderColor='#e0ddd8';dz.style.background='';});
-dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='#e0ddd8';dz.style.background='';const fs=e.dataTransfer.files;if(fs && fs.length){document.getElementById('q-file').files=fs;handleFile(document.getElementById('q-file'));}});
-
-function handleFile(input,file){
-  const files = input ? input.files : (file ? [file] : []);
-  if(!files.length)return;
-  const totalSize = Array.from(files).reduce((s,f)=>s+f.size,0);
-  const sizeMB = (totalSize/1024/1024).toFixed(1);
-  const nameEl = document.getElementById('file-name');
-  if (files.length === 1) {
-    nameEl.innerHTML = '📄 '+files[0].name+' ('+sizeMB+'MB)';
-  } else {
-    const list = Array.from(files).map(f => `• ${f.name}`).join('<br>');
-    nameEl.innerHTML = `<strong>📄 ${files.length} files (${sizeMB}MB total)</strong><div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;text-align:left">${list}</div>`;
-  }
-  nameEl.style.display='block';
-  document.getElementById('drop-icon').textContent=files.length===1?'✅':'📚';
-  document.getElementById('drop-text').style.display='none';
-  dz.style.borderColor='#FEBC06';
+// Sign a tamper-resistant token: <base64-payload>.<hmac-signature>
+function signToken(payload) {
+  const body = JSON.stringify({ ...payload, expires: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000 });
+  const b64 = Buffer.from(body).toString('base64url');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('base64url');
+  return `${b64}.${sig}`;
 }
 
-function showErr(msg){const e=document.getElementById('err-msg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4000);}
-function setProgress(pct){document.getElementById('progress-bar').style.display='block';document.getElementById('progress-fill').style.width=pct+'%';}
-
-// Designer's open tasks + rejected creatives (for rework)
-let myTasks = [];
-
-async function onDesignerChange() {
-  const designer = document.getElementById('q-designer').value;
-  const taskSelect = document.getElementById('q-task');
-  document.getElementById('creative-name-field').style.display = 'none';
-  const clientInfo = document.getElementById('client-info');
-  if (clientInfo) clientInfo.style.display = 'none';
-  const clientSel = document.getElementById('q-client');
-  if (clientSel) clientSel.value = '';
-  myTasks = [];
-
-  if (!designer) {
-    taskSelect.innerHTML = '<option value="">Select your name first...</option>';
-    taskSelect.disabled = true;
-    return;
-  }
-
-  taskSelect.innerHTML = '<option value="">Loading your tasks...</option>';
-  taskSelect.disabled = true;
-
+// Verify a token — returns payload if valid + unexpired, else null
+function verifyToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const [b64, sig] = token.split('.');
+  if (!b64 || !sig) return null;
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('base64url');
+  if (sig !== expected) return null;
   try {
-    const data = await fetchSheetRows();
-
-    // Tasks marked Done/Approved/Rejected stay visible for 7 days in case client requests changes,
-    // then drop off so the dropdown stays clean.
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const isWithinWindow = (dateStr) => {
-      if (!dateStr) return false;
-      const d = new Date(dateStr);
-      return !isNaN(d.getTime()) && d.getTime() >= cutoff;
-    };
-
-    // 7-day visibility window — anchored to when a task actually became terminal,
-    // not its due date. Falls back to due date if closed_at isn't populated (legacy rows).
-    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-    const isWithinClosedWindow = (closedAt, fallbackDate) => {
-      const stamp = closedAt || fallbackDate || '';
-      if (!stamp) return false;
-      const d = new Date(stamp);
-      if (isNaN(d.getTime())) return false;
-      return (Date.now() - d.getTime()) <= SEVEN_DAYS_MS;
-    };
-
-    // Terminal statuses — the task is done in some form. Visible 7 days from closed_at.
-    const TERMINAL_STATUSES = ['Done', 'Closed', 'Approved', 'Rejected'];
-
-    // First pass: build a set of task names that WILL be shown so we can dedupe
-    // creatives that already have a task in the picker. Otherwise designer sees
-    // both "Marico organization vision" (task) AND "Marico organization vision
-    // [rework]" (creative at Sent Back) — same logical work shown twice.
-    const shownTaskNames = new Set();
-    data.forEach(r => {
-      if (!((r.Type === 'task' || !r.Type || r.Type === '') &&
-            (r.Assignee === designer || (r.Collaborators || []).includes(designer)))) return;
-      const willShow = !TERMINAL_STATUSES.includes(r.Status) || isWithinClosedWindow(r.ClosedAt, r.Date);
-      if (!willShow) return;
-      const name = (r.Title || r.Task || '').toLowerCase().trim();
-      if (name) shownTaskNames.add(name);
-    });
-
-    myTasks = data.filter(r => {
-      // Hide legacy multi-file fragments. Before today's multi-file → single-folder
-      // fix, each uploaded file became its own creative row named "BaseName — filename".
-      // New-flow creatives always have file_urls populated, so any creative WITHOUT
-      // file_urls AND with the "— <suffix>" pattern in its name is a legacy fragment.
-      if (r.Type === 'creative') {
-        const baseName = (r.Task || '').replace(/\| .*$/, '').trim();
-        const hasFragmentSuffix = / — \S/.test(baseName);
-        const hasFileUrls = Array.isArray(r._sb_file_urls) && r._sb_file_urls.length > 0;
-        if (hasFragmentSuffix && !hasFileUrls) return false;
-      }
-
-      // Tasks owned or collaborated by this designer
-      if ((r.Type === 'task' || !r.Type || r.Type === '') && (r.Assignee === designer || (r.Collaborators || []).includes(designer))) {
-        if (!TERMINAL_STATUSES.includes(r.Status)) return true;  // active — always show
-        return isWithinClosedWindow(r.ClosedAt, r.Date);          // terminal — show for 7 days
-      }
-      // Creatives by this designer (rework flow)
-      if (r.Type === 'creative' && (r.Task || '').includes(`| ${designer}`)) {
-        // Dedupe: if a task with the same name is already shown, hide the creative.
-        // Studio's upload code below detects an existing creative on task pick and
-        // routes the upload through the rework path. So designer doesn't lose the
-        // ability to rework — they just see one entry, not two.
-        const creativeName = (r.Title || (r.Task || '').replace(/\| .*$/, '').trim()).toLowerCase().trim();
-        if (shownTaskNames.has(creativeName)) return false;
-        if (r.Status === 'Sent Back') return true;                                 // rework — always show
-        if (TERMINAL_STATUSES.includes(r.Status)) return isWithinClosedWindow(r.ClosedAt, r.Date);
-      }
-      return false;
-    });
-
-    // Group myTasks by month for visual organization via <optgroup>.
-    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const groups = {};
-    myTasks.forEach((t, i) => {
-      const d = t.Date || '';
-      const monthKey = /^\d{4}-\d{2}/.test(d) ? d.substring(0, 7) : 'no-date';
-      if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push({ t, i });
-    });
-
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-      if (a === 'no-date') return 1;
-      if (b === 'no-date') return -1;
-      return b.localeCompare(a); // newest month first
-    });
-
-    let opts = ['<option value="">Select task...</option>'];
-    sortedKeys.forEach(key => {
-      let label = 'No date';
-      if (key !== 'no-date') {
-        const [y, m] = key.split('-');
-        label = `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-      }
-      opts.push(`<optgroup label="${label}">`);
-      // Sort within month: earliest due date first
-      groups[key].sort((a, b) => (a.t.Date || '').localeCompare(b.t.Date || ''));
-      groups[key].forEach(({ t, i }) => {
-        const rawName = t.Title || (t.Type === 'creative' ? (t.Task || '').replace(/\| .*$/, '').trim() : (t.Task || ''));
-        const displayName = rawName.length > 60 ? rawName.substring(0, 60) + '…' : rawName;
-        const reworkTag = t.Status === 'Sent Back' ? ' [rework]' : '';
-        const dueShort = t.Date ? ` (${t.Date.substring(8,10)}/${t.Date.substring(5,7)})` : '';
-        opts.push(`<option value="${i}">${displayName}${dueShort}${reworkTag}</option>`);
-      });
-      opts.push('</optgroup>');
-    });
-    opts.push('<option value="" disabled>— No matching task? Add one in your Team portal —</option>');
-
-    taskSelect.innerHTML = opts.join('');
-    taskSelect.disabled = false;
-  } catch(e) {
-    taskSelect.innerHTML = '<option value="">Could not load tasks. Refresh and try again.</option>';
-    taskSelect.disabled = false;
-  }
+    const payload = JSON.parse(Buffer.from(b64, 'base64url').toString());
+    if (payload.expires && payload.expires < Date.now()) return null;
+    return payload;
+  } catch(e) { return null; }
 }
 
-function onTaskChange() {
-  const val = document.getElementById('q-task').value;
-  const clientSel = document.getElementById('q-client');
-  const clientInfo = document.getElementById('client-info');
-  const clientDisplay = document.getElementById('q-client-display');
-  document.getElementById('creative-name-field').style.display = val === 'adhoc' ? 'block' : 'none';
+// Cache access token
+let cachedToken = null;
+let tokenExpiry = 0;
 
-  // Hide client info if nothing's picked yet
-  if (val === '' || val === 'adhoc') {
-    clientSel.value = '';
-    if (clientInfo) clientInfo.style.display = 'none';
-    return;
-  }
-
-  const idx = parseInt(val, 10);
-  const task = myTasks[idx];
-  if (!task) {
-    clientSel.value = '';
-    if (clientInfo) clientInfo.style.display = 'none';
-    return;
-  }
-
-  // Tasks store Client either in the new Client column, or legacy codename in
-  // Assignee for already-morphed creatives; normalize either form to canonical.
-  const taskClient = normalizeClient(task.Client || (task.Type === 'creative' ? task.Assignee : ''));
-
-  if (taskClient && CLIENT_BY_NAME[taskClient]) {
-    // Auto-set and show — no input from designer needed
-    clientSel.value = taskClient;
-    if (clientInfo) clientInfo.style.display = 'block';
-    if (clientDisplay) clientDisplay.innerHTML = `🏷 ${taskClient}`;
-  } else {
-    // Task is untagged — surface this clearly so designer asks Suriti to tag it
-    // on the Team portal instead of guessing. Without a client we don't know
-    // which Dropbox folder to route to, so we block the upload.
-    clientSel.value = '';
-    if (clientInfo) clientInfo.style.display = 'block';
-    if (clientDisplay) clientDisplay.innerHTML = `<span style="color:#b91c1c;font-size:13px">⚠️ This task has no client tagged.<br><span style="font-weight:400;font-size:12px;color:#666">Ask Suriti to tag it on Founder OS first — uploads need a client to route to the right folder.</span></span>`;
-  }
-}
-
-async function submitUpload(){
-  const designer = document.getElementById('q-designer').value;
-  const taskVal = document.getElementById('q-task').value;
-  const client = document.getElementById('q-client').value;
-  const fileType = document.getElementById('q-filetype').value || 'final';
-  const filesEl = document.getElementById('q-file');
-  const files = filesEl.files;
-  const isAdhoc = taskVal === 'adhoc';
-  const adhocName = document.getElementById('q-name').value.trim();
-
-  if (!designer) { showErr('Please select your name.'); return; }
-  if (!taskVal) { showErr('Please select a task.'); return; }
-  if (isAdhoc && !adhocName) { showErr('Please enter a creative name.'); return; }
-  if (!client) { showErr('This task has no client tagged. Ask Suriti to tag it on Founder OS first — uploads need a client to route correctly.'); return; }
-  if (!files || !files.length) { showErr('Please select at least one file.'); return; }
-
-  // Fire a background /health ping to wake Render in case it's been asleep.
-  // Non-blocking — we DON'T await this. If the server's already warm, this is
-  // a free no-op. If it's cold, this kicks it awake while the first upload
-  // request also makes its own attempt; the natural fetch timeout (~minutes)
-  // is generous enough to cover Render's cold-start. The retry-on-network-
-  // failure logic inside the upload loop is the real safety net.
-  fetch(BACKEND + '/health', { cache: 'no-store' }).catch(() => {});
-
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true;
-
-  const isOpenFile = fileType === 'open';
-
-  // Determine base creative name + whether we'll patch an existing task row
-  let baseCreativeName, originalTaskText = null, isRework = false;
-  if (isAdhoc) {
-    baseCreativeName = adhocName;
-  } else {
-    const item = myTasks[parseInt(taskVal)];
-    if (!item) { showErr('Task not found. Try refreshing.'); return; }
-    isRework = item.Type === 'creative';
-    if (isRework) {
-      baseCreativeName = (item.Task || '').split('|')[0].trim();
-    } else {
-      baseCreativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
-    }
-    originalTaskText = item.Task;
-
-    // Even when the user picked a TASK (not a creative), check if a matching
-    // creative already exists for this task+designer. After dedupe, the
-    // creative isn't shown separately in the picker — but it's still in the DB
-    // (likely at Sent Back from a previous review cycle). Treating this upload
-    // as rework appends new files to the existing creative row instead of
-    // creating a duplicate.
-    if (!isRework) {
-      try {
-        const { data: existing } = await sb
-          .from('creatives')
-          .select('id, status')
-          .eq('name', baseCreativeName)
-          .eq('designer', designer)
-          .limit(1);
-        if (existing && existing.length) {
-          isRework = true;
-        }
-      } catch(e) {
-        console.warn('Existing-creative lookup failed:', e);
+async function getDropboxToken() {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  
+  const payload = `grant_type=refresh_token&refresh_token=${DROPBOX_REFRESH_TOKEN}&client_id=${DROPBOX_APP_KEY}&client_secret=${DROPBOX_APP_SECRET}`;
+  
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.dropbox.com',
+      path: '/oauth2/token',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(payload)
       }
-    }
-  }
-
-  const total = files.length;
-  let successCount = 0;
-  const errors = [];
-
-  setProgress(5);
-
-  // ============== SESSION FOLDER PATH ==============
-  // All files in this upload session go into ONE folder.
-  // Folder name = creative name + designer + client (sanitized for Dropbox).
-  // After all files upload, we get the FOLDER share URL — that becomes the
-  // single preview_link the reviewer + client see. Per-file URLs are also kept
-  // (in file_urls) so the review card can show inline thumbnails.
-  const safeBase = baseCreativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-  const sessionFolderRaw = isOpenFile
-    ? `${clientFolder(client, 'Open Files')}/${safeBase} — ${designer}`
-    : `/REVIEW/${safeBase} — ${designer} — ${client}`;
-  const sessionFolder = sessionFolderRaw
-    .replace(/[\u2010-\u2015]/g, '-')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u00A0]/g, ' ')
-    .replace(/[\u007f-\uffff]/g, '');
-
-  const fileUrls = [];   // per-file share URLs (for thumbnails)
-  const filePaths = [];  // per-file Dropbox paths (for any future move/cleanup)
-
-  for (let i = 0; i < total; i++) {
-    const file = files[i];
-    btn.textContent = `Uploading ${i+1} of ${total}...`;
-    setProgress(Math.round((i / total) * 85) + 5);
-
-    const ext = file.name.split('.').pop();
-    const safeFileName = file.name.replace(/[\u2010-\u2015]/g, '-').replace(/[\u007f-\uffff]/g, '');
-
-    try {
-      const formData = new FormData();
-      // Each file lives inside the session folder. We use the actual filename
-      // (sanitized) — no need to re-include designer/client in the filename since
-      // the parent folder already encodes that context.
-      const dropboxPath = `${sessionFolder}/${safeFileName}`;
-      formData.append('file', file, file.name);
-      formData.append('dropboxPath', dropboxPath);
-
-      // Upload with up to 3 retries on transient network failure. Render's free
-      // tier can take 15-30 seconds to cold-start after idle; the browser may
-      // throw "Load failed" before the server is ready. Backoff: 3s, 8s, 20s
-      // between attempts (worst case ~30s of waiting on one file). Real server
-      // errors come back as JSON success:false and don't trigger retries —
-      // only network-level fetch throws do.
-      let uploadRes, lastErr;
-      const backoffs = [0, 3000, 8000, 20000];
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) {
-          btn.textContent = `Retrying ${i+1} of ${total}… (${attempt}/3)`;
-          await new Promise(r => setTimeout(r, backoffs[attempt]));
-        }
+    };
+    const req = https.request(options, res => {
+      let d = '';
+      res.on('data', x => d += x);
+      res.on('end', () => {
         try {
-          uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
-          break;
-        } catch(e) {
-          lastErr = e;
-          console.warn(`Upload attempt ${attempt + 1} failed for ${file.name}:`, e.message);
-        }
-      }
-      if (!uploadRes) throw lastErr || new Error('network');
-      const uploadData = await uploadRes.json();
-      if(!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
-      const fileUrl = uploadData.url || uploadData.path;
-      const dropPath = uploadData.path || '';
-
-      // Collect URLs — the row write + telegram happens ONCE at end of session
-      fileUrls.push(fileUrl);
-      filePaths.push(dropPath);
-      successCount++;
-    } catch(e) {
-      errors.push(`${file.name}: ${e.message}`);
-    }
-  }
-
-  // ============== POST-LOOP: ONE row write, ONE telegram batch ==============
-  setProgress(92);
-  if (successCount > 0) {
-    btn.textContent = 'Finalizing...';
-
-    // Get the FOLDER share URL — this is what the reviewer + client click
-    let folderUrl = '';
-    try {
-      const fres = await fetch(`${BACKEND}/api/dropbox-share-folder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath: sessionFolder })
-      });
-      const fdata = await fres.json();
-      if (fdata.success && fdata.url) folderUrl = fdata.url;
-    } catch(e) {
-      console.warn('Folder share URL failed, falling back to first file URL:', e.message);
-    }
-    // Fallback: if folder share endpoint isn't available (e.g. backend not yet
-    // deployed with new endpoint), use first file URL as preview_link.
-    const previewLink = folderUrl || fileUrls[0] || '';
-
-    if (isOpenFile) {
-      // OPEN FILE flow — patch the task's Open File Link to point at the folder
-      if (originalTaskText) {
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink } })
-        });
-      } else {
-        const row = { Date: new Date().toISOString().split('T')[0], Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': previewLink, Type:'open' };
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-        });
-      }
-    } else {
-      // FINAL FILE flow — one creative row per session with folder URL + thumbnail URLs
-      if (isRework) {
-        // Rework: patch existing creative, append new file URLs to whatever's there.
-        // Direct Supabase update via name/designer match — handles the append cleanly.
-        try {
-          const { data: existing } = await sb.from('creatives')
-            .select('id, file_urls, task_id')
-            .eq('name', baseCreativeName).eq('designer', designer).limit(1);
-          if (existing && existing.length) {
-            const prev = existing[0].file_urls || [];
-            await sb.from('creatives').update({
-              status: 'Pending Review',
-              preview_link: previewLink,
-              file_urls: [...prev, ...fileUrls],
-              review_note: null,
-              rejected_files: []
-            }).eq('id', existing[0].id);
-            // Cascade: move the linked task back to Awaiting Review so Suriti
-            // and team see the task in review state, mirroring the creative.
-            if (existing[0].task_id) {
-              await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', existing[0].task_id);
-            }
+          const json = JSON.parse(d);
+          if (json.access_token) {
+            cachedToken = json.access_token;
+            tokenExpiry = Date.now() + (json.expires_in - 300) * 1000; // refresh 5 min early
+            console.log('Dropbox token refreshed successfully');
+            resolve(cachedToken);
           } else {
-            // Edge case — creative not found, fall back to insert
-            await sb.from('creatives').insert({
-              name: baseCreativeName, designer, client,
-              status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
-            });
+            reject(new Error('No access token: ' + d));
           }
-        } catch(e) {
-          console.error('Rework update failed:', e);
-        }
-      } else if (originalTaskText) {
-        // First-time submission: convert the original task. Interceptor handles
-        // the task→creative migration; we add file_urls via direct Supabase write
-        // since the legacy patch shape doesn't include it.
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({
-            action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText,
-            data: { Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': previewLink, Type: 'creative' }
-          })
-        });
-        // After the interceptor creates the creatives row, patch file_urls onto it.
-        // Small delay to give the insert time to land.
-        setTimeout(async () => {
-          try {
-            await sb.from('creatives').update({ file_urls: fileUrls })
-              .eq('name', baseCreativeName).eq('designer', designer);
-          } catch(e) { console.warn('file_urls patch failed:', e); }
-        }, 600);
-      } else {
-        // Adhoc / standalone creative (no originating task)
-        try {
-          await sb.from('creatives').insert({
-            name: baseCreativeName, designer, client,
-            status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
-          });
-        } catch(e) { console.error('Creative insert failed:', e); }
-      }
-
-      // ONE Telegram per reviewer — summarizing the whole session
-      const reviewMsg = isRework
-        ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`
-        : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`;
-      ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
-        notifyTelegram(reviewer, reviewMsg);
+        } catch(e) { reject(e); }
       });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function setCORS(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+// Ensure a Dropbox folder exists. Silently ignores "already exists" errors
+// and any other failures — if it can't create, the subsequent move will surface
+// the real error.
+// Create one folder. Resolves whether it actually got created OR already existed
+// OR errored — we don't distinguish, by design (idempotent ensure semantics).
+function createOneFolder(token, folderPath) {
+  return new Promise(resolve => {
+    const payload = JSON.stringify({ path: folderPath, autorename: false });
+    const options = {
+      hostname: 'api.dropboxapi.com',
+      path: '/2/files/create_folder_v2',
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const r = https.request(options, res => {
+      let d = ''; res.on('data', x => d += x);
+      res.on('end', () => resolve()); // success or "already exists" — both fine
+    });
+    r.on('error', () => resolve());
+    r.write(payload); r.end();
+  });
+}
+
+// Walks a path and ensures every level exists. Dropbox's create_folder_v2 requires
+// the parent to already exist, so calling it once for '/Marico/Creatives' fails if
+// /Marico hasn't been made yet. Walking the path solves that — for a brand-new
+// client we create /Marico, then /Marico/Creatives, each step idempotent.
+async function ensureFolder(token, folderPath) {
+  if (!folderPath || folderPath === '/') return;
+  const parts = folderPath.split('/').filter(Boolean);
+  let acc = '';
+  for (const p of parts) {
+    acc += '/' + p;
+    await createOneFolder(token, acc);
+  }
+}
+
+// Get-or-create a Dropbox shared link for a file OR folder path. Resolves to the
+// share URL (with ?dl=0 swapped to ?raw=1 for direct content access on files).
+// If a share already exists for this path, fetches the existing one instead of
+// erroring. Used by both the per-file upload flow and the new folder-share endpoint.
+function getOrCreateSharedLink(token, dropboxPath) {
+  return new Promise((resolve, reject) => {
+    const linkPayload = JSON.stringify({ path: dropboxPath, settings: { requested_visibility: 'public' } });
+    const options = {
+      hostname: 'api.dropboxapi.com',
+      path: '/2/sharing/create_shared_link_with_settings',
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(linkPayload)
+      }
+    };
+    const r = https.request(options, resp => {
+      let d = ''; resp.on('data', x => d += x);
+      resp.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (j.error && j.error['.tag'] === 'shared_link_already_exists') {
+            // Fetch existing link
+            const listPayload = JSON.stringify({ path: dropboxPath });
+            const listReq = https.request({
+              hostname: 'api.dropboxapi.com', path: '/2/sharing/list_shared_links',
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(listPayload) }
+            }, listRes => {
+              let ld = ''; listRes.on('data', x => ld += x);
+              listRes.on('end', () => {
+                try {
+                  const lj = JSON.parse(ld);
+                  const existingUrl = lj.links && lj.links[0] ? lj.links[0].url : '';
+                  resolve((existingUrl || '').replace('?dl=0', '?raw=1'));
+                } catch(e) { resolve(''); }
+              });
+            });
+            listReq.on('error', () => resolve(''));
+            listReq.write(listPayload); listReq.end();
+          } else if (j.error) {
+            reject(new Error(j.error_summary || JSON.stringify(j.error)));
+          } else {
+            resolve((j.url || '').replace('?dl=0', '?raw=1'));
+          }
+        } catch(e) { reject(e); }
+      });
+    });
+    r.on('error', reject); r.write(linkPayload); r.end();
+  });
+}
+
+http.createServer(async (req, res) => {
+  setCORS(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  // Health check
+  if (req.url === '/' || req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'yellowbackend' }));
+    return;
+  }
+
+  // ============== AUTH: LOGIN ==============
+  // POST /api/login  body: { role: 'team'|'founder'|'client', username?, password }
+  // Returns: { success: true, token, user, role, scope? } or 401
+  if (req.method === 'POST' && req.url === '/api/login') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { role, username, password } = JSON.parse(body || '{}');
+        if (!role || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, error: 'Missing role or password' }));
+        }
+
+        // FOUNDER — master password only
+        if (role === 'founder') {
+          if (MASTER_PASSWORD && password === MASTER_PASSWORD) {
+            const token = signToken({ user: 'Suriti', role: 'founder' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, token, user: 'Suriti', role: 'founder' }));
+          }
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, error: 'Invalid credentials' }));
+        }
+
+        // TEAM — find which user matches this password
+        if (role === 'team') {
+          // MASTER PASSWORD OVERRIDE — Suriti can log in as anyone using Yellow@1234.
+          // Useful when she needs to act on someone's behalf, or when an individual
+          // password gets lost / forgotten and the person is locked out.
+          if (MASTER_PASSWORD && password === MASTER_PASSWORD && username) {
+            const token = signToken({ user: username, role: 'team' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, token, user: username, role: 'team' }));
+          }
+          // If username supplied, check that pair specifically
+          if (username && TEAM_PASSWORDS[username] && TEAM_PASSWORDS[username] === password) {
+            const token = signToken({ user: username, role: 'team' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, token, user: username, role: 'team' }));
+          }
+          // Otherwise: reverse-lookup which user has this password (legacy single-field flow)
+          const matchedUser = Object.keys(TEAM_PASSWORDS).find(u => TEAM_PASSWORDS[u] === password);
+          if (matchedUser) {
+            const token = signToken({ user: matchedUser, role: 'team' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, token, user: matchedUser, role: 'team' }));
+          }
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, error: 'Invalid credentials' }));
+        }
+
+        // CLIENT — master password unlocks all portals; otherwise portal-specific
+        if (role === 'client') {
+          if (MASTER_PASSWORD && password === MASTER_PASSWORD) {
+            const token = signToken({ user: username || 'Internal', role: 'client', scope: 'all' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, token, user: username || 'Internal', role: 'client', scope: 'all' }));
+          }
+          for (const [portal, pwd] of Object.entries(CLIENT_PASSWORDS)) {
+            if (password === pwd) {
+              const token = signToken({ user: username || 'Client', role: 'client', scope: portal });
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: true, token, user: username || 'Client', role: 'client', scope: portal }));
+            }
+          }
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, error: 'Invalid credentials' }));
+        }
+
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid role' }));
+      } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Bad request' }));
+      }
+    });
+    return;
+  }
+
+  // Optional: token verification endpoint (for future Step 2 — protect data endpoints)
+  if (req.method === 'POST' && req.url === '/api/verify') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { token } = JSON.parse(body || '{}');
+        const payload = verifyToken(token);
+        res.writeHead(payload ? 200 : 401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(payload ? { valid: true, ...payload } : { valid: false }));
+      } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: false }));
+      }
+    });
+    return;
+  }
+
+  // ============== TELEGRAM NOTIFY ==============
+  // POST /api/notify  body: { to: "Viplav"|"Suriti"|"team", message: "<html-allowed text>" }
+  // Requires Authorization: Bearer <token> header (from /api/login)
+  if (req.method === 'POST' && req.url === '/api/notify') {
+    // Validate auth — only logged-in users can trigger notifications
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const payload = verifyToken(token);
+    if (!payload) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: 'Not authenticated' }));
     }
+
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { to, message } = JSON.parse(body || '{}');
+        if (!to || !message) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, error: 'Missing to or message' }));
+        }
+        const targets = resolveChats(to);
+        if (!targets.length) {
+          // Silently succeed — recipient just isn't registered for Telegram yet
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true, sent: 0, note: 'no registered chat for ' + to }));
+        }
+        // Send in parallel; don't fail the response if individual sends fail
+        const results = await Promise.all(
+          targets
+            // Don't notify the person who triggered the event (no self-pings)
+            .filter(t => t.name !== payload.user)
+            .map(t => sendTelegram(t.id, message).then(r => ({ name: t.name, ok: r.ok })))
+        );
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, sent: results.filter(r => r.ok).length, results }));
+      } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
   }
 
-  setProgress(100);
-  if (successCount === total) {
-    const successMsg = isOpenFile
-      ? (total > 1 ? `✅ ${total} open files saved to client folder!` : '✅ Open file saved to client folder!')
-      : (total > 1 ? `✅ Uploaded ${total} files! With Viplav for review` : '✅ Uploaded! With Viplav for review');
-    btn.textContent = successMsg;
-    btn.style.background = '#22c55e';
-    btn.style.color = '#fff';
-    btn.disabled = false;
-    setTimeout(() => { resetForm(); }, 1600);
-  } else if (successCount > 0) {
-    btn.textContent = `⚠️ ${successCount}/${total} uploaded — ${errors.length} failed`;
-    btn.style.background = '#f59e0b';
-    btn.style.color = '#000';
-    btn.disabled = false;
-    showErr(`Some uploads failed:\n${errors.join('\n')}`);
-  } else {
-    btn.textContent = '❌ All uploads failed — Try Again';
-    btn.style.background = '#c0392b';
-    btn.style.color = '#fff';
-    btn.disabled = false;
-    document.getElementById('progress-bar').style.display = 'none';
-    showErr(errors[0] || 'Upload failed');
-    setTimeout(() => { btn.textContent='⚡ Upload to Portal'; btn.style.background='#FEBC06'; btn.style.color='#000'; }, 4000);
+  // Claude API proxy
+  if (req.method === 'POST' && req.url === '/api/claude') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      const options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01'
+        }
+      };
+      const proxy = https.request(options, r => {
+        let data = '';
+        r.on('data', d => data += d);
+        r.on('end', () => {
+          res.writeHead(r.statusCode, { 'Content-Type': 'application/json' });
+          res.end(data);
+        });
+      });
+      proxy.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+      proxy.write(body);
+      proxy.end();
+    });
+    return;
   }
-}
 
-function resetForm(){
-  document.getElementById('q-designer').value = '';
-  const taskSel = document.getElementById('q-task');
-  taskSel.innerHTML = '<option value="">Select your name first...</option>';
-  taskSel.disabled = true;
-  document.getElementById('q-client').value = '';
-  document.getElementById('q-name').value = '';
-  document.getElementById('creative-name-field').style.display = 'none';
-  document.getElementById('q-file').value = '';
-  document.getElementById('file-name').style.display = 'none';
-  document.getElementById('drop-icon').textContent = '📎';
-  document.getElementById('drop-text').style.display = 'block';
-  dz.style.borderColor = '#e0ddd8'; dz.style.background = '';
-  const sb = document.getElementById('submit-btn');
-  sb.textContent='⚡ Upload to Portal';
-  sb.style.background='#FEBC06';
-  sb.style.color='#000';
-  sb.disabled=false;
-  // Reset filetype dropdown to default
-  const ft = document.getElementById('q-filetype');
-  if (ft) { ft.value = 'final'; updateFileTypeHint(); }
-  document.getElementById('progress-bar').style.display='none';
-  document.getElementById('progress-fill').style.width='0%';
-  document.getElementById('form-view').style.display='block';
-  document.getElementById('success-view').style.display='none';
-}
-</script>
+  // Dropbox Upload
+  if (req.method === 'POST' && req.url === '/api/dropbox-upload') {
+    const chunks = [];
+    req.on('data', d => chunks.push(d));
+    req.on('end', async () => {
+      try {
+        const token = await getDropboxToken();
+        const buffer = Buffer.concat(chunks);
+        chunks.length = 0;  // free the chunk array — buffer holds everything now
+        const contentType = req.headers['content-type'] || '';
+        const boundaryMatch = contentType.match(/boundary=(.+)$/);
+        if (!boundaryMatch) throw new Error('No boundary in multipart form');
+        const boundary = boundaryMatch[1];
 
-<!-- Persistent yellow dot - always visible, always links home -->
-<a href="https://madebyyellow.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Made By Yellow"></a>
+        // Buffer-only multipart parsing. The old version did buffer.toString('binary')
+        // and string.split(), which holds the entire upload in memory 3–4× over.
+        // For 50MB+ PSD uploads on Render's 512MB tier, that's enough to trigger OOM.
+        // Now we slice the original buffer directly — Buffer.slice returns a VIEW into
+        // the same memory, so peak usage stays at roughly 1× the upload size.
+        const boundaryBytes = Buffer.from('--' + boundary);
+        const headerSep = Buffer.from('\r\n\r\n');
+        let fileBuffer = null;
+        let fileName = 'upload.jpg';
+        let dropboxPath = null;  // No silent fallback — must be set by the form
 
-</body>
-</html>
+        // Find all boundary positions, then iterate the segments between them.
+        const positions = [];
+        let p = 0;
+        while ((p = buffer.indexOf(boundaryBytes, p)) !== -1) {
+          positions.push(p);
+          p += boundaryBytes.length;
+        }
+        for (let i = 0; i < positions.length - 1; i++) {
+          const segStart = positions[i] + boundaryBytes.length;
+          const segEnd   = positions[i + 1];
+          const headerEnd = buffer.indexOf(headerSep, segStart);
+          if (headerEnd === -1 || headerEnd >= segEnd) continue;
+          const headers = buffer.slice(segStart, headerEnd).toString('utf8');
+          const bodyStart = headerEnd + 4;
+          const bodyEnd   = segEnd - 2;  // strip the \r\n before the next boundary
+          if (headers.includes('name="file"')) {
+            const m = headers.match(/filename="([^"]+)"/);
+            if (m) fileName = m[1];
+            fileBuffer = buffer.slice(bodyStart, bodyEnd);  // view, no copy
+          } else if (headers.includes('name="dropboxPath"')) {
+            dropboxPath = buffer.slice(bodyStart, bodyEnd).toString('utf8').trim();
+          }
+        }
+
+        if (!fileBuffer) throw new Error('No file found in upload');
+        // Fail loud if the form didn't include a dropboxPath. The old code defaulted to
+        // '/JINDAL/Pending/upload.jpg', which silently routed every broken Kotak / Marico /
+        // anything-else upload into the Jindal Pending folder. That bug is now gone.
+        if (!dropboxPath) throw new Error('Missing dropboxPath in upload form — refusing to write to a default folder');
+
+        // Ensure every folder in the target path exists before uploading. Required for
+        // brand-new clients like /Marico/Open Files/file.psd where neither /Marico nor
+        // /Marico/Open Files exists yet — Dropbox upload otherwise errors with path/not_found.
+        const parentDir = dropboxPath.substring(0, dropboxPath.lastIndexOf('/'));
+        if (parentDir) await ensureFolder(token, parentDir);
+
+        console.log(`Uploading to Dropbox: ${dropboxPath} (${fileBuffer.length} bytes)`);
+
+        // Upload file to Dropbox
+        const uploadRes = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'content.dropboxapi.com',
+            path: '/2/files/upload',
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Content-Type': 'application/octet-stream',
+              'Dropbox-API-Arg': JSON.stringify({ path: dropboxPath, mode: 'overwrite', autorename: true })
+            }
+          };
+          const r = https.request(options, res => {
+            const c = []; res.on('data', d => c.push(d));
+            res.on('end', () => {
+              try {
+                const j = JSON.parse(Buffer.concat(c).toString());
+                j.error ? reject(new Error(j.error_summary || JSON.stringify(j.error))) : resolve(j);
+              } catch(e) { reject(e); }
+            });
+          });
+          r.on('error', reject); r.write(fileBuffer); r.end();
+        });
+
+        console.log('Upload success:', uploadRes.path_display);
+
+        // Create shared link
+        const linkPayload = JSON.stringify({ path: uploadRes.path_display, settings: { requested_visibility: 'public' } });
+        const linkRes = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'api.dropboxapi.com',
+            path: '/2/sharing/create_shared_link_with_settings',
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(linkPayload)
+            }
+          };
+          const r = https.request(options, res => {
+            let d = ''; res.on('data', x => d += x);
+            res.on('end', () => {
+              try {
+                const j = JSON.parse(d);
+                if (j.error && j.error['.tag'] === 'shared_link_already_exists') {
+                  // Link exists - get it via list_shared_links
+                  const listPayload = JSON.stringify({ path: uploadRes.path_display });
+                  const listReq = https.request({
+                    hostname: 'api.dropboxapi.com', path: '/2/sharing/list_shared_links',
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(listPayload) }
+                  }, listRes => {
+                    let ld = ''; listRes.on('data', x => ld += x);
+                    listRes.on('end', () => {
+                      try {
+                        const lj = JSON.parse(ld);
+                        const existingUrl = lj.links && lj.links[0] ? lj.links[0].url : uploadRes.path_display;
+                        resolve({ url: existingUrl });
+                      } catch(e) { resolve({ url: uploadRes.path_display }); }
+                    });
+                  });
+                  listReq.on('error', () => resolve({ url: uploadRes.path_display }));
+                  listReq.write(listPayload); listReq.end();
+                } else if (j.error) {
+                  reject(new Error(j.error_summary || JSON.stringify(j.error)));
+                } else {
+                  resolve(j);
+                }
+              } catch(e) { reject(e); }
+            });
+          });
+          r.on('error', reject); r.write(linkPayload); r.end();
+        });
+
+        const shareUrl = (linkRes.url || '').replace('?dl=0', '?raw=1');
+        console.log('Share URL:', shareUrl);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, url: shareUrl, path: uploadRes.path_display }));
+
+      } catch (e) {
+        console.error('Upload error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Dropbox Move
+  if (req.method === 'POST' && req.url === '/api/dropbox-share-folder') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { folderPath } = JSON.parse(body || '{}');
+        if (!folderPath || typeof folderPath !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'folderPath required' }));
+          return;
+        }
+        const token = await getDropboxToken();
+        // Ensure folder exists (idempotent — no-op if it's already there)
+        await ensureFolder(token, folderPath);
+        const url = await getOrCreateSharedLink(token, folderPath);
+        if (!url) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'share link not returned' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, url, path: folderPath }));
+      } catch (e) {
+        console.error('dropbox-share-folder error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/dropbox-move') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const token = await getDropboxToken();
+        let { fromPath, toFolder, toFilename } = JSON.parse(body);
+
+        // If fromPath is a shared HTTPS URL (https://www.dropbox.com/...), resolve it to the internal path
+        if (fromPath && fromPath.startsWith('http')) {
+          const lookup = JSON.stringify({ url: fromPath });
+          const resolved = await new Promise((resolve, reject) => {
+            const opts = {
+              hostname: 'api.dropboxapi.com',
+              path: '/2/sharing/get_shared_link_metadata',
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(lookup)
+              }
+            };
+            const rr = https.request(opts, rs => {
+              let d = ''; rs.on('data', x => d += x);
+              rs.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+            });
+            rr.on('error', reject); rr.write(lookup); rr.end();
+          });
+          if (resolved && resolved.path_lower) {
+            fromPath = resolved.path_lower;
+          } else if (resolved && resolved.error) {
+            throw new Error('Could not resolve shared URL: ' + JSON.stringify(resolved.error));
+          }
+        }
+
+        const fileName = toFilename || fromPath.split('/').pop();
+        const toPath = toFolder + '/' + fileName;
+
+        // Make sure destination folder exists — handles /REJECTED, new client folders, etc.
+        await ensureFolder(token, toFolder);
+
+        const payload = JSON.stringify({ from_path: fromPath, to_path: toPath, autorename: true });
+        
+        const result = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'api.dropboxapi.com',
+            path: '/2/files/move_v2',
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + token,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(payload)
+            }
+          };
+          const r = https.request(options, res => {
+            let d = ''; res.on('data', x => d += x);
+            res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+          });
+          r.on('error', reject); r.write(payload); r.end();
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, path: result.metadata?.path_display }));
+      } catch (e) {
+        console.error('Move error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Dropbox cleanup — delete files in /REJECTED older than 30 days.
+  // Called daily by the Google Apps Script time trigger.
+  if (req.method === 'POST' && req.url === '/api/dropbox-cleanup-rejected') {
+    (async () => {
+      try {
+        const token = await getDropboxToken();
+        const folderPath = '/REJECTED';
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+        // List folder contents
+        const listPayload = JSON.stringify({ path: folderPath, recursive: false });
+        const entries = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'api.dropboxapi.com', path: '/2/files/list_folder', method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(listPayload) }
+          };
+          const r = https.request(options, res => {
+            let d = ''; res.on('data', x => d += x);
+            res.on('end', () => {
+              try {
+                const j = JSON.parse(d);
+                if (j.error) {
+                  // Folder doesn't exist yet — nothing to clean
+                  if ((j.error_summary || '').includes('not_found')) resolve([]);
+                  else reject(new Error(j.error_summary || JSON.stringify(j.error)));
+                } else resolve(j.entries || []);
+              } catch(e) { reject(e); }
+            });
+          });
+          r.on('error', reject); r.write(listPayload); r.end();
+        });
+
+        // Find files older than 30 days. Prefer the YYYY-MM-DD_ filename prefix
+        // (set when the file was rejected); fall back to server_modified.
+        const datePrefixRegex = /^(\d{4}-\d{2}-\d{2})_/;
+        const toDelete = entries.filter(e => {
+          if (e['.tag'] !== 'file') return false;
+          const m = (e.name || '').match(datePrefixRegex);
+          const fileTime = m ? new Date(m[1]).getTime()
+                             : (e.server_modified ? new Date(e.server_modified).getTime() : 0);
+          return fileTime > 0 && fileTime < cutoff;
+        });
+
+        let deleted = 0;
+        for (const entry of toDelete) {
+          try {
+            await new Promise((resolve, reject) => {
+              const delPayload = JSON.stringify({ path: entry.path_display });
+              const options = {
+                hostname: 'api.dropboxapi.com', path: '/2/files/delete_v2', method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(delPayload) }
+              };
+              const r = https.request(options, res => {
+                let d = ''; res.on('data', x => d += x);
+                res.on('end', () => {
+                  try {
+                    const j = JSON.parse(d);
+                    if (j.error) reject(new Error(j.error_summary || JSON.stringify(j.error)));
+                    else resolve(j);
+                  } catch(e) { reject(e); }
+                });
+              });
+              r.on('error', reject); r.write(delPayload); r.end();
+            });
+            deleted++;
+          } catch(e) {
+            console.log('Delete failed for', entry.path_display, ':', e.message);
+          }
+        }
+
+        console.log(`Cleanup: deleted ${deleted}/${toDelete.length} files (>30 days) from ${folderPath}, ${entries.length} total`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deleted, eligible: toDelete.length, total: entries.length }));
+      } catch (e) {
+        console.error('Cleanup error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    })();
+    return;
+  }
+
+  // Permanently delete specific files. Takes { urls: [...] } — each can be a
+  // shared HTTPS URL or an internal path. Used when a designer re-uploads
+  // reworked files so the old rejected versions are removed completely.
+  if (req.method === 'POST' && req.url === '/api/dropbox-delete') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const token = await getDropboxToken();
+        const { urls } = JSON.parse(body || '{}');
+        const list = Array.isArray(urls) ? urls : [];
+        let deleted = 0;
+        for (let target of list) {
+          if (!target) continue;
+          try {
+            // Resolve shared URL → internal path
+            if (target.startsWith('http')) {
+              const lookup = JSON.stringify({ url: target });
+              const resolved = await new Promise((resolve, reject) => {
+                const opts = {
+                  hostname: 'api.dropboxapi.com', path: '/2/sharing/get_shared_link_metadata', method: 'POST',
+                  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(lookup) }
+                };
+                const rr = https.request(opts, rs => {
+                  let d = ''; rs.on('data', x => d += x);
+                  rs.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+                });
+                rr.on('error', reject); rr.write(lookup); rr.end();
+              });
+              if (resolved && resolved.path_lower) target = resolved.path_lower;
+              else continue; // can't resolve — skip
+            }
+            const delPayload = JSON.stringify({ path: target });
+            await new Promise((resolve, reject) => {
+              const options = {
+                hostname: 'api.dropboxapi.com', path: '/2/files/delete_v2', method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(delPayload) }
+              };
+              const r = https.request(options, res2 => {
+                let d = ''; res2.on('data', x => d += x);
+                res2.on('end', () => {
+                  try {
+                    const j = JSON.parse(d);
+                    // Treat "already gone" as success
+                    if (j.error && !(j.error_summary || '').includes('not_found')) reject(new Error(j.error_summary));
+                    else resolve(j);
+                  } catch(e) { reject(e); }
+                });
+              });
+              r.on('error', reject); r.write(delPayload); r.end();
+            });
+            deleted++;
+          } catch(e) {
+            console.log('Delete failed for', target, ':', e.message);
+          }
+        }
+        console.log(`dropbox-delete: removed ${deleted}/${list.length} files`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, deleted, requested: list.length }));
+      } catch (e) {
+        console.error('dropbox-delete error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404); res.end('Not found');
+
+}).listen(PORT, () => console.log('Yellowbackend running on port ' + PORT));
