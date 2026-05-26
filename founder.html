@@ -693,7 +693,7 @@
 
     <div class="card">
       <div class="card-title">Add Task</div>
-      <div class="form-row" style="display:grid;grid-template-columns:130px 1fr 1fr 160px 160px 100px;gap:10px">
+      <div class="form-row" style="display:grid;grid-template-columns:120px 1fr 1fr 145px 145px 145px 90px;gap:10px">
         <div>
           <label>Date</label>
           <input type="date" id="task-date">
@@ -738,6 +738,14 @@
             <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
+          </select>
+        </div>
+        <div>
+          <label>SPOC</label>
+          <select id="task-spoc">
+            <option value="">— Select —</option>
+            <option>Suriti</option><option>Viplav</option>
+            <option>Kritya</option><option>Siddhesh</option>
           </select>
         </div>
         <div style="display:flex;gap:6px;align-items:flex-end">
@@ -1352,7 +1360,7 @@ async function fetchSheetRows() {
     rows.push({
       Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
       Update: _supaJoinUpdates(t.task_updates),
-      Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
+      Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
@@ -1476,6 +1484,7 @@ async function _supaInsertRow(row) {
       title: row.Title || null,
       description: row.Task || '(no description)',
       assignee: row.Assignee || 'unassigned',
+      spoc: row.SPOC || null,
       status: row.Status || 'Pending',
       client: _normLegacy(row.Client),
       notes: row.Notes || null,
@@ -3650,6 +3659,12 @@ function renderTasks(tasks) {
                 ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
               </select>
               ${renderFosClientEditor(t)}
+              <select onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)"
+                title="SPOC — client-servicing lead"
+                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#e0f2fe;border:1.5px solid #0ea5e9;color:#075985;font-weight:700;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                <option value="" ${!t.SPOC?'selected':''}>🎯 SPOC —</option>
+                ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
+              </select>
             </div>
             ${showDesc ? `<div contenteditable="true" spellcheck="true"
               title="Click to edit"
@@ -4152,18 +4167,29 @@ function resolveClient(selectId, customInputId) {
   return sel.value || '';
 }
 
+// Update a task's SPOC (client-servicing lead). Writes by Supabase id directly —
+// never via the description-match shim, which silently drops Closed tasks.
+async function updateTaskSpoc(sbId, spoc) {
+  if (!sbId) { alert('Cannot set SPOC — task id missing. Refresh and try again.'); return; }
+  const { error } = await sb.from('tasks').update({ spoc: spoc || null }).eq('id', sbId);
+  if (error) { alert('Could not update SPOC: ' + error.message); return; }
+  const t = allTasks.find(x => x._sb_id === sbId);
+  if (t) t.SPOC = spoc;
+}
+
 async function addTask() {
   const date = document.getElementById('task-date').value;
   const title = document.getElementById('task-title').value.trim();
   const task = document.getElementById('task-name').value.trim();
   const assignee = document.getElementById('task-assignee').value;
+  const spoc = document.getElementById('task-spoc').value;
   const client = resolveClient('task-client', 'task-client-custom');
   if(!title || !assignee) { alert('Please fill title and assignee.'); return; }
 
   // Title is the short label (shown in dropdowns, lists). Task is the full description (optional).
   // Notes marker lets the "added by team" pinned card filter out Suriti's own additions.
   const taskText = task || title;
-  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, Client: client, Status: 'Pending', Notes: 'added by Suriti', 'Preview Link': '', Type: 'task' };
+  const row = { Date: date || new Date().toISOString().split('T')[0], Title: title, Task: taskText, Assignee: assignee, SPOC: spoc, Client: client, Status: 'Pending', Notes: 'added by Suriti', 'Preview Link': '', Type: 'task' };
 
   try {
     await fetch(SHEETDB_URL, {
@@ -4187,6 +4213,7 @@ async function addTask() {
     document.getElementById('task-name').value = '';
     // Reset client field
     document.getElementById('task-client').value = '';
+    document.getElementById('task-spoc').value = '';
     const customInp = document.getElementById('task-client-custom');
     if (customInp) { customInp.style.display = 'none'; customInp.value = ''; }
 
@@ -4879,11 +4906,18 @@ async function sendBackFile(idx, fileIdx) {
       // The creative stays in review so Suriti can keep reviewing the other
       // files. The designer picks up rework from rejected_files (their Feedback
       // tab reads that), not from a creative-wide Sent Back status.
-      await sb.from('creatives').update({
+      const { error: rejErr } = await sb.from('creatives').update({
         review_note: combined,
         file_urls: newFileUrls,
         rejected_files: newRejected
       }).eq('id', item._sb_id);
+      if (rejErr) {
+        // Surface the failure — a silent fail here is what makes rejected
+        // files reappear after a refresh (the DB never actually changed).
+        alert('⚠️ Reject did NOT save to the database:\n\n' + rejErr.message +
+              '\n\nThe file is still in the system. If this mentions "rejected_files" or permissions, the rejected_files column needs a grant — run the grant SQL.');
+        return;
+      }
     }
     // Update local cache — status stays whatever it was
     item.Notes = combined;
