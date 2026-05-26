@@ -494,6 +494,14 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           </select>
         </div>
         <div style="flex:1;min-width:180px">
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">SPOC</label>
+          <select id="quick-task-spoc" style="font-size:12px;padding:7px 8px;width:100%">
+            <option value="">— Select —</option>
+            <option>Suriti</option><option>Viplav</option>
+            <option>Kritya</option><option>Siddhesh</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:180px">
           <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600;visibility:hidden">.</label>
           <input type="text" id="quick-task-client-custom" placeholder="Client name (if Other)" style="display:none;font-size:12px;padding:7px 8px;width:100%">
         </div>
@@ -734,7 +742,7 @@ async function fetchSheetRows() {
     rows.push({
       Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
       Update: _supaJoinUpdates(t.task_updates),
-      Assignee: t.assignee || '', Status: t.status || '', Notes: t.notes || '',
+      Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
@@ -858,6 +866,7 @@ async function _supaInsertRow(row) {
       title: row.Title || null,
       description: row.Task || '(no description)',
       assignee: row.Assignee || 'unassigned',
+      spoc: row.SPOC || null,
       status: row.Status || 'Pending',
       client: _normLegacy(row.Client),
       notes: row.Notes || null,
@@ -2503,6 +2512,7 @@ async function addQuickTask() {
   const titleEl = document.getElementById('quick-task-title');
   const descEl = document.getElementById('quick-task-desc');
   const assigneeEl = document.getElementById('quick-task-assignee');
+  const spocEl = document.getElementById('quick-task-spoc');
   const btn = document.getElementById('quick-task-btn');
   const date = dateEl.value;
   const title = titleEl.value.trim();
@@ -2524,6 +2534,7 @@ async function addQuickTask() {
       Title: title,
       Task: desc || title,
       Assignee: assignTo,
+      SPOC: spocEl ? spocEl.value : '',
       Client: client,
       Status: 'Pending',
       Notes: assignTo !== currentUser ? `assigned by ${currentUser}` : '',
@@ -2544,6 +2555,7 @@ async function addQuickTask() {
     btn.textContent = successLabel; btn.style.background = '#22c55e'; btn.style.color = '#fff';
     titleEl.value = ''; descEl.value = '';
     if (assigneeEl) assigneeEl.value = '';
+    if (spocEl) spocEl.value = '';
     // Reset client fields
     const clientSel = document.getElementById('quick-task-client');
     const clientInp = document.getElementById('quick-task-client-custom');
@@ -2882,6 +2894,8 @@ function renderTaskRows(tasks, startIdx) {
                 ? `<button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#5b21b6;cursor:pointer;font-size:11px;padding:0;line-height:1;font-weight:700">×</button>`
                 : ''}
             </span>`).join('')}
+            ${t.SPOC ? `<span title="SPOC — client-servicing lead"
+              style="font-size:10px;padding:2px 7px;border-radius:10px;background:#e0f2fe;border:1px solid #7dd3fc;color:#075985;font-weight:600">🎯 ${t.SPOC}</span>` : ''}
             ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser) ? `
               <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
                 title="Add collaborator"
