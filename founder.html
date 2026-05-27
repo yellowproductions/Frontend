@@ -1601,10 +1601,10 @@ async function _supaPatchByTask(taskDesc, data) {
         review_note: null,
         task_id: id
       });
-      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
-      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Keep the original task visible — set it to 'SPOC Review' so the leads
+      // know a submission has come in and is waiting for their review.
       // Don't touch description or assignee — those stay as the original task's values.
-      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', id);
       return;
     }
 
@@ -2455,7 +2455,7 @@ async function sendChat() {
   const today = new Date().toISOString().split('T')[0];
   const openTasks = allTasks.filter(t => {
     const s = (t.Status || '').toLowerCase();
-    return s !== 'done' && s !== 'closed' && (t.Type === 'task' || !t.Type || t.Type === '');
+    return s !== 'done' && s !== 'closed' && s !== 'rejected' && (t.Type === 'task' || !t.Type || t.Type === '');
   });
   const todayTasks = allTasks.filter(t => t.Date === today && (t.Type === 'task' || !t.Type || t.Type === ''));
   const taskSummary = openTasks.length
@@ -2871,7 +2871,7 @@ function renderWorkOutput(allRows) {
   const wrap = document.getElementById('output-list');
   if (!wrap) return;
 
-  const DONE = ['Done', 'Approved', 'Closed', 'done', 'approved', 'closed'];
+  const DONE = ['Open Files', 'Closed', 'open files', 'closed'];
   const monthFilter = document.getElementById('hr-month-filter')?.value || (new Date()).toISOString().substring(0, 7);
   const [yr, mo] = monthFilter.split('-').map(Number);
   const daysInMonth = new Date(yr, mo, 0).getDate();
@@ -3094,9 +3094,9 @@ function renderMorningDigest(tasks) {
 
   if (dateEl) dateEl.textContent = today.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
-  const DONE = ['Done','Approved','Closed'];
-  const OPEN = ['Pending','In Progress','Awaiting Review','Awaiting Client','On Hold'];
-  const ACTIONABLE = ['Pending','In Progress','On Hold']; // designer must act
+  const DONE = ['Closed','Rejected'];
+  const OPEN = ['Pending','In Progress','SPOC Review','Client Review','Rework','Open Files'];
+  const ACTIONABLE = ['Pending','In Progress','Rework']; // designer must act
 
   const openTasks = tasks.filter(t => OPEN.includes(t.Status || 'Pending'));
   const overdueTasks = openTasks.filter(t => t.Date && t.Date < todayStr && ACTIONABLE.includes(t.Status || 'Pending'));
@@ -3270,7 +3270,7 @@ function checkTeamNotifications(tasks) {
   // Notification 2: Designers who cleared their queue
   const openCounts = {};
   TEAM_LIST.forEach(name => {
-    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done' && t.Status !== 'Closed' && t.Status !== 'closed').length;
+    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done' && t.Status !== 'Closed' && t.Status !== 'closed' && t.Status !== 'Rejected' && t.Status !== 'rejected').length;
   });
   const cleared = [];
   TEAM_LIST.forEach(name => {
@@ -3552,15 +3552,14 @@ function renderTasks(tasks) {
   // Status pill colors — pastel palette, uniform with the assignee/client pills.
   // No more saturated brights and gradients; just soft fills with darker text.
   const STATUS_SELECT = {
-    'Pending':         'background:#fef3c7;color:#92400e;border:1px solid #fde68a;',
-    'In Progress':     'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;',
-    'Awaiting Review': 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;',
-    'Awaiting Client': 'background:#fce7f3;color:#831843;border:1px solid #f9a8d4;',
-    'Approved':        'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;',
-    'SA Approved':     'background:#fef9c3;color:#854d0e;border:1.5px solid #facc15;font-weight:700;',
-    'Closed':          'background:#dcfce7;color:#166534;border:1px solid #86efac;',
-    'On Hold':         'background:#f3f4f6;color:#4b5563;border:1px solid #d1d5db;',
-    'Done':            'background:#dcfce7;color:#166534;border:1px solid #86efac;',
+    'Pending':       'background:#fef3c7;color:#92400e;border:1px solid #fde68a;',
+    'In Progress':   'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;',
+    'SPOC Review':   'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;',
+    'Client Review': 'background:#fce7f3;color:#831843;border:1px solid #f9a8d4;',
+    'Rework':        'background:#ffedd5;color:#9a3412;border:1px solid #fdba74;',
+    'Open Files':    'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;',
+    'Closed':        'background:#dcfce7;color:#166534;border:1px solid #86efac;',
+    'Rejected':      'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;',
   };
 
   const dates = Object.keys(grouped).sort((a,b) => new Date(b) - new Date(a));
@@ -3576,7 +3575,7 @@ function renderTasks(tasks) {
   const todayDM = `${String(todayDate.getDate()).padStart(2,'0')}-${String(todayDate.getMonth()+1).padStart(2,'0')}`;  // "DD-MM" (new)
   const activeToday = _taskFilterIds ? [] : tasks.filter(t => {
     const status = (t.Status || '').toLowerCase();
-    if (status === 'done' || status === 'closed') return false;
+    if (status === 'done' || status === 'closed' || status === 'rejected') return false;
     if (t.Date === todayStr) return true;
     const upd = t.Update || '';
     if (upd.includes(`[${todayMD}]`) || upd.includes(`[${todayDM}]`)) return true;
@@ -3608,7 +3607,7 @@ function renderTasks(tasks) {
   // Helper that renders the contents of a single date group (header + its tasks)
   const renderDateGroup = (date) => {
     const total = grouped[date].length;
-    const done  = grouped[date].filter(t => t.Status === 'Done' || t.Status === 'Closed').length;
+    const done  = grouped[date].filter(t => t.Status === 'Closed' || t.Status === 'Rejected').length;
     let out = `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>${date}</span>
       <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} closed</span>
@@ -3632,7 +3631,7 @@ function renderTasks(tasks) {
           </div>` : '';
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(200px, 0.7fr) 110px 1fr 1fr 36px;gap:6px;align-items:start;font-size:12px;">
+        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(320px, 1.5fr) 110px 1fr 1fr 36px;gap:6px;align-items:start;font-size:12px;">
           <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
               <span contenteditable="true" spellcheck="true"
@@ -3643,25 +3642,25 @@ function renderTasks(tasks) {
                 onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
               <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
                 title="Reassign — pick a different person"
-                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#fff8e1;border:1.5px solid #f59e0b;color:#854f0b;font-weight:700;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
                 <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
                 ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
               </select>
               ${(t.Collaborators || []).map(c => `<span title="Collaborator — click × to remove"
-                style="font-size:11px;padding:3px 6px 3px 9px;border-radius:12px;background:#f3e8ff;border:1px solid #c4b5fd;color:#5b21b6;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+                style="font-size:11px;padding:3px 6px 3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;display:inline-flex;align-items:center;gap:4px">
                 👥 ${c}
-                <button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#5b21b6;cursor:pointer;font-size:13px;padding:0;line-height:1;font-weight:700">×</button>
+                <button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#52514c;cursor:pointer;font-size:13px;padding:0;line-height:1;font-weight:700">×</button>
               </span>`).join('')}
               <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
                 title="Add collaborator"
-                style="font-size:11px;padding:3px 9px;border-radius:12px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                style="font-size:11px;padding:3px 9px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
                 <option value="" selected>+ Add</option>
                 ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
               </select>
               ${renderFosClientEditor(t)}
               <select onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)"
                 title="SPOC — client-servicing lead"
-                style="font-size:11px;padding:3px 9px;border-radius:12px;background:#e0f2fe;border:1.5px solid #0ea5e9;color:#075985;font-weight:700;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+                style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
                 <option value="" ${!t.SPOC?'selected':''}>🎯 SPOC —</option>
                 ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
               </select>
@@ -3681,12 +3680,12 @@ function renderTasks(tasks) {
           style="font-size:11px;padding:4px 8px;width:100%;border-radius:12px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${selectStyle}">
           <option ${status==='Pending'?'selected':''}>Pending</option>
           <option ${status==='In Progress'?'selected':''}>In Progress</option>
-          <option value="Awaiting Review" ${status==='Awaiting Review'?'selected':''}>Feedback</option>
-          <option ${status==='Awaiting Client'?'selected':''}>Awaiting Client</option>
-          <option ${status==='Approved'?'selected':''}>Approved</option>
-          <option value="SA Approved" ${status==='SA Approved'?'selected':''}>🌟 SA Approved</option>
+          <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
+          <option ${status==='Client Review'?'selected':''}>Client Review</option>
+          <option ${status==='Rework'?'selected':''}>Rework</option>
+          <option ${status==='Open Files'?'selected':''}>Open Files</option>
           <option ${status==='Closed'?'selected':''}>Closed</option>
-          <option ${status==='On Hold'?'selected':''}>On Hold</option>
+          <option ${status==='Rejected'?'selected':''}>Rejected</option>
         </select>
         <div style="display:flex;gap:3px;align-items:center;min-width:0">
           <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
@@ -3724,7 +3723,7 @@ function renderTasks(tasks) {
     const isCurrent = m === currentMonthKey;
     const monthDates = monthGroups[m];
     const totalTasks = monthDates.reduce((s,d) => s + grouped[d].length, 0);
-    const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Done' || t.Status === 'Closed').length, 0);
+    const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Closed' || t.Status === 'Rejected').length, 0);
     let monthLabel;
     try {
       monthLabel = new Date(m + '-01').toLocaleDateString('en-IN', {month: 'long', year: 'numeric'});
@@ -3798,11 +3797,11 @@ async function addUpdate(encodedTask, inputEl) {
 function renderFosClientEditor(t) {
   const c = t.Client || '';
   const placeholder = c ? `🏷 ${c} ▾` : '＋ Client ▾';
-  // Pastel pill — matches the assignee chip's weight. Uniform style across the row.
+  // Uniform neutral pill — same calm style as every other meta-chip in the row.
   const chipStyle = c
-    ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
-    : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
-  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
+    ? 'background:#f4f3ef;color:#52514c;border:1px solid #e3e0d8'
+    : 'background:transparent;color:#8a8881;border:1px dashed #d8d5cc';
+  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
     <option value="" selected>${placeholder}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
@@ -4974,10 +4973,10 @@ async function quickScrap(idx) {
 // cascade the change to the originating task row so it shows up in the right
 // place. The creative carries task_id (set during Studio's conversion patch)
 // which gives us a precise link without heuristics.
-//   creative='Client Review'  → task='Awaiting Client' + copy preview_link so client sees View button
-//   creative='Approved'       → task='Approved'
-//   creative='Sent Back'      → task='In Progress' (designer rework)
-//   creative='Rejected'       → task='Closed' (dead concept)
+//   creative='Client Review'  → task='Client Review' + copy preview_link so client sees View button
+//   creative='Approved'       → task='Open Files'
+//   creative='Sent Back'      → task='Rework' (designer reworks)
+//   creative='Rejected'       → task='Rejected' (dead concept)
 async function cascadeTaskFromCreative(creativeRow, newCreativeStatus, previewLink) {
   if (!creativeRow || !creativeRow._sb_id) return;
   try {
@@ -4985,10 +4984,10 @@ async function cascadeTaskFromCreative(creativeRow, newCreativeStatus, previewLi
     const { data: c } = await sb.from('creatives').select('task_id').eq('id', creativeRow._sb_id).single();
     if (!c || !c.task_id) return;
     const taskStatusMap = {
-      'Client Review': 'Awaiting Client',
-      'Approved':      'Approved',
-      'Sent Back':     'In Progress',
-      'Rejected':      'Closed'
+      'Client Review': 'Client Review',
+      'Approved':      'Open Files',
+      'Sent Back':     'Rework',
+      'Rejected':      'Rejected'
     };
     const newTaskStatus = taskStatusMap[newCreativeStatus];
     if (!newTaskStatus) return;
@@ -5059,9 +5058,9 @@ async function founderSubmitReview(idx, action) {
       // is a separate axis — don't pollute the client decision field.
       if (action === 'approve') upd.client_decision = null;       // back to client
       await sb.from('creatives').update(upd).eq('id', item._sb_id);
-      // Cascade to the linked task — so it leaves the 'Awaiting Review' bucket
-      // and either becomes client-visible ('Awaiting Client'), goes Closed (rejected),
-      // or goes back to In Progress (sent back for rework).
+      // Cascade to the linked task — so it leaves the 'SPOC Review' bucket
+      // and either becomes client-visible ('Client Review'), goes 'Rejected',
+      // or goes to 'Rework' (sent back for rework).
       await cascadeTaskFromCreative(item, newStatus, item['Preview Link']);
     } else {
       // Fallback through interceptor (which routes to Supabase mirror anyway)
