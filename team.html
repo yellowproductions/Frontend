@@ -50,6 +50,67 @@ input, select, textarea {
   padding:9px 12px; border-radius:6px; font-family:'Poppins',sans-serif;
   font-size:13px; width:100%; transition:border 0.15s;
 }
+
+/* ===== Task list — aligned table with expandable rows (matches Founder OS) ===== */
+.fos-task-table { background:#fff; border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:6px; }
+.fos-col-head, .fos-task-row {
+  display:grid; grid-template-columns:minmax(0,1fr) 152px 122px 140px 56px; gap:14px; align-items:center;
+}
+.fos-col-head { padding:9px 16px; font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); border-bottom:1px solid var(--border); }
+.fos-task-row { padding:12px 16px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.12s; }
+.fos-task-row:hover { background:#fcfbf8; }
+.fos-task-row.open { background:#fcfbf8; }
+.fos-task-row.overdue { box-shadow:inset 3px 0 0 #dc2626; }
+.fos-cell-task { display:flex; align-items:center; gap:8px; min-width:0; }
+.fos-chev { color:var(--muted); font-size:10px; flex-shrink:0; transition:transform 0.15s; padding:2px; }
+.fos-task-row.open .fos-chev { transform:rotate(90deg); }
+.fos-tname { font-weight:600; word-break:break-word; min-width:30px; }
+.fos-overdue { color:#dc2626; font-size:11px; font-weight:600; white-space:nowrap; }
+.fos-today { color:#854f0b; font-size:11px; font-weight:600; white-space:nowrap; }
+.fos-due { color:#999; font-size:11px; white-space:nowrap; }
+.fos-cell { min-width:0; }
+.fos-mini-select {
+  width:100%; font-size:11.5px; font-family:inherit; background:transparent !important; border:none !important;
+  color:#5f5e5a; cursor:pointer; padding:2px 0 !important;
+  appearance:none; -webkit-appearance:none; -moz-appearance:none; text-overflow:ellipsis;
+}
+.fos-mini-select:hover { color:var(--text); }
+.fos-spoc-text { font-size:11.5px; color:#5f5e5a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fos-status-select {
+  font-size:11px; font-weight:600; font-family:inherit; border-radius:999px !important;
+  cursor:pointer; padding:4px 10px !important; width:auto !important; max-width:100%;
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+}
+.fos-cell-files { display:flex; gap:9px; align-items:center; }
+.fos-fi { font-size:14px; text-decoration:none; line-height:1; }
+.fos-fi.off { opacity:0.25; filter:grayscale(1); }
+.fos-task-detail { padding:4px 16px 16px 40px; border-bottom:1px solid var(--border); background:#fcfbf8; }
+.fos-detail-desc { font-size:12px; color:#6b6a64; line-height:1.6; margin-bottom:12px; word-break:break-word; }
+.fos-collab-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; align-items:center; }
+.fos-collab-pill {
+  font-size:11px; font-weight:600; padding:3px 6px 3px 9px; border-radius:8px;
+  background:#f4f3ef; border:1px solid #e3e0d8; color:#52514c; display:inline-flex; align-items:center; gap:4px;
+}
+.fos-collab-pill button { background:none; border:none; color:#52514c; cursor:pointer; font-size:13px; padding:0; line-height:1; font-weight:700; }
+.fos-addcollab {
+  font-size:11px; font-family:inherit; width:auto !important; padding:3px 9px !important; border-radius:8px;
+  background:transparent !important; border:1px dashed var(--border) !important; color:#666; cursor:pointer;
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+}
+.fos-suriti-box { margin-bottom:10px; padding:8px 10px; background:#fffbeb; border-left:3px solid #FEBC06; border-radius:0 6px 6px 0; }
+.fos-suriti-label { font-size:9px; color:#92702e; text-transform:uppercase; letter-spacing:0.06em; font-weight:700; margin-bottom:4px; }
+.fos-upd-pending { display:flex; align-items:flex-start; gap:8px; padding:3px 0; }
+.fos-upd-pending button { background:transparent; border:none; cursor:pointer; color:#15803d; font-size:15px; font-weight:700; padding:0 2px; line-height:1; flex-shrink:0; margin-top:1px; }
+.fos-upd-pending div { font-size:12px; color:#1a1a1a; line-height:1.5; font-weight:500; overflow-wrap:anywhere; flex:1; }
+.fos-upd-done { font-size:11px; color:#888; line-height:1.5; padding:2px 0; overflow-wrap:anywhere; cursor:pointer; }
+.fos-upd-done:hover { color:#444; }
+.fos-link-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+.fos-link-field { flex:0 1 320px; display:flex; gap:6px; align-items:center; }
+.fos-link-field input { width:100%; font-size:12px; padding:7px 10px !important; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.fos-link-arrow { font-size:14px; text-decoration:none; color:var(--yellow); flex-shrink:0; }
+.fos-update-add { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.fos-update-add input { flex:1; min-width:200px; max-width:340px; font-size:12px; padding:7px 10px !important; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.fos-save { font-size:11px; padding:7px 18px; border-radius:8px; background:var(--yellow); color:#000; border:none; cursor:pointer; font-weight:600; }
 input:focus, select:focus, textarea:focus { outline:none; border-color:var(--yellow); }
 textarea { resize:vertical; min-height:70px; }
 label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:0.05em; }
@@ -208,6 +269,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 
   /* TASK ROWS — stack vertically on phone (otherwise columns are too narrow and chars wrap one per line) */
   .task-row-header { display: none !important; }
+  .fos-col-head { display: none !important; }
   .task-row {
     display: flex !important;
     flex-direction: column !important;
@@ -2825,125 +2887,130 @@ function toggleQuickTaskForm() {
 function renderTaskRows(tasks, startIdx) {
   if (!tasks.length) return '<div class="empty-state">No tasks here.</div>';
   const today = new Date().toISOString().split('T')[0];
+  const isLead = ['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser);
+  const esc = s => String(s == null ? '' : s).replace(/[<>]/g, c => c === '<' ? '&lt;' : '&gt;');
+
+  // Update line prefix: legacy is [MM-DD], new format is [DD-MM]. Display both as [DD/MM].
+  const formatUpdateLine = (line) => {
+    const cleanLine = line.replace(/^✓\s*/, '');
+    const m = cleanLine.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
+    if (!m) return cleanLine;
+    let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    const isMMDD = b > 12 && a <= 12;
+    const dd = isMMDD ? b : a;
+    const mm = isMMDD ? a : b;
+    return `[${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}] ${m[3]}`;
+  };
 
   return `
-    <div class="task-row-header" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600">
-      <span></span><span>Task</span><span>Status</span><span>Final file</span><span>Open file</span><span></span>
-    </div>
-    ${tasks.map((t, i) => {
-      const idx = startIdx + i;
-      // Normalize legacy "Done" → "Closed" — single closed status going forward
-      const rawStatus = t.Status || 'Pending';
-      const status = rawStatus === 'Done' ? 'Closed' : rawStatus;
-      const isToday = t.Date === today;
-      const isOverdue = t.Date && t.Date < today && !DONE_STATUSES.includes(status);
-      const isDoneNoFile = DONE_STATUSES.includes(status) && !(t['Preview Link'] || t['Open File Link']);
-      const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
-      const daysOverdue = isOverdue ? Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24)) : 0;
-      // Single, calm date marker — not a loud badge
-      const dateText = isToday
-        ? `<span style="color:#854f0b;font-size:11px;font-weight:600;margin-left:6px">today</span>`
-        : isOverdue
-        ? `<span style="color:#dc2626;font-size:11px;font-weight:600;margin-left:6px">${daysOverdue}d overdue</span>`
-        : (t.Date ? `<span style="color:#999;font-size:11px;margin-left:6px">due ${t.Date.substring(8,10)}/${t.Date.substring(5,7)}</span>` : '');
-      // File pending — only when truly missing
-      const filePendingChip = isDoneNoFile
-        ? `<span style="color:#a07419;font-size:11px;font-weight:600;margin-left:6px">· file pending</span>`
-        : '';
-      const titleText = t.Title || t.Task || '—';
-      const descText = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
-      const updatesText = (t.Update || '').trim();
-      // Keep original lines (with indexes) — we need them when toggling tick state
-      const allUpdateLinesRaw = updatesText ? updatesText.split('\n').filter(l => l.trim()) : [];
-      // Show newest first
-      const updateLinesIndexed = allUpdateLinesRaw.map((line, origIdx) => ({ line, origIdx })).reverse();
-      // Split: pending (no ✓ prefix) inside the yellow patch; completed (✓ prefix) below it
-      const pendingUpdates   = updateLinesIndexed.filter(({line}) => !/^✓\s/.test(line));
-      const completedUpdates = updateLinesIndexed.filter(({line}) =>  /^✓\s/.test(line));
+    <div class="fos-task-table">
+      <div class="fos-col-head"><span>Task</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span></div>
+      ${tasks.map((t, i) => {
+        const idx = startIdx + i;
+        // Normalize legacy "Done" → "Closed" — single closed status going forward
+        const rawStatus = t.Status || 'Pending';
+        const status = rawStatus === 'Done' ? 'Closed' : rawStatus;
+        const isToday = t.Date === today;
+        const isOverdue = t.Date && t.Date < today && !DONE_STATUSES.includes(status);
+        const isDoneNoFile = DONE_STATUSES.includes(status) && !(t['Preview Link'] || t['Open File Link']);
+        const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
+        const daysOverdue = isOverdue ? Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24)) : 0;
+        const dateText = isToday
+          ? `<span class="fos-today">today</span>`
+          : isOverdue
+          ? `<span class="fos-overdue">${daysOverdue}d overdue</span>`
+          : (t.Date ? `<span class="fos-due">due ${t.Date.substring(8,10)}/${t.Date.substring(5,7)}</span>` : '');
+        const filePendingChip = isDoneNoFile
+          ? `<span style="color:#a07419;font-size:11px;font-weight:600;white-space:nowrap">· file pending</span>`
+          : '';
+        const titleText = t.Title || t.Task || '—';
+        const descText  = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
+        const taskKey   = encodeURIComponent(t.Task || '');
+        const isOpen    = !!(window._teamExpanded && window._teamExpanded.has(t.Task));
 
-      // Update line prefix: legacy is [MM-DD], new format is [DD-MM]. Display both as [DD/MM].
-      const formatUpdateLine = (line) => {
-        // Strip leading ✓ marker (for ticked lines) before formatting
-        const cleanLine = line.replace(/^✓\s*/, '');
-        const m = cleanLine.match(/^\[(\d{1,2})-(\d{1,2})\]\s*(.*)/);
-        if (!m) return cleanLine;
-        let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
-        // If first part > 12 → must be DD-MM. If second part > 12 → must be MM-DD (swap).
-        // If both ≤ 12 → ambiguous; assume the new format (DD-MM).
-        const isMMDD = b > 12 && a <= 12;
-        const dd = isMMDD ? b : a;
-        const mm = isMMDD ? a : b;
-        return `[${String(dd).padStart(2,'0')}/${String(mm).padStart(2,'0')}] ${m[3]}`;
-      };
+        const updatesText = (t.Update || '').trim();
+        const allUpdateLinesRaw = updatesText ? updatesText.split('\n').filter(l => l.trim()) : [];
+        const updateLinesIndexed = allUpdateLinesRaw.map((line, origIdx) => ({ line, origIdx })).reverse();
+        const pendingUpdates   = updateLinesIndexed.filter(({line}) => !/^✓\s/.test(line));
+        const completedUpdates = updateLinesIndexed.filter(({line}) =>  /^✓\s/.test(line));
 
-      // Quiet overdue treatment — left border only, no background tint
-      const rowStyle = isOverdue
-        ? 'box-shadow:inset 3px 0 0 #dc2626;'
-        : '';
-      return `
-      <div id="task-anchor-${idx}" class="task-row" data-task-key="${(t.Task || '').replace(/"/g, '&quot;')}" style="display:grid;grid-template-columns:24px 1fr 120px 1fr 1fr 64px;gap:10px;align-items:start;padding:11px 2px 11px 8px;border-bottom:1px solid var(--border);font-size:13px;${rowStyle}">
-        <span class="task-num" style="color:#bbb;font-size:11px;padding-top:3px">${idx+1}</span>
-        <div class="task-title-cell" style="min-width:0;overflow-wrap:anywhere">
-          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-            <span style="font-weight:500;color:#1a1a1a">${titleText}</span>${renderClientEditor(t)}${dateText}${filePendingChip}
-            ${(t.Collaborators || []).map(c => `<span title="Collaborator"
-              style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f3e8ff;border:1px solid #c4b5fd;color:#5b21b6;font-weight:600;display:inline-flex;align-items:center;gap:3px">
-              👥 ${c}
-              ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser)
-                ? `<button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#5b21b6;cursor:pointer;font-size:11px;padding:0;line-height:1;font-weight:700">×</button>`
-                : ''}
-            </span>`).join('')}
-            ${t.SPOC ? `<span title="SPOC — client-servicing lead"
-              style="font-size:10px;padding:2px 7px;border-radius:8px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600">🎯 ${t.SPOC}</span>` : ''}
-            ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser) ? `
-              <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
-                title="Add collaborator"
-                style="font-size:10px;padding:2px 6px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-                <option value="" selected>+ Tag</option>
+        return `
+        <div class="task-row" data-task-key="${(t.Task || '').replace(/"/g, '&quot;')}" id="task-anchor-${idx}">
+          <div class="fos-task-row${isOpen?' open':''}${isOverdue?' overdue':''}" onclick="toggleTeamRow(this,'${taskKey}')">
+            <div class="fos-cell-task">
+              <span class="fos-chev">▶</span>
+              <span class="fos-tname">${esc(titleText)}</span>
+              ${dateText}${filePendingChip}
+            </div>
+            <div class="fos-cell" onclick="event.stopPropagation()">${renderClientEditor(t)}</div>
+            <div class="fos-cell">${t.SPOC
+              ? `<span class="fos-spoc-text">🎯 ${esc(t.SPOC)}</span>`
+              : `<span class="fos-spoc-text" style="color:#c4c1b8">🎯 —</span>`}</div>
+            <div class="fos-cell" onclick="event.stopPropagation()">
+              <select id="status-dropdown-${idx}" class="fos-status-select" style="${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${taskKey}')">
+                <option ${status==='Pending'?'selected':''}>Pending</option>
+                <option ${status==='In Progress'?'selected':''}>In Progress</option>
+                <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
+                <option ${status==='Client Review'?'selected':''}>Client Review</option>
+                <option ${status==='Rework'?'selected':''}>Rework</option>
+                <option ${status==='Open Files'?'selected':''}>Open Files</option>
+                <option ${status==='Closed'?'selected':''}>Closed</option>
+                <option ${status==='Rejected'?'selected':''}>Rejected</option>
+              </select>
+            </div>
+            <div class="fos-cell-files" onclick="event.stopPropagation()">
+              ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-fi" title="Open final file">🔗</a>` : `<span class="fos-fi off" title="No final file yet">🔗</span>`}
+              ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-fi" title="Open source file">📂</a>` : `<span class="fos-fi off" title="No open file yet">📂</span>`}
+            </div>
+          </div>
+          <div class="fos-task-detail" style="display:${isOpen?'block':'none'}">
+            ${descText ? `<div class="fos-detail-desc">${esc(descText)}</div>` : ''}
+            ${pendingUpdates.length ? `<div class="fos-suriti-box">
+              <div class="fos-suriti-label">Latest from Suriti</div>
+              ${pendingUpdates.map(({line, origIdx}) => `<div class="fos-upd-pending">
+                <button onclick="toggleUpdateTick('${taskKey}', ${origIdx})" title="Mark as done">✓</button>
+                <div>${esc(formatUpdateLine(line))}</div>
+              </div>`).join('')}
+            </div>` : ''}
+            ${completedUpdates.length ? `<div style="margin-bottom:10px">
+              ${completedUpdates.map(({line, origIdx}) => `<div class="fos-upd-done" onclick="toggleUpdateTick('${taskKey}', ${origIdx})" title="Click to undo">${esc(formatUpdateLine(line))}</div>`).join('')}
+            </div>` : ''}
+            <div class="fos-collab-row">
+              ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${esc(c)}${isLead
+                ? `<button onclick="removeCollaborator('${taskKey}', ${t._sb_id || 'null'}, '${c}')" title="Remove collaborator">×</button>`
+                : ''}</span>`).join('')}
+              ${isLead ? `<select class="fos-addcollab" title="Add collaborator" onchange="addCollaborator('${taskKey}', ${t._sb_id || 'null'}, this.value); this.value=''">
+                <option value="" selected>+ Tag collaborator</option>
                 ${VALID_TEAM.filter(n => n !== t.Assignee && n !== currentUser && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
               </select>` : ''}
-          </div>
-          ${descText ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word">${descText}</div>` : ''}
-
-          ${pendingUpdates.length ? `<div style="margin-top:8px;padding:8px 10px;background:#fffbeb;border-left:3px solid #FEBC06;border-radius:0 6px 6px 0">
-            <div style="font-size:9px;color:#92702e;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:4px">Latest from Suriti</div>
-            ${pendingUpdates.map(({line, origIdx}) => `
-              <div style="display:flex;align-items:flex-start;gap:8px;padding:3px 0">
-                <button onclick="toggleUpdateTick('${encodeURIComponent(t.Task)}', ${origIdx})" title="Mark as done" style="background:transparent;border:none;cursor:pointer;color:#15803d;font-size:15px;font-weight:700;padding:0 2px;line-height:1;flex-shrink:0;margin-top:1px">✓</button>
-                <div style="font-size:12px;color:#1a1a1a;line-height:1.5;font-weight:500;overflow-wrap:anywhere;flex:1">${formatUpdateLine(line)}</div>
+            </div>
+            <div class="fos-update-add">
+              <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)">
+            </div>
+            <div class="fos-link-row">
+              <div class="fos-link-field">
+                <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Final file link">
+                ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-link-arrow" title="Open">↗</a>` : ''}
               </div>
-            `).join('')}
-          </div>` : ''}
-
-          ${completedUpdates.length ? `<div style="margin-top:6px;padding:2px 10px">
-            ${completedUpdates.map(({line, origIdx}) => `
-              <div onclick="toggleUpdateTick('${encodeURIComponent(t.Task)}', ${origIdx})" title="Click to undo" style="font-size:11px;color:#888;line-height:1.5;padding:2px 0;overflow-wrap:anywhere;cursor:pointer" onmouseover="this.style.color='#444'" onmouseout="this.style.color='#888'">${formatUpdateLine(line)}</div>
-            `).join('')}
-          </div>` : ''}
-
-          <div style="margin-top:8px">
-            <input type="text" placeholder="+ Add update for today..."
-              onkeydown="if(event.key==='Enter') addUpdate('${encodeURIComponent(t.Task)}', this)"
-              style="font-size:11px;padding:5px 9px;width:100%;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+              <div class="fos-link-field">
+                <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Open file link">
+                ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-link-arrow" title="Open">↗</a>` : ''}
+              </div>
+              <button class="fos-save" onclick="saveTask(${idx}, '${taskKey}')">Save</button>
+            </div>
           </div>
-        </div>
-        <div class="task-cell" data-label="Status" style="min-width:0">
-          <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
-            <option ${status==='Pending'?'selected':''}>Pending</option>
-            <option ${status==='In Progress'?'selected':''}>In Progress</option>
-            <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
-            <option ${status==='Client Review'?'selected':''}>Client Review</option>
-            <option ${status==='Rework'?'selected':''}>Rework</option>
-            <option ${status==='Open Files'?'selected':''}>Open Files</option>
-            <option ${status==='Closed'?'selected':''}>Closed</option>
-            <option ${status==='Rejected'?'selected':''}>Rejected</option>
-          </select>
-        </div>
-        <input class="task-cell" data-label="Final file" type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <input class="task-cell" data-label="Open file" type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
-        <button class="btn btn-yellow btn-sm task-cell" onclick="saveTask(${idx}, '${encodeURIComponent(t.Task)}')" style="font-size:11px;padding:5px 12px">Save</button>
-      </div>`;
-    }).join('')}`;
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+window._teamExpanded = window._teamExpanded || new Set();
+function toggleTeamRow(row, key) {
+  const k = decodeURIComponent(key);
+  const open = row.classList.toggle('open');
+  const d = row.nextElementSibling;
+  if (d && d.classList.contains('fos-task-detail')) d.style.display = open ? 'block' : 'none';
+  if (open) window._teamExpanded.add(k); else window._teamExpanded.delete(k);
 }
 
 // ====== HELPERS ======
@@ -3319,12 +3386,9 @@ function toggleStatusSelect(idx) {} // no longer needed
 // the Live Tasks filter on the client portal picks them up.
 function renderClientEditor(t) {
   const c = t.Client || '';
-  const placeholder = c ? `🏷 ${c} ▾` : '+ Tag client ▾';
-  const chipStyle = c
-    ? 'background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe'
-    : 'background:#f5f4f0;color:#888;border:1px dashed #d4cfc4';
-  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}', this.value, this)" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;cursor:pointer;font-family:'Poppins',sans-serif;appearance:none;-webkit-appearance:none;-moz-appearance:none;${chipStyle}">
-    <option value="" selected>${placeholder}</option>
+  const label = c ? `🏷 ${c}` : '🏷 Client —';
+  return `<select class="fos-mini-select" title="Client tag" onchange="updateTaskClient('${encodeURIComponent(t.Task)}', this.value, this)">
+    <option value="" selected>${label}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
       <option value="Jindal Steel">Jindal Steel</option>
