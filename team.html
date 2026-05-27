@@ -983,10 +983,10 @@ async function _supaPatchByTask(taskDesc, data) {
         review_note: null,
         task_id: id
       });
-      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
-      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Keep the original task visible — set it to 'SPOC Review' so the leads
+      // know a submission has come in and is waiting for their review.
       // Don't touch description or assignee — those stay as the original task's values.
-      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', id);
       return;
     }
 
@@ -2573,23 +2573,22 @@ async function addQuickTask() {
 
 // ====== TASKS ======
 const STATUS_SELECT = {
-  'Pending':         'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
-  'In Progress':     'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
-  'Awaiting Review': 'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
-  'Awaiting Client': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
-  'Approved':        'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
-  'SA Approved':     'background:#facc15;color:#713f12;border-color:#facc15;font-weight:800;',
-  'Closed':          'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
-  'On Hold':         'background:#9ca3af;color:#fff;border-color:#9ca3af;font-weight:700;',
-  'Done':            'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+  'Pending':       'background:#f59e0b;color:#fff;border-color:#f59e0b;font-weight:700;',
+  'In Progress':   'background:#3b82f6;color:#fff;border-color:#3b82f6;font-weight:700;',
+  'SPOC Review':   'background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-weight:700;',
+  'Client Review': 'background:#ec4899;color:#fff;border-color:#ec4899;font-weight:700;',
+  'Rework':        'background:#f97316;color:#fff;border-color:#f97316;font-weight:700;',
+  'Open Files':    'background:#14b8a6;color:#fff;border-color:#14b8a6;font-weight:700;',
+  'Closed':        'background:#22c55e;color:#fff;border-color:#22c55e;font-weight:700;',
+  'Rejected':      'background:#ef4444;color:#fff;border-color:#ef4444;font-weight:700;',
 };
 
 // Statuses considered "fully done" — excluded from overdue, archived from active list
-const DONE_STATUSES = ['Done', 'Approved', 'Closed'];
+const DONE_STATUSES = ['Closed', 'Rejected'];
 // Statuses considered "open / in active workflow" — show in this month's list
-const OPEN_STATUSES = ['Pending', 'In Progress', 'Awaiting Review', 'Awaiting Client', 'On Hold'];
+const OPEN_STATUSES = ['Pending', 'In Progress', 'SPOC Review', 'Client Review', 'Rework', 'Open Files'];
 // Statuses where designer needs to ACT — surface in Focus Today
-const FOCUS_STATUSES = ['Pending', 'In Progress', 'On Hold'];
+const FOCUS_STATUSES = ['Pending', 'In Progress', 'Rework'];
 
 // 🎯 Render the Focus Today panel — top 5 urgent (overdue → today → upcoming)
 function renderFocusToday(items, overdueCount, todayCount) {
@@ -2895,7 +2894,7 @@ function renderTaskRows(tasks, startIdx) {
                 : ''}
             </span>`).join('')}
             ${t.SPOC ? `<span title="SPOC — client-servicing lead"
-              style="font-size:10px;padding:2px 7px;border-radius:10px;background:#e0f2fe;border:1px solid #7dd3fc;color:#075985;font-weight:600">🎯 ${t.SPOC}</span>` : ''}
+              style="font-size:10px;padding:2px 7px;border-radius:8px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600">🎯 ${t.SPOC}</span>` : ''}
             ${['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser) ? `
               <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
                 title="Add collaborator"
@@ -2930,14 +2929,14 @@ function renderTaskRows(tasks, startIdx) {
         </div>
         <div class="task-cell" data-label="Status" style="min-width:0">
           <select id="status-dropdown-${idx}" style="font-size:11px;padding:5px 9px;border-radius:20px;width:100%;${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${encodeURIComponent(t.Task)}')">
-            ${status === 'SA Approved' ? '<option value="SA Approved" selected disabled>🌟 SA Approved</option>' : ''}
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
-            <option value="Awaiting Review" ${status==='Awaiting Review'?'selected':''}>Feedback</option>
-            <option ${status==='Awaiting Client'?'selected':''}>Awaiting Client</option>
-            <option ${status==='Approved'?'selected':''}>Approved</option>
+            <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
+            <option ${status==='Client Review'?'selected':''}>Client Review</option>
+            <option ${status==='Rework'?'selected':''}>Rework</option>
+            <option ${status==='Open Files'?'selected':''}>Open Files</option>
             <option ${status==='Closed'?'selected':''}>Closed</option>
-            <option ${status==='On Hold'?'selected':''}>On Hold</option>
+            <option ${status==='Rejected'?'selected':''}>Rejected</option>
           </select>
         </div>
         <input class="task-cell" data-label="Final file" type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Paste link" style="font-size:11px;padding:5px 8px;min-width:0;width:100%;text-overflow:ellipsis">
@@ -3177,8 +3176,8 @@ async function loadTasks() {
     // task's Date (due date) as a proxy. Tasks are usually closed near their
     // due date — close enough for the 7-day visibility window Suriti wants.
     // VISIBILITY RULE (Suriti's spec):
-    //   • Non-terminal tasks (Pending, In Progress, Awaiting Review, Awaiting
-    //     Client, On Hold, SA Approved, etc.) → ALWAYS show in main task bar,
+    //   • Non-terminal tasks (Pending, In Progress, SPOC Review, Client
+    //     Review, Rework, Open Files) → ALWAYS show in main task bar,
     //     regardless of due date. A task is active until someone actually
     //     finishes it — old in-progress work shouldn't be hidden.
     //   • Terminal tasks (Done, Closed, Approved, Rejected) → show in main bar
@@ -3188,7 +3187,7 @@ async function loadTasks() {
     // Source of truth for "when was this closed" = ClosedAt (set by trigger when
     // status moves to a terminal state). Falls back to Date (due_date) for
     // legacy rows that don't have a closed_at stamp.
-    const TERMINAL_STATUSES_FOR_ARCHIVE = ['Done', 'Closed', 'Approved', 'Rejected'];
+    const TERMINAL_STATUSES_FOR_ARCHIVE = ['Closed', 'Rejected'];
 
     const currentOpen = sorted.filter(t => {
       const s = t.Status || 'Pending';
@@ -3228,7 +3227,7 @@ async function loadTasks() {
         try {
           monthLabel = m === 'No date' ? 'No date' : new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
         } catch(e) { monthLabel = m; }
-        const doneCount = monthTasks.filter(t => (t.Status === 'Done' || t.Status === 'done' || t.Status === 'Closed' || t.Status === 'closed')).length;
+        const doneCount = monthTasks.filter(t => (t.Status === 'Closed' || t.Status === 'closed' || t.Status === 'Rejected' || t.Status === 'rejected')).length;
         html += `<details open style="background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">
           <summary style="cursor:pointer;padding:12px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:13px">
             <span><span style="font-size:16px;margin-right:8px">📁</span><strong>${monthLabel}</strong>
