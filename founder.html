@@ -3,84 +3,322 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yellow Productions — Welcome Suriti!</title>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>Task Card — Design Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap');
-
   :root {
-    --bg: #f5f4f1;
+    --bg: #faf9f6;
     --surface: #ffffff;
-    --surface2: #f0eeea;
-    --border: #e0ddd8;
-    --yellow: #FEBC06;
-    --yellow-dim: #a87818;
+    --soft: #f5f4f0;
+    --border: #e8e5dd;
     --text: #1a1a1a;
-    --muted: #888;
-    --green: #2a7a3a;
-    --red: #c0392b;
-    --blue: #2563eb;
+    --muted: #8a8881;
+    --yellow: #FEBC06;
   }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
+    font-family: 'Poppins', sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Poppins', sans-serif;
-    height: 100vh;
+    padding: 40px 32px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+
+  .preview-note {
+    background: #fff8e1;
+    border: 1px solid #f0d886;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #6b5113;
+    margin-bottom: 36px;
+    line-height: 1.6;
+  }
+  .preview-note b { font-weight: 600; }
+
+  .month-head {
     display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .month-head .done { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; font-weight: 400; }
+  .month-rule { height: 2px; background: var(--yellow); margin: 8px 0 24px; border-radius: 2px; }
+
+  .date-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--yellow);
+    letter-spacing: 0.08em;
+    margin: 24px 0 6px;
+  }
+  .date-head .closed { color: var(--muted); font-size: 11px; }
+
+  /* ---- the table ---- */
+  .task-table {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
     overflow: hidden;
   }
-
-  /* SIDEBAR */
-  .sidebar {
-    width: 220px;
-    min-width: 220px;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    padding: 24px 0;
+  .col-head, .task-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 130px 150px 120px 140px 70px;
+    gap: 14px;
+    align-items: center;
   }
-
-  .logo {
-    padding: 0 20px 24px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 16px;
-  }
-
-  .logo-title {
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--yellow);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  .logo-sub {
+  .col-head {
+    padding: 10px 18px;
     font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
     color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    margin-top: 2px;
+    border-bottom: 1px solid var(--border);
   }
+  .task-row {
+    padding: 14px 18px;
+    font-size: 13.5px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .task-row:last-child { border-bottom: none; }
+  .task-row:hover { background: #fcfbf8; }
 
-  .nav-item {
+  .t-name { font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .t-name .chev { color: var(--muted); font-size: 11px; transition: transform 0.15s; flex-shrink: 0; }
+  .t-name .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-row.open .chev { transform: rotate(90deg); }
+
+  .cell-muted { color: #5f5e5a; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .cell-muted .ico { width: 15px; height: 15px; opacity: 0.55; flex-shrink: 0; }
+  .cell-muted .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell-empty { color: #c4c1b8; }
+
+  /* status pill */
+  .status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 11px;
+    border-radius: 999px;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .s-spoc    { background: #ede9fe; color: #5b21b6; }
+  .s-pending { background: #fef3c7; color: #92400e; }
+  .s-progress{ background: #dbeafe; color: #1e40af; }
+  .s-client  { background: #fce7f3; color: #831843; }
+
+  /* file icons */
+  .files { display: flex; gap: 9px; }
+  .files .fi { width: 17px; height: 17px; }
+  .fi-on  { color: var(--yellow); }
+  .fi-off { color: #d8d5cc; }
+
+  /* ---- expanded panel ---- */
+  .detail {
+    display: none;
+    padding: 4px 18px 18px 42px;
+    border-bottom: 1px solid var(--border);
+    background: #fcfbf8;
+  }
+  .detail.show { display: block; }
+  .detail .desc {
+    font-size: 12.5px;
+    color: #6b6a64;
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .link-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .link-field {
+    flex: 0 1 360px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 20px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--muted);
-    transition: all 0.15s;
-    border-left: 2px solid transparent;
+    gap: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 12px;
+    color: #5f5e5a;
+  }
+  .link-field .ico { width: 14px; height: 14px; opacity: 0.5; }
+  .link-field.filled { color: #1e40af; }
+  .link-field .placeholder { color: #b4b2a9; }
+  .update-field {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 12px;
+    color: #b4b2a9;
+    max-width: 360px;
+  }
+  .upd-log {
+    font-size: 11.5px;
+    color: #6b6a64;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 0 3px 10px;
+    border-left: 2px solid #f0d886;
+    margin-bottom: 10px;
   }
 
-  .nav-item:hover { color: var(--text); background: var(--surface2); }
-  .nav-item.active { color: var(--yellow); border-left-color: var(--yellow); background: var(--surface2); }
-  .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+  .secn-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 48px 0 10px;
+    font-weight: 600;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="preview-note">
+    <b>Design preview — not the live portal.</b> This shows the proposed task layout: an aligned table where every column lines up down the list, and any row <b>expands on click</b> to reveal links, notes and the update box. Click the rows below to feel it.
+  </div>
+
+  <div class="month-head">
+    <span>📁 MAY 2026 — ACTIVE</span>
+    <span class="done">83/135 DONE</span>
+  </div>
+  <div class="month-rule"></div>
+
+  <div class="date-head"><span>2026-05-27</span><span class="closed">0/2 CLOSED</span></div>
+  <div class="task-table">
+    <div class="col-head">
+      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
+    </div>
+
+    <div class="task-row" onclick="tog(this)">
+      <span class="t-name"><span class="chev">▶</span><span class="label">FFI</span></span>
+      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Faizan</span></span>
+      <span class="cell-muted"><span class="txt">TEAM YP</span></span>
+      <span class="cell-empty">— set SPOC —</span>
+      <span><span class="status s-spoc">SPOC Review</span></span>
+      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+    </div>
+    <div class="detail">
+      <div class="desc">Full brief — context, references, anything important goes here.</div>
+      <div class="link-row">
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
+      </div>
+      <div class="update-field">+ Add update for today…</div>
+    </div>
+
+    <div class="task-row" onclick="tog(this)">
+      <span class="t-name"><span class="chev">▶</span><span class="label">Winners Post</span></span>
+      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Archana</span></span>
+      <span class="cell-muted"><span class="txt">TEAM YP</span></span>
+      <span class="cell-empty">— set SPOC —</span>
+      <span><span class="status s-pending">Pending</span></span>
+      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+    </div>
+    <div class="detail">
+      <div class="desc">Winners announcement post for the league campaign.</div>
+      <div class="link-row">
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
+      </div>
+      <div class="update-field">+ Add update for today…</div>
+    </div>
+  </div>
+
+  <div class="date-head"><span>2026-05-26</span><span class="closed">0/4 CLOSED</span></div>
+  <div class="task-table">
+    <div class="col-head">
+      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
+    </div>
+
+    <div class="task-row open" onclick="tog(this)">
+      <span class="t-name"><span class="chev">▶</span><span class="label">Jindal ERS Rebars Brochure</span></span>
+      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Viplav</span></span>
+      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
+      <span class="cell-muted"><span class="txt">Kritya</span></span>
+      <span><span class="status s-spoc">SPOC Review</span></span>
+      <span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+    </div>
+    <div class="detail show">
+      <div class="desc">ERS rebars product brochure — 8 pages, print-ready. Following the Jindal Steel master brand book.</div>
+      <div class="upd-log">📝 [26-05] First draft cover + page 1 done — Viplav</div>
+      <div class="link-row">
+        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>docs.google.com/document/d/1F0qFeHoa3yf…</span></div>
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
+      </div>
+      <div class="update-field">+ Add update for today…</div>
+    </div>
+
+    <div class="task-row" onclick="tog(this)">
+      <span class="t-name"><span class="chev">▶</span><span class="label">&amp; Creatives</span></span>
+      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Sonal</span></span>
+      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
+      <span class="cell-muted"><span class="txt">Siddhesh</span></span>
+      <span><span class="status s-progress">In Progress</span></span>
+      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+    </div>
+    <div class="detail">
+      <div class="desc">Supporting creatives set for the campaign.</div>
+      <div class="link-row">
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
+        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
+      </div>
+      <div class="update-field">+ Add update for today…</div>
+    </div>
+
+    <div class="task-row" onclick="tog(this)">
+      <span class="t-name"><span class="chev">▶</span><span class="label">Gloved Hands Planting a Sapling in Omani Soil</span></span>
+      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Vishvanath</span></span>
+      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
+      <span class="cell-muted"><span class="txt">Kritya</span></span>
+      <span><span class="status s-client">Client Review</span></span>
+      <span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
+    </div>
+    <div class="detail">
+      <div class="desc">Hero campaign visual — sapling planting, Omani soil. Approved by SPOC, with client.</div>
+      <div class="link-row">
+        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>dropbox.com/sh/jindal-steel/sapling-final…</span></div>
+        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span>dropbox.com/sh/jindal-steel/open-files…</span></div>
+      </div>
+      <div class="update-field">+ Add update for today…</div>
+    </div>
+  </div>
+
+  <p class="hint">Tip: click any row to open or close it. Only the task you're working on needs to be open.</p>
+
+  <div class="secn-label">How a collapsed list of many tasks feels</div>
+  <div class="task-table">
+    <div class="col-head">
+      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
+    </div>
+    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">Steel City Poster</span></span><span class="cell-muted"><span class="txt">Faizan</span></span><span class="cell-muted"><span class="txt">Jindal Steel</span></span><span class="cell-muted"><span class="txt">Viplav</span></span><span><span class="status s-pending">Pending</span></span><span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
+    <div class="detail"><div class="desc">Poster concept.</div><div class="update-field">+ Add update for today…</div></div>
+    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">League Standings Carousel</span></span><span class="cell-muted"><span class="txt">Gauri</span></span><span class="cell-muted"><span class="txt">Jindal League</span></span><span class="cell-muted"><span class="txt">Siddhesh</span></span><span><span class="status s-progress">In Progress</span></span><span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
+    <div class="detail"><div class="desc">Carousel.</div><div class="update-field">+ Add update for today…</div></div>
+    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">Sohar Steel Launch Mailer</span></span><span class="cell-muted"><span class="txt">Sonal</span></span><span class="cell-muted"><span class="txt">Sohar Steel</span></span><span class="cell-empty">— set SPOC —</span><span><span class="status s-spoc">SPOC Review</span></span><span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
+    <div class="detail"><div class="desc">Launch mailer.</div><div class="update-field">+ Add update for today…</div></div>
+  </div>
+
+</div>
+<script>
+  function tog(row) {
+    var d = row.nextElementSibling;
+    var open = row.classList.toggle('open');
+    if (d && d.classList.contains('detail')) d.classList.toggle('show', open);
+  }
+</script>
+</body>
+</html>  .nav-icon { font-size: 15px; width: 20px; text-align: center; }
 
   /* MAIN */
   .main {
