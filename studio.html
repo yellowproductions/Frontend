@@ -621,10 +621,10 @@ async function _supaPatchByTask(taskDesc, data) {
         review_note: null,
         task_id: id
       });
-      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
-      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Designer has uploaded the creative — move the task to 'SPOC Review' so the
+      // SPOC and team see the submission is in review (new 8-status model).
       // Don't touch description or assignee — those stay as the original task's values.
-      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', id);
       return;
     }
 
@@ -970,8 +970,8 @@ async function onDesignerChange() {
       return (Date.now() - d.getTime()) <= SEVEN_DAYS_MS;
     };
 
-    // Terminal statuses — the task is done in some form. Visible 7 days from closed_at.
-    const TERMINAL_STATUSES = ['Done', 'Closed', 'Approved', 'Rejected'];
+    // Terminal statuses — the task/creative is done in some form. Visible 7 days from closed_at.
+    const TERMINAL_STATUSES = ['Closed', 'Approved', 'Rejected'];
 
     // First pass: build a set of task names that WILL be shown so we can dedupe
     // creatives that already have a task in the picker. Otherwise designer sees
@@ -1134,7 +1134,7 @@ async function submitUpload(){
   const isOpenFile = fileType === 'open';
 
   // Determine base creative name + whether we'll patch an existing task row
-  let baseCreativeName, originalTaskText = null, isRework = false;
+  let baseCreativeName, originalTaskText = null, isRework = false, originatingTaskId = null;
   if (isAdhoc) {
     baseCreativeName = adhocName;
   } else {
@@ -1147,6 +1147,7 @@ async function submitUpload(){
       baseCreativeName = (item.Title || (item.Task || '').substring(0, 60)).replace(/\|/g, '/').trim();
     }
     originalTaskText = item.Task;
+    originatingTaskId = (item._sb_table === 'tasks') ? item._sb_id : null;
 
     // Even when the user picked a TASK (not a creative), check if a matching
     // creative already exists for this task+designer. After dedupe, the
@@ -1273,11 +1274,12 @@ async function submitUpload(){
     const previewLink = folderUrl || fileUrls[0] || '';
 
     if (isOpenFile) {
-      // OPEN FILE flow — patch the task's Open File Link to point at the folder
+      // OPEN FILE flow — patch the task's Open File Link, and move it to Closed
+      // (Batch 2B): uploading the source files is the final step of the task.
       if (originalTaskText) {
         fetch(SHEETDB, {
           method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink } })
+          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink, Status: 'Closed' } })
         });
       } else {
         const row = { Date: new Date().toISOString().split('T')[0], Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': previewLink, Type:'open' };
@@ -1316,10 +1318,10 @@ async function submitUpload(){
               review_note: null,
               rejected_files: []
             }).eq('id', existing[0].id);
-            // Cascade: move the linked task back to Awaiting Review so Suriti
-            // and team see the task in review state, mirroring the creative.
+            // Cascade: move the linked task to SPOC Review so Suriti and team
+            // see the re-submitted task in review state, mirroring the creative.
             if (existing[0].task_id) {
-              await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', existing[0].task_id);
+              await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', existing[0].task_id);
             }
           } else {
             // Edge case — creative not found, fall back to insert
@@ -1332,24 +1334,20 @@ async function submitUpload(){
           console.error('Rework update failed:', e);
         }
       } else if (originalTaskText) {
-        // First-time submission: convert the original task. Interceptor handles
-        // the task→creative migration; we add file_urls via direct Supabase write
-        // since the legacy patch shape doesn't include it.
-        fetch(SHEETDB, {
-          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-          body: JSON.stringify({
-            action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText,
-            data: { Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status: 'Pending Review', 'Preview Link': previewLink, Type: 'creative' }
-          })
-        });
-        // After the interceptor creates the creatives row, patch file_urls onto it.
-        // Small delay to give the insert time to land.
-        setTimeout(async () => {
-          try {
-            await sb.from('creatives').update({ file_urls: fileUrls })
-              .eq('name', baseCreativeName).eq('designer', designer);
-          } catch(e) { console.warn('file_urls patch failed:', e); }
-        }, 600);
+        // First-time submission against a task. Create the creative directly in
+        // Supabase WITH task_id — that link is what lets the review→approve
+        // cascade move the task later. Also move the originating task to
+        // 'SPOC Review' so it leaves 'Pending' the moment the designer submits.
+        try {
+          await sb.from('creatives').insert({
+            name: baseCreativeName, designer, client,
+            status: 'Pending Review', preview_link: previewLink,
+            file_urls: fileUrls, task_id: originatingTaskId || null
+          });
+          if (originatingTaskId) {
+            await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', originatingTaskId);
+          }
+        } catch(e) { console.error('First-time submission failed:', e); }
       } else {
         // Adhoc / standalone creative (no originating task)
         try {
