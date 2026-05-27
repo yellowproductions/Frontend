@@ -237,7 +237,8 @@
     appearance: none; -webkit-appearance: none; -moz-appearance: none;
   }
   .fos-link-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-  .fos-link-field { flex: 0 1 340px; }
+  .fos-link-field { flex: 0 1 340px; display: flex; gap: 6px; align-items: center; }
+  .fos-link-arrow { font-size: 14px; text-decoration: none; color: var(--yellow); flex-shrink: 0; }
   .fos-link-field input {
     width: 100%; font-size: 12px; padding: 7px 10px !important;
     border: 1px solid var(--border); border-radius: 8px; background: #fff;
@@ -3799,11 +3800,13 @@ function renderTasks(tasks) {
             <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
               title="Preview / final-creative link"
               onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+            ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-link-arrow" title="Open preview">↗</a>` : ''}
           </div>
           <div class="fos-link-field">
             <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
               title="Source file link (AI / PSD in Dropbox)"
               onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+            ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-link-arrow" title="Open source file">↗</a>` : ''}
           </div>
         </div>
         <div class="fos-update-add">
