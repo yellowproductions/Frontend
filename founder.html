@@ -3,322 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Task Card — Design Preview</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Yellow Productions — Welcome Suriti!</title>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap');
+
   :root {
-    --bg: #faf9f6;
+    --bg: #f5f4f1;
     --surface: #ffffff;
-    --soft: #f5f4f0;
-    --border: #e8e5dd;
-    --text: #1a1a1a;
-    --muted: #8a8881;
+    --surface2: #f0eeea;
+    --border: #e0ddd8;
     --yellow: #FEBC06;
+    --yellow-dim: #a87818;
+    --text: #1a1a1a;
+    --muted: #888;
+    --green: #2a7a3a;
+    --red: #c0392b;
+    --blue: #2563eb;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
   body {
-    font-family: 'Poppins', sans-serif;
     background: var(--bg);
     color: var(--text);
-    padding: 40px 32px 80px;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1100px; margin: 0 auto; }
-
-  .preview-note {
-    background: #fff8e1;
-    border: 1px solid #f0d886;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 13px;
-    color: #6b5113;
-    margin-bottom: 36px;
-    line-height: 1.6;
-  }
-  .preview-note b { font-weight: 600; }
-
-  .month-head {
+    font-family: 'Poppins', sans-serif;
+    height: 100vh;
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
-  .month-head .done { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; font-weight: 400; }
-  .month-rule { height: 2px; background: var(--yellow); margin: 8px 0 24px; border-radius: 2px; }
-
-  .date-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--yellow);
-    letter-spacing: 0.08em;
-    margin: 24px 0 6px;
-  }
-  .date-head .closed { color: var(--muted); font-size: 11px; }
-
-  /* ---- the table ---- */
-  .task-table {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
     overflow: hidden;
   }
-  .col-head, .task-row {
-    display: grid;
-    grid-template-columns: minmax(0,1fr) 130px 150px 120px 140px 70px;
-    gap: 14px;
-    align-items: center;
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0;
   }
-  .col-head {
-    padding: 10px 18px;
-    font-size: 10px;
+
+  .logo {
+    padding: 0 20px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .logo-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--yellow);
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+  }
+
+  .logo-sub {
+    font-size: 10px;
     color: var(--muted);
-    border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
   }
-  .task-row {
-    padding: 14px 18px;
-    font-size: 13.5px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border);
-    transition: background 0.12s;
-  }
-  .task-row:last-child { border-bottom: none; }
-  .task-row:hover { background: #fcfbf8; }
 
-  .t-name { font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .t-name .chev { color: var(--muted); font-size: 11px; transition: transform 0.15s; flex-shrink: 0; }
-  .t-name .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .task-row.open .chev { transform: rotate(90deg); }
-
-  .cell-muted { color: #5f5e5a; display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .cell-muted .ico { width: 15px; height: 15px; opacity: 0.55; flex-shrink: 0; }
-  .cell-muted .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cell-empty { color: #c4c1b8; }
-
-  /* status pill */
-  .status {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 11px;
-    border-radius: 999px;
-    display: inline-block;
-    white-space: nowrap;
-  }
-  .s-spoc    { background: #ede9fe; color: #5b21b6; }
-  .s-pending { background: #fef3c7; color: #92400e; }
-  .s-progress{ background: #dbeafe; color: #1e40af; }
-  .s-client  { background: #fce7f3; color: #831843; }
-
-  /* file icons */
-  .files { display: flex; gap: 9px; }
-  .files .fi { width: 17px; height: 17px; }
-  .fi-on  { color: var(--yellow); }
-  .fi-off { color: #d8d5cc; }
-
-  /* ---- expanded panel ---- */
-  .detail {
-    display: none;
-    padding: 4px 18px 18px 42px;
-    border-bottom: 1px solid var(--border);
-    background: #fcfbf8;
-  }
-  .detail.show { display: block; }
-  .detail .desc {
-    font-size: 12.5px;
-    color: #6b6a64;
-    line-height: 1.6;
-    margin-bottom: 14px;
-  }
-  .link-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-  .link-field {
-    flex: 0 1 360px;
+  .nav-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 11px;
-    font-size: 12px;
-    color: #5f5e5a;
-  }
-  .link-field .ico { width: 14px; height: 14px; opacity: 0.5; }
-  .link-field.filled { color: #1e40af; }
-  .link-field .placeholder { color: #b4b2a9; }
-  .update-field {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 11px;
-    font-size: 12px;
-    color: #b4b2a9;
-    max-width: 360px;
-  }
-  .upd-log {
-    font-size: 11.5px;
-    color: #6b6a64;
-    font-family: 'DM Mono', monospace;
-    padding: 3px 0 3px 10px;
-    border-left: 2px solid #f0d886;
-    margin-bottom: 10px;
-  }
-
-  .secn-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 13px;
     color: var(--muted);
-    margin: 48px 0 10px;
-    font-weight: 600;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
   }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
-</style>
-</head>
-<body>
-<div class="wrap">
 
-  <div class="preview-note">
-    <b>Design preview — not the live portal.</b> This shows the proposed task layout: an aligned table where every column lines up down the list, and any row <b>expands on click</b> to reveal links, notes and the update box. Click the rows below to feel it.
-  </div>
-
-  <div class="month-head">
-    <span>📁 MAY 2026 — ACTIVE</span>
-    <span class="done">83/135 DONE</span>
-  </div>
-  <div class="month-rule"></div>
-
-  <div class="date-head"><span>2026-05-27</span><span class="closed">0/2 CLOSED</span></div>
-  <div class="task-table">
-    <div class="col-head">
-      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
-    </div>
-
-    <div class="task-row" onclick="tog(this)">
-      <span class="t-name"><span class="chev">▶</span><span class="label">FFI</span></span>
-      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Faizan</span></span>
-      <span class="cell-muted"><span class="txt">TEAM YP</span></span>
-      <span class="cell-empty">— set SPOC —</span>
-      <span><span class="status s-spoc">SPOC Review</span></span>
-      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
-    </div>
-    <div class="detail">
-      <div class="desc">Full brief — context, references, anything important goes here.</div>
-      <div class="link-row">
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
-      </div>
-      <div class="update-field">+ Add update for today…</div>
-    </div>
-
-    <div class="task-row" onclick="tog(this)">
-      <span class="t-name"><span class="chev">▶</span><span class="label">Winners Post</span></span>
-      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Archana</span></span>
-      <span class="cell-muted"><span class="txt">TEAM YP</span></span>
-      <span class="cell-empty">— set SPOC —</span>
-      <span><span class="status s-pending">Pending</span></span>
-      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
-    </div>
-    <div class="detail">
-      <div class="desc">Winners announcement post for the league campaign.</div>
-      <div class="link-row">
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
-      </div>
-      <div class="update-field">+ Add update for today…</div>
-    </div>
-  </div>
-
-  <div class="date-head"><span>2026-05-26</span><span class="closed">0/4 CLOSED</span></div>
-  <div class="task-table">
-    <div class="col-head">
-      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
-    </div>
-
-    <div class="task-row open" onclick="tog(this)">
-      <span class="t-name"><span class="chev">▶</span><span class="label">Jindal ERS Rebars Brochure</span></span>
-      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Viplav</span></span>
-      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
-      <span class="cell-muted"><span class="txt">Kritya</span></span>
-      <span><span class="status s-spoc">SPOC Review</span></span>
-      <span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
-    </div>
-    <div class="detail show">
-      <div class="desc">ERS rebars product brochure — 8 pages, print-ready. Following the Jindal Steel master brand book.</div>
-      <div class="upd-log">📝 [26-05] First draft cover + page 1 done — Viplav</div>
-      <div class="link-row">
-        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>docs.google.com/document/d/1F0qFeHoa3yf…</span></div>
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
-      </div>
-      <div class="update-field">+ Add update for today…</div>
-    </div>
-
-    <div class="task-row" onclick="tog(this)">
-      <span class="t-name"><span class="chev">▶</span><span class="label">&amp; Creatives</span></span>
-      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Sonal</span></span>
-      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
-      <span class="cell-muted"><span class="txt">Siddhesh</span></span>
-      <span><span class="status s-progress">In Progress</span></span>
-      <span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
-    </div>
-    <div class="detail">
-      <div class="desc">Supporting creatives set for the campaign.</div>
-      <div class="link-row">
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span class="placeholder">Preview link</span></div>
-        <div class="link-field"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span class="placeholder">Open file link</span></div>
-      </div>
-      <div class="update-field">+ Add update for today…</div>
-    </div>
-
-    <div class="task-row" onclick="tog(this)">
-      <span class="t-name"><span class="chev">▶</span><span class="label">Gloved Hands Planting a Sapling in Omani Soil</span></span>
-      <span class="cell-muted"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg><span class="txt">Vishvanath</span></span>
-      <span class="cell-muted"><span class="txt">Jindal Steel</span></span>
-      <span class="cell-muted"><span class="txt">Kritya</span></span>
-      <span><span class="status s-client">Client Review</span></span>
-      <span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span>
-    </div>
-    <div class="detail">
-      <div class="desc">Hero campaign visual — sapling planting, Omani soil. Approved by SPOC, with client.</div>
-      <div class="link-row">
-        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><span>dropbox.com/sh/jindal-steel/sapling-final…</span></div>
-        <div class="link-field filled"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg><span>dropbox.com/sh/jindal-steel/open-files…</span></div>
-      </div>
-      <div class="update-field">+ Add update for today…</div>
-    </div>
-  </div>
-
-  <p class="hint">Tip: click any row to open or close it. Only the task you're working on needs to be open.</p>
-
-  <div class="secn-label">How a collapsed list of many tasks feels</div>
-  <div class="task-table">
-    <div class="col-head">
-      <span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span>
-    </div>
-    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">Steel City Poster</span></span><span class="cell-muted"><span class="txt">Faizan</span></span><span class="cell-muted"><span class="txt">Jindal Steel</span></span><span class="cell-muted"><span class="txt">Viplav</span></span><span><span class="status s-pending">Pending</span></span><span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
-    <div class="detail"><div class="desc">Poster concept.</div><div class="update-field">+ Add update for today…</div></div>
-    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">League Standings Carousel</span></span><span class="cell-muted"><span class="txt">Gauri</span></span><span class="cell-muted"><span class="txt">Jindal League</span></span><span class="cell-muted"><span class="txt">Siddhesh</span></span><span><span class="status s-progress">In Progress</span></span><span class="files"><svg class="fi fi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
-    <div class="detail"><div class="desc">Carousel.</div><div class="update-field">+ Add update for today…</div></div>
-    <div class="task-row" onclick="tog(this)"><span class="t-name"><span class="chev">▶</span><span class="label">Sohar Steel Launch Mailer</span></span><span class="cell-muted"><span class="txt">Sonal</span></span><span class="cell-muted"><span class="txt">Sohar Steel</span></span><span class="cell-empty">— set SPOC —</span><span><span class="status s-spoc">SPOC Review</span></span><span class="files"><svg class="fi fi-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></span></div>
-    <div class="detail"><div class="desc">Launch mailer.</div><div class="update-field">+ Add update for today…</div></div>
-  </div>
-
-</div>
-<script>
-  function tog(row) {
-    var d = row.nextElementSibling;
-    var open = row.classList.toggle('open');
-    if (d && d.classList.contains('detail')) d.classList.toggle('show', open);
-  }
-</script>
-</body>
-</html>  .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--yellow); border-left-color: var(--yellow); background: var(--surface2); }
+  .nav-icon { font-size: 15px; width: 20px; text-align: center; }
 
   /* MAIN */
   .main {
@@ -388,10 +150,109 @@
     transition: border 0.15s;
   }
 
-  /* Task card — uniform pill sizing, contained link boxes */
-  .task-meta-row select { width: auto !important; padding: 4px 10px !important; border-radius: 8px !important; }
-  .task-link-row > div { flex: 0 1 340px !important; }
-  .task-link-row input { border-radius: 8px; padding: 6px 10px; }
+  /* ===== Task list — aligned table with expandable rows ===== */
+  .fos-task-table {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .fos-col-head, .fos-task-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 132px 152px 122px 140px 56px;
+    gap: 14px;
+    align-items: center;
+  }
+  .fos-col-head {
+    padding: 9px 16px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .fos-task-row {
+    padding: 12px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .fos-task-row:hover { background: #fcfbf8; }
+  .fos-task-row.open { background: #fcfbf8; }
+  .fos-cell-task { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .fos-chev {
+    color: var(--muted); font-size: 10px; flex-shrink: 0;
+    transition: transform 0.15s; padding: 2px;
+  }
+  .fos-task-row.open .fos-chev { transform: rotate(90deg); }
+  .fos-tname {
+    font-weight: 600; cursor: text; outline: none;
+    padding: 1px 4px; border-radius: 4px; word-break: break-word; min-width: 30px;
+  }
+  .fos-cell { min-width: 0; }
+  .fos-mini-select {
+    width: 100%; font-size: 11.5px; font-family: inherit;
+    background: transparent !important; border: none !important;
+    color: #5f5e5a; cursor: pointer; padding: 2px 0 !important;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    text-overflow: ellipsis;
+  }
+  .fos-mini-select:hover { color: var(--text); }
+  .fos-status-select {
+    font-size: 11px; font-weight: 600; font-family: inherit;
+    border-radius: 999px !important; cursor: pointer; padding: 4px 10px !important;
+    width: auto !important; max-width: 100%;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  }
+  .fos-cell-files { display: flex; gap: 9px; align-items: center; }
+  .fos-fi { font-size: 14px; text-decoration: none; line-height: 1; }
+  .fos-fi.off { opacity: 0.25; filter: grayscale(1); }
+  .fos-task-detail {
+    padding: 4px 16px 16px 40px;
+    border-bottom: 1px solid var(--border);
+    background: #fcfbf8;
+  }
+  .fos-detail-desc {
+    font-size: 12px; color: #6b6a64; line-height: 1.6;
+    margin-bottom: 12px; cursor: text; outline: none;
+    padding: 2px 4px; border-radius: 4px; word-break: break-word;
+  }
+  .fos-collab-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+  .fos-collab-pill {
+    font-size: 11px; font-weight: 600; padding: 3px 6px 3px 9px;
+    border-radius: 8px; background: #f4f3ef; border: 1px solid #e3e0d8;
+    color: #52514c; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .fos-collab-pill button {
+    background: none; border: none; color: #52514c; cursor: pointer;
+    font-size: 13px; padding: 0; line-height: 1; font-weight: 700;
+  }
+  .fos-addcollab {
+    font-size: 11px; font-family: inherit; width: auto !important;
+    padding: 3px 9px !important; border-radius: 8px;
+    background: transparent !important; border: 1px dashed var(--border) !important;
+    color: #666; cursor: pointer;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  }
+  .fos-link-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .fos-link-field { flex: 0 1 340px; }
+  .fos-link-field input {
+    width: 100%; font-size: 12px; padding: 7px 10px !important;
+    border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  }
+  .fos-update-add { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .fos-update-add input {
+    flex: 1; min-width: 200px; max-width: 340px; font-size: 12px; padding: 7px 10px !important;
+    border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  }
+  .fos-del {
+    font-size: 11px; padding: 5px 12px; border-radius: 8px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--red); cursor: pointer;
+  }
+  .fos-del:hover { background: #fef2f2; }
 
   input:focus, select:focus, textarea:focus {
     outline: none;
@@ -653,6 +514,7 @@
     padding: 14px 8px !important;
   }
   .task-row > *, .fos-task-row > * { width: 100% !important; }
+  .fos-col-head { display: none !important; }
   .fos-task-row input, .fos-task-row select {
     font-size: 14px !important;
     padding: 9px 12px !important;
@@ -3854,101 +3716,105 @@ function renderTasks(tasks) {
     let out = `<div class="date-group-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>${date}</span>
       <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} closed</span>
-    </div>`;
+    </div>
+    <div class="fos-task-table">
+      <div class="fos-col-head"><span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span></div>`;
     grouped[date].forEach((t) => {
-      // Normalize legacy "Done" → "Closed" across the system. Going forward only
-      // "Closed" exists; Suriti asked to drop "Done" entirely.
+      // Normalize legacy "Done" → "Closed". Going forward only "Closed" exists.
       const rawStatus = t.Status || 'Pending';
       const status = rawStatus === 'Done' ? 'Closed' : rawStatus;
       const selectStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
-      const link = t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="clickup-link">🔗 View</a>` : '';
       const title = t.Title || '';
       const desc = t.Task || '';
       const showDesc = title && desc && desc !== title;
+      const displayName = (title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;');
       const taskKey = encodeURIComponent(t.Task || '');
+      const isOpen = !!(window._fosExpanded && window._fosExpanded.has(t.Task));
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
       const updatesHtml = updateLines.length
-        ? `<div style="margin-top:6px;padding-left:0;border-left:2px solid #f0d080;padding-left:8px">
+        ? `<div style="margin:0 0 12px;border-left:2px solid #f0d080;padding-left:8px">
             ${updateLines.map(l => `<div style="font-size:11px;color:#444;line-height:1.5;font-family:'DM Mono',monospace">📝 ${l}</div>`).join('')}
           </div>` : '';
       out += `
-      <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div class="fos-task-row" style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
-          <div class="task-meta-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
-            <span contenteditable="true" spellcheck="true"
-              title="Click to edit · Tab or click out to save"
-              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-              onblur="updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
-              style="cursor:text;padding:1px 4px;border-radius:4px;outline:none;font-weight:600;font-size:13px;min-width:40px"
-              onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
-            <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
-              title="Reassign — pick a different person"
-              style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-              <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
-              ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
-            </select>
-            ${(t.Collaborators || []).map(c => `<span title="Collaborator — click × to remove"
-              style="font-size:11px;padding:3px 6px 3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;display:inline-flex;align-items:center;gap:4px">
-              👥 ${c}
-              <button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#52514c;cursor:pointer;font-size:13px;padding:0;line-height:1;font-weight:700">×</button>
-            </span>`).join('')}
-            <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
-              title="Add collaborator"
-              style="font-size:11px;padding:3px 9px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-              <option value="" selected>+ Add</option>
-              ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
-            </select>
-            ${renderFosClientEditor(t)}
-            <select onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)"
-              title="SPOC — client-servicing lead"
-              style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-              <option value="" ${!t.SPOC?'selected':''}>🎯 SPOC —</option>
-              ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
-            </select>
-            <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;margin-left:auto;${selectStyle}">
-              <option ${status==='Pending'?'selected':''}>Pending</option>
-              <option ${status==='In Progress'?'selected':''}>In Progress</option>
-              <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
-              <option ${status==='Client Review'?'selected':''}>Client Review</option>
-              <option ${status==='Rework'?'selected':''}>Rework</option>
-              <option ${status==='Open Files'?'selected':''}>Open Files</option>
-              <option ${status==='Closed'?'selected':''}>Closed</option>
-              <option ${status==='Rejected'?'selected':''}>Rejected</option>
-            </select>
-            <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
-              class="btn btn-sm" style="background:transparent;border:none;color:#bdbab2;font-size:15px;padding:2px 6px;cursor:pointer;line-height:1">✕</button>
-          </div>
-          <div class="task-link-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
-              <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
-                title="Preview / final-creative link"
-                onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-                style="font-size:11px;padding:5px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
-              ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" title="Open preview" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
-            </div>
-            <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
-              <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
-                title="Source file link (AI / PSD in Dropbox)"
-                onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-                style="font-size:11px;padding:5px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
-              ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" title="Open source file" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
-            </div>
-          </div>
-          ${showDesc ? `<div contenteditable="true" spellcheck="true"
-            title="Click to edit"
+      <div class="fos-task-row${isOpen?' open':''}" onclick="toggleTaskRow(this,'${taskKey}')">
+        <div class="fos-cell-task">
+          <span class="fos-chev">▶</span>
+          <span class="fos-tname" contenteditable="true" spellcheck="true" title="Click to edit"
+            onclick="event.stopPropagation()"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-            onblur="updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
-            style="font-size:11px;color:var(--muted);font-weight:400;overflow-wrap:anywhere;word-break:break-word;cursor:text;padding:2px 4px;border-radius:4px;outline:none"
-            onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
-          ${updatesHtml}
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
+            onfocus="this.style.background='#fef9ee'"
+            onblur="this.style.background='';updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)">${displayName}</span>
+        </div>
+        <div class="fos-cell" onclick="event.stopPropagation()">
+          <select class="fos-mini-select" title="Owner — reassign"
+            onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)">
+            <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
+            ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fos-cell" onclick="event.stopPropagation()">${renderFosClientEditor(t)}</div>
+        <div class="fos-cell" onclick="event.stopPropagation()">
+          <select class="fos-mini-select" title="SPOC — client-servicing lead"
+            onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)">
+            <option value="" ${!t.SPOC?'selected':''}>🎯 ${t.SPOC || 'SPOC —'}</option>
+            ${['Suriti','Viplav','Kritya','Siddhesh'].filter(n => n !== t.SPOC).map(n => `<option value="${n}">🎯 ${n}</option>`).join('')}
+            ${t.SPOC ? '<option value="">🎯 — clear —</option>' : ''}
+          </select>
+        </div>
+        <div class="fos-cell" onclick="event.stopPropagation()">
+          <select class="fos-status-select" style="${selectStyle}"
+            onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+            <option ${status==='Pending'?'selected':''}>Pending</option>
+            <option ${status==='In Progress'?'selected':''}>In Progress</option>
+            <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
+            <option ${status==='Client Review'?'selected':''}>Client Review</option>
+            <option ${status==='Rework'?'selected':''}>Rework</option>
+            <option ${status==='Open Files'?'selected':''}>Open Files</option>
+            <option ${status==='Closed'?'selected':''}>Closed</option>
+            <option ${status==='Rejected'?'selected':''}>Rejected</option>
+          </select>
+        </div>
+        <div class="fos-cell-files" onclick="event.stopPropagation()">
+          ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-fi" title="Open preview link">🔗</a>` : `<span class="fos-fi off" title="No preview link yet">🔗</span>`}
+          ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-fi" title="Open source file">📂</a>` : `<span class="fos-fi off" title="No open file link yet">📂</span>`}
+        </div>
+      </div>
+      <div class="fos-task-detail" style="display:${isOpen?'block':'none'}">
+        ${showDesc ? `<div class="fos-detail-desc" contenteditable="true" spellcheck="true" title="Click to edit"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+          onfocus="this.style.background='#fef9ee'"
+          onblur="this.style.background='';updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
+        ${updatesHtml}
+        <div class="fos-collab-row">
+          ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
+          <select class="fos-addcollab" title="Add collaborator"
+            onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''">
+            <option value="" selected>+ Add collaborator</option>
+            ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fos-link-row">
+          <div class="fos-link-field">
+            <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
+              title="Preview / final-creative link"
+              onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
           </div>
+          <div class="fos-link-field">
+            <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
+              title="Source file link (AI / PSD in Dropbox)"
+              onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+          </div>
+        </div>
+        <div class="fos-update-add">
+          <input type="text" placeholder="+ Add update for today..."
+            onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)">
+          <button class="fos-del" title="Delete this task"
+            onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')">Delete</button>
         </div>
       </div>`;
     });
+    out += `</div>`;
     return out;
   };
 
@@ -4039,13 +3905,10 @@ async function addUpdate(encodedTask, inputEl) {
 // surfaces on the client portal's Live Tasks for that sub-brand.
 function renderFosClientEditor(t) {
   const c = t.Client || '';
-  const placeholder = c ? `🏷 ${c} ▾` : '＋ Client ▾';
-  // Uniform neutral pill — same calm style as every other meta-chip in the row.
-  const chipStyle = c
-    ? 'background:#f4f3ef;color:#52514c;border:1px solid #e3e0d8'
-    : 'background:transparent;color:#8a8881;border:1px dashed #d8d5cc';
-  return `<select onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${chipStyle}">
-    <option value="" selected>${placeholder}</option>
+  const label = c ? `🏷 ${c}` : '🏷 Client —';
+  return `<select class="fos-mini-select" title="Client tag"
+    onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')">
+    <option value="" selected>${label}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
       <option value="Jindal Steel">Jindal Steel</option>
@@ -4064,6 +3927,15 @@ function renderFosClientEditor(t) {
     <option value="HZL">HZL</option>
     <option value="Adhoc">Adhoc</option>
   </select>`;
+}
+
+window._fosExpanded = window._fosExpanded || new Set();
+function toggleTaskRow(row, key) {
+  const k = decodeURIComponent(key);
+  const open = row.classList.toggle('open');
+  const d = row.nextElementSibling;
+  if (d && d.classList.contains('fos-task-detail')) d.style.display = open ? 'block' : 'none';
+  if (open) window._fosExpanded.add(k); else window._fosExpanded.delete(k);
 }
 
 // Pending client-tag writes that the sheet hasn't yet confirmed. Each loadTasks
