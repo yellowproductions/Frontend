@@ -3669,7 +3669,7 @@ function renderTasks(tasks) {
               ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
             </select>
             <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${selectStyle}">
+              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;margin-left:auto;${selectStyle}">
               <option ${status==='Pending'?'selected':''}>Pending</option>
               <option ${status==='In Progress'?'selected':''}>In Progress</option>
               <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
@@ -3680,7 +3680,7 @@ function renderTasks(tasks) {
               <option ${status==='Rejected'?'selected':''}>Rejected</option>
             </select>
             <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
-              class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px;border-radius:8px;margin-left:auto">✕</button>
+              class="btn btn-sm" style="background:transparent;border:none;color:#bdbab2;font-size:15px;padding:2px 6px;cursor:pointer;line-height:1">✕</button>
           </div>
           <div class="task-link-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
