@@ -4887,15 +4887,23 @@ async function renderReview() {
                 <div style="font-size:9px;color:#999;text-align:center;font-weight:600">FILE ${ui+1}</div>
                 <input type="text" id="file-comment-${idx}-${ui}" placeholder="Feedback on this file..."
                   style="font-size:10px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;width:100%;box-sizing:border-box">
-                <button onclick="sendBackFile(${idx}, ${ui})" title="Rejects just this file — moves it to the REJECTED folder and removes it from this review"
-                  style="font-size:10px;padding:4px 6px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;width:100%">✕ Reject file</button>
+                <label style="display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;color:#991b1b;cursor:pointer;padding:4px 6px;border:1px solid #fecaca;background:#fef2f2;border-radius:5px;font-weight:600">
+                  <input type="checkbox" class="file-check-cb" data-ridx="${idx}" id="file-check-${idx}-${ui}" onchange="updateRejectCount(${idx})" style="width:auto;margin:0;cursor:pointer">
+                  Reject this
+                </label>
               </div>`;
             }).join('');
             const folderBtn = folderUrl
               ? `<a href="${folderUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">📁 Open Folder (${urls.length} file${urls.length>1?'s':''})</a>`
               : '';
             return `${folderBtn}
-              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:10px">${thumbs}</div>`;
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:8px">${thumbs}</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+                <input type="text" id="batch-reason-${idx}" placeholder="Shared reason for the ticked files (a per-file note overrides this)..."
+                  style="flex:1;min-width:200px;font-size:11px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                <button id="batch-reject-btn-${idx}" onclick="rejectCheckedFiles(${idx})"
+                  style="font-size:11px;padding:7px 14px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:700;font-family:inherit">✕ Reject ticked files</button>
+              </div>`;
           })()}
           <div style="margin-top:12px">
             <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:block;margin-bottom:6px">Notes / Feedback (optional)</label>
@@ -4962,6 +4970,106 @@ async function renderReview() {
 }
 
 // Suriti's approve/send-back action — mirrors the team-portal flow + tags her name
+// Live count on the batch-reject button as files are ticked.
+function updateRejectCount(idx) {
+  const btn = document.getElementById(`batch-reject-btn-${idx}`);
+  if (!btn) return;
+  let n = 0;
+  document.querySelectorAll(`.file-check-cb[data-ridx="${idx}"]`).forEach(c => { if (c.checked) n++; });
+  btn.textContent = n ? `✕ Reject ${n} ticked file${n>1?'s':''}` : '✕ Reject ticked files';
+}
+
+// Batch per-file reject — tick the bad files, give one shared reason (or a
+// per-file note), reject them all in a single DB write. Replaces the old
+// one-file-at-a-time flow.
+async function rejectCheckedFiles(idx) {
+  const item = window._reviewItems && window._reviewItems[idx];
+  if (!item) return;
+  const urls = (item._sb_file_urls && item._sb_file_urls.length) ? item._sb_file_urls.slice() : [];
+
+  const checked = [];
+  urls.forEach((u, ui) => {
+    const cb = document.getElementById(`file-check-${idx}-${ui}`);
+    if (cb && cb.checked) checked.push(ui);
+  });
+  if (!checked.length) { alert('Tick the files you want to reject first.'); return; }
+
+  const sharedReason = (document.getElementById(`batch-reason-${idx}`)?.value || '').trim();
+  const fileComments = {};
+  let missing = false;
+  checked.forEach(ui => {
+    const own = (document.getElementById(`file-comment-${idx}-${ui}`)?.value || '').trim();
+    const c = own || sharedReason;
+    if (!c) missing = true;
+    fileComments[ui] = c;
+  });
+  if (missing) { alert('Add a reason — either a note on each file, or one shared reason for all the ticked files.'); return; }
+  if (!confirm(`Reject ${checked.length} file${checked.length>1?'s':''} and send back for rework?`)) return;
+
+  const parts = (item.Task || '').split('|');
+  const cName = parts[0].trim();
+  const designer = parts[1] ? parts[1].trim() : '';
+  const btn = document.getElementById(`batch-reject-btn-${idx}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Rejecting…'; }
+
+  try {
+    // Move each rejected file to Dropbox /REJECTED — parallel, best-effort.
+    const datePrefix = new Date().toISOString().split('T')[0];
+    await Promise.allSettled(checked.map(ui => {
+      const fileUrl = urls[ui];
+      const origName = (fileUrl.split('/').pop() || `file${ui+1}`).split('?')[0];
+      const safeName = `${datePrefix}_${cName.replace(/[^a-zA-Z0-9]/g,'-')}_File${ui+1}_${origName}`;
+      return fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
+      }).catch(e => console.warn('Dropbox move failed:', e.message));
+    }));
+
+    // One DB write: remove ticked files from file_urls, add to rejected_files.
+    const checkedSet = new Set(checked);
+    const newFileUrls = urls.filter((_, i) => !checkedSet.has(i));
+    const existingRejected = Array.isArray(item._sb_rejected_files) ? item._sb_rejected_files.slice() : [];
+    const stampISO = new Date().toISOString();
+    const newRejected = existingRejected.slice();
+    const noteLines = [];
+    checked.forEach(ui => {
+      newRejected.push({ url: urls[ui], feedback: fileComments[ui], file_label: `File ${ui+1}`, rejected_at: stampISO });
+      noteLines.push(`File ${ui+1}: ${fileComments[ui]}`);
+    });
+    const existingNote = (item.Notes || '').trim();
+    const combinedNote = [existingNote, ...noteLines].filter(Boolean).join('\n');
+
+    if (item._sb_id) {
+      const { error } = await sb.from('creatives').update({
+        review_note: combinedNote, file_urls: newFileUrls, rejected_files: newRejected
+      }).eq('id', item._sb_id);
+      if (error) {
+        alert('⚠️ Reject did NOT save to the database:\n\n' + error.message +
+              '\n\nThe files are still in the system — nothing was lost. Try again.');
+        if (btn) { btn.disabled = false; updateRejectCount(idx); }
+        return;
+      }
+    }
+    item.Notes = combinedNote;
+    item._sb_file_urls = newFileUrls;
+    item._sb_rejected_files = newRejected;
+
+    if (designer) {
+      notifyTelegram(designer, `↻ <b>Files sent back for rework</b>\n\n<b>${cName}</b>\n${noteLines.join('\n')}\n\nRework the noted files and re-upload via Studio.\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
+    }
+    const mentioned = extractMentions(checked.map(ui => fileComments[ui]).join(' ')).filter(n => n !== designer && n !== 'Suriti');
+    mentioned.forEach(name => {
+      notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b>\nBy: ${designer}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
+    });
+
+    renderReview();
+    updateReviewBadge();
+  } catch(e) {
+    alert('Could not reject files: ' + e.message);
+    if (btn) { btn.disabled = false; updateRejectCount(idx); }
+  }
+}
+
 async function sendBackFile(idx, fileIdx) {
   const item = window._reviewItems && window._reviewItems[idx];
   if (!item) return;
@@ -5175,7 +5283,26 @@ async function founderSubmitReview(idx, action) {
       // Only client portal actions should touch client_decision. Founder approve/reject
       // is a separate axis — don't pollute the client decision field.
       if (action === 'approve') upd.client_decision = null;       // back to client
+      // Whole send-back: every file still in review is going back for rework.
+      // Move them all into rejected_files and clear file_urls — otherwise the
+      // designer's Studio re-upload APPENDS to file_urls and old + new pile up.
+      if (action === 'sendback') {
+        const liveUrls = Array.isArray(item._sb_file_urls) ? item._sb_file_urls : [];
+        if (liveUrls.length) {
+          const existingRej = Array.isArray(item._sb_rejected_files) ? item._sb_rejected_files.slice() : [];
+          const stampISO = new Date().toISOString();
+          upd.file_urls = [];
+          upd.rejected_files = [
+            ...existingRej,
+            ...liveUrls.map((u, i) => ({ url: u, feedback: note, file_label: `File ${existingRej.length + i + 1}`, rejected_at: stampISO }))
+          ];
+        }
+      }
       await sb.from('creatives').update(upd).eq('id', item._sb_id);
+      if (action === 'sendback' && Array.isArray(upd.file_urls)) {
+        item._sb_file_urls = [];
+        item._sb_rejected_files = upd.rejected_files;
+      }
       // Cascade to the linked task — so it leaves the 'SPOC Review' bucket
       // and either becomes client-visible ('Client Review'), goes 'Rejected',
       // or goes to 'Rework' (sent back for rework).
