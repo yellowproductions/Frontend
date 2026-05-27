@@ -150,6 +150,9 @@
     transition: border 0.15s;
   }
 
+  /* Task-card meta pills size to their content, not the full row */
+  .task-meta-row select { width: auto; }
+
   input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--yellow);
@@ -3632,7 +3635,7 @@ function renderTasks(tasks) {
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
         <div class="fos-task-row" style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
-          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+          <div class="task-meta-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
             <span contenteditable="true" spellcheck="true"
               title="Click to edit · Tab or click out to save"
               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
