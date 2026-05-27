@@ -150,8 +150,10 @@
     transition: border 0.15s;
   }
 
-  /* Task-card meta pills size to their content, not the full row */
-  .task-meta-row select { width: auto; }
+  /* Task card — uniform pill sizing, contained link boxes */
+  .task-meta-row select { width: auto !important; padding: 4px 10px !important; border-radius: 8px !important; }
+  .task-link-row > div { flex: 0 1 340px !important; }
+  .task-link-row input { border-radius: 8px; padding: 6px 10px; }
 
   input:focus, select:focus, textarea:focus {
     outline: none;
@@ -3667,7 +3669,7 @@ function renderTasks(tasks) {
               ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
             </select>
             <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;margin-left:auto;${selectStyle}">
+              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${selectStyle}">
               <option ${status==='Pending'?'selected':''}>Pending</option>
               <option ${status==='In Progress'?'selected':''}>In Progress</option>
               <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
@@ -3678,9 +3680,9 @@ function renderTasks(tasks) {
               <option ${status==='Rejected'?'selected':''}>Rejected</option>
             </select>
             <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
-              class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px;border-radius:8px">✕</button>
+              class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px;border-radius:8px;margin-left:auto">✕</button>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div class="task-link-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
               <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
                 title="Preview / final-creative link"
