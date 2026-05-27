@@ -3631,78 +3631,78 @@ function renderTasks(tasks) {
           </div>` : '';
       out += `
       <div style="padding:12px 4px;border-bottom:1px solid var(--border)">
-        <div class="fos-task-row" style="display:grid;grid-template-columns:minmax(320px, 1.5fr) 110px 1fr 1fr 36px;gap:6px;align-items:start;font-size:12px;">
-          <div style="font-size:13px;min-width:0;overflow-wrap:anywhere">
-            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
-              <span contenteditable="true" spellcheck="true"
-                title="Click to edit · Tab or click out to save"
-                onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                onblur="updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
-                style="cursor:text;padding:1px 4px;border-radius:4px;outline:none;font-weight:600;min-width:40px"
-                onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
-              <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
-                title="Reassign — pick a different person"
-                style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-                <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
-                ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
-              </select>
-              ${(t.Collaborators || []).map(c => `<span title="Collaborator — click × to remove"
-                style="font-size:11px;padding:3px 6px 3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;display:inline-flex;align-items:center;gap:4px">
-                👥 ${c}
-                <button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#52514c;cursor:pointer;font-size:13px;padding:0;line-height:1;font-weight:700">×</button>
-              </span>`).join('')}
-              <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
-                title="Add collaborator"
-                style="font-size:11px;padding:3px 9px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-                <option value="" selected>+ Add</option>
-                ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
-              </select>
-              ${renderFosClientEditor(t)}
-              <select onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)"
-                title="SPOC — client-servicing lead"
-                style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
-                <option value="" ${!t.SPOC?'selected':''}>🎯 SPOC —</option>
-                ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
-              </select>
-            </div>
-            ${showDesc ? `<div contenteditable="true" spellcheck="true"
-              title="Click to edit"
+        <div class="fos-task-row" style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+            <span contenteditable="true" spellcheck="true"
+              title="Click to edit · Tab or click out to save"
               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-              onblur="updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
-              style="font-size:11px;color:var(--muted);margin-top:4px;font-weight:400;overflow-wrap:anywhere;word-break:break-word;cursor:text;padding:2px 4px;border-radius:4px;outline:none"
-              onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
-            ${updatesHtml}
-            <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
-              <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
+              onblur="updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
+              style="cursor:text;padding:1px 4px;border-radius:4px;outline:none;font-weight:600;font-size:13px;min-width:40px"
+              onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${(title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</span>
+            <select onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)"
+              title="Reassign — pick a different person"
+              style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+              <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
+              ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
+            </select>
+            ${(t.Collaborators || []).map(c => `<span title="Collaborator — click × to remove"
+              style="font-size:11px;padding:3px 6px 3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+              👥 ${c}
+              <button onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')" style="background:none;border:none;color:#52514c;cursor:pointer;font-size:13px;padding:0;line-height:1;font-weight:700">×</button>
+            </span>`).join('')}
+            <select onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''"
+              title="Add collaborator"
+              style="font-size:11px;padding:3px 9px;border-radius:10px;background:transparent;border:1px dashed var(--border);color:#666;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+              <option value="" selected>+ Add</option>
+              ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
+            </select>
+            ${renderFosClientEditor(t)}
+            <select onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)"
+              title="SPOC — client-servicing lead"
+              style="font-size:11px;padding:3px 9px;border-radius:10px;background:#f4f3ef;border:1px solid #e3e0d8;color:#52514c;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit">
+              <option value="" ${!t.SPOC?'selected':''}>🎯 SPOC —</option>
+              ${['Suriti','Viplav','Kritya','Siddhesh'].map(n => `<option value="${n}" ${t.SPOC===n?'selected':''}>🎯 ${n}</option>`).join('')}
+            </select>
+            <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+              style="font-size:11px;padding:4px 10px;border-radius:10px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;margin-left:auto;${selectStyle}">
+              <option ${status==='Pending'?'selected':''}>Pending</option>
+              <option ${status==='In Progress'?'selected':''}>In Progress</option>
+              <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
+              <option ${status==='Client Review'?'selected':''}>Client Review</option>
+              <option ${status==='Rework'?'selected':''}>Rework</option>
+              <option ${status==='Open Files'?'selected':''}>Open Files</option>
+              <option ${status==='Closed'?'selected':''}>Closed</option>
+              <option ${status==='Rejected'?'selected':''}>Rejected</option>
+            </select>
+            <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
+              class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 8px;border-radius:8px">✕</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
+              <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
+                title="Preview / final-creative link"
+                onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+                style="font-size:11px;padding:5px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
+              ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" title="Open preview" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
+            </div>
+            <div style="display:flex;gap:3px;align-items:center;flex:1;min-width:220px">
+              <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
+                title="Source file link (AI / PSD in Dropbox)"
+                onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
+                style="font-size:11px;padding:5px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
+              ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" title="Open source file" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
             </div>
           </div>
-        <select onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-          style="font-size:11px;padding:4px 8px;width:100%;border-radius:12px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;font-family:inherit;${selectStyle}">
-          <option ${status==='Pending'?'selected':''}>Pending</option>
-          <option ${status==='In Progress'?'selected':''}>In Progress</option>
-          <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
-          <option ${status==='Client Review'?'selected':''}>Client Review</option>
-          <option ${status==='Rework'?'selected':''}>Rework</option>
-          <option ${status==='Open Files'?'selected':''}>Open Files</option>
-          <option ${status==='Closed'?'selected':''}>Closed</option>
-          <option ${status==='Rejected'?'selected':''}>Rejected</option>
-        </select>
-        <div style="display:flex;gap:3px;align-items:center;min-width:0">
-          <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
-            title="Preview / final-creative link"
-            onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-            style="font-size:11px;padding:4px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
-          ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" title="Open preview" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
-        </div>
-        <div style="display:flex;gap:3px;align-items:center;min-width:0">
-          <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
-            title="Source file link (AI / PSD in Dropbox)"
-            onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)"
-            style="font-size:11px;padding:4px 8px;min-width:0;flex:1;text-overflow:ellipsis;border:1px solid var(--border);border-radius:6px;background:#fafaf7">
-          ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" title="Open source file" style="font-size:13px;text-decoration:none;color:var(--yellow);padding:0 2px">↗</a>` : ''}
-        </div>
-        <button onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')"
-          class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--red);font-size:11px;padding:4px 6px;border-radius:6px">✕</button>
+          ${showDesc ? `<div contenteditable="true" spellcheck="true"
+            title="Click to edit"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+            onblur="updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)"
+            style="font-size:11px;color:var(--muted);font-weight:400;overflow-wrap:anywhere;word-break:break-word;cursor:text;padding:2px 4px;border-radius:4px;outline:none"
+            onfocus="this.style.background='#fef9ee'" onblur="this.style.background=''">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
+          ${updatesHtml}
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)" style="font-size:11px;padding:4px 8px;flex:1;max-width:340px;background:#fafaf7;border:1px solid var(--border);border-radius:6px">
+          </div>
         </div>
       </div>`;
     });
