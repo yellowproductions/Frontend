@@ -1082,10 +1082,10 @@ async function _supaPatchByTask(taskDesc, data) {
         review_note: null,
         task_id: id
       });
-      // Keep the original task visible — set it to 'Awaiting Review' (displayed as
-      // 'Feedback' to the designer) so they can see their submission is in review.
+      // Designer's work submitted as a creative — move the task to 'SPOC Review'
+      // so the team sees it in review (new 8-status model).
       // Don't touch description or assignee — those stay as the original task's values.
-      await sb.from('tasks').update({ status: 'Awaiting Review' }).eq('id', id);
+      await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', id);
       return;
     }
 
@@ -1591,11 +1591,10 @@ async function loadClientTasks() {
       return (portal.clientNames || []).includes(clientValue);
     };
 
-    // Internal-only states the client shouldn't see — these are team review states.
-    // When a task is at 'Awaiting Review' it means the team is internally reviewing
-    // the work before sending to client; the client gets it back as 'Awaiting Client'
-    // once founder approves.
-    const HIDDEN_FROM_CLIENT = ['Awaiting Review', 'Sent Back', 'Pending Review'];
+    // Internal-only states the client shouldn't see — team review and rework states.
+    // 'SPOC Review' = team reviewing internally; 'Rework' = designer fixing.
+    // The client only sees the task once it reaches 'Client Review'.
+    const HIDDEN_FROM_CLIENT = ['SPOC Review', 'Rework'];
 
     const clientTasks = allRows.filter(r =>
       r.Type === 'task' &&
@@ -1610,20 +1609,24 @@ async function loadClientTasks() {
     }
 
     // Group by status for clearer scanning
-    const STATUS_ORDER = ['New Request','Pending','In Progress','Awaiting Client','Approved','Closed','Done','On Hold'];
+    const STATUS_ORDER = ['New Request','Pending','In Progress','Client Review','Open Files','Closed','Rejected'];
     // Display labels — what the client SEES. DB values stay the same so all
     // existing filters/lookups keep working. We just rename in the UI.
-    const STATUS_LABEL = { 'Awaiting Client': 'Awaiting Your Approval' };
+    const STATUS_LABEL = {
+      'Client Review': 'Awaiting Your Approval',
+      'Open Files':    'Approved',
+      'Closed':        'Completed'
+    };
     const STATUS_STYLE = {
       'New Request':     { bg:'#fff8e1', fg:'#92640a' },
       'Pending':         { bg:'#fef3c7', fg:'#854f0b' },
       'In Progress':     { bg:'#dbeafe', fg:'#1e40af' },
-      'Awaiting Review': { bg:'#ede9fe', fg:'#5b21b6' },
-      'Awaiting Client': { bg:'#fce7f3', fg:'#9d174d' },
-      'Approved':        { bg:'#ccfbf1', fg:'#0f766e' },
+      'SPOC Review':     { bg:'#ede9fe', fg:'#5b21b6' },
+      'Client Review':   { bg:'#fce7f3', fg:'#9d174d' },
+      'Rework':          { bg:'#ffedd5', fg:'#9a3412' },
+      'Open Files':      { bg:'#ccfbf1', fg:'#0f766e' },
       'Closed':          { bg:'#dcfce7', fg:'#15803d' },
-      'Done':            { bg:'#dcfce7', fg:'#15803d' },
-      'On Hold':         { bg:'#f3f4f6', fg:'#6b7280' }
+      'Rejected':        { bg:'#fee2e2', fg:'#991b1b' }
     };
 
     // Bucket tasks by status
@@ -1646,7 +1649,7 @@ async function loadClientTasks() {
         const dueDate = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
         // Only show preview/file links when status is client-ready —
         // creatives in progress shouldn't expose preview links to the client.
-        const CLIENT_READY_STATUSES = ['Awaiting Client', 'Approved', 'Done', 'Closed'];
+        const CLIENT_READY_STATUSES = ['Client Review', 'Open Files', 'Closed'];
         const showPreview = CLIENT_READY_STATUSES.includes(t.Status);
         const previewLink = showPreview ? (t['Preview Link'] || '') : '';
         const openFileLink = showPreview ? (t['Open File Link'] || '') : '';
@@ -1661,7 +1664,7 @@ async function loadClientTasks() {
             <span style="font-size:11px;color:var(--muted);white-space:nowrap">📅 ${dueDate}</span>
             ${renderTagClientPill(t)}
             ${linksHtml}
-            <span style="background:${style.bg};color:${style.fg};font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;white-space:nowrap">${status}</span>
+            <span style="background:${style.bg};color:${style.fg};font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;white-space:nowrap">${STATUS_LABEL[status] || status}</span>
           </div>
           ${latestUpdate ? `<div style="margin-top:5px;font-size:11px;color:#666;line-height:1.4;padding-left:2px"><span style="color:#92702e;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:0.04em;margin-right:5px">Latest</span>${latestUpdate}</div>` : ''}
         </div>`;
@@ -1891,7 +1894,7 @@ function isStaleApproved(item) {
 // When a creative is approved, find the matching task and stamp its
 // Preview Link + Open File Link so it shows up in the Live Tasks tab.
 // Match heuristic: same designer name + task title overlaps creative name.
-async function autoLinkCreativeToTask(creative, designerName) {
+async function autoLinkCreativeToTask(creative, designerName, taskStatus) {
   // Fetch ALL task rows (we don't have them in client portal state)
   const rows = await fetchSheetRows();
   if (!Array.isArray(rows)) return;
@@ -1916,12 +1919,20 @@ async function autoLinkCreativeToTask(creative, designerName) {
   candidates.sort((a, b) => (b.Date || '').localeCompare(a.Date || ''));
   const target = candidates[0];
 
-  // Patch its Preview Link + Open File Link. Don't overwrite an existing
-  // open-file link — preserve whatever's there.
-  const patch = { 'Preview Link': creative['Preview Link'] || '' };
-  if (creative['Open File Link'] && !target['Open File Link']) {
-    patch['Open File Link'] = creative['Open File Link'];
+  // Build the patch. Cascade the task status when one is given (Batch 2C):
+  // client approve → Open Files, feedback → Rework, reject → Rejected.
+  const patch = {};
+  if (taskStatus) patch.Status = taskStatus;
+  // On client approval, also push the creative's links onto the task so the
+  // Live Tasks tab shows them. Don't overwrite an existing open-file link.
+  if (taskStatus === 'Open Files') {
+    patch['Preview Link'] = creative['Preview Link'] || '';
+    if (creative['Open File Link'] && !target['Open File Link']) {
+      patch['Open File Link'] = creative['Open File Link'];
+    }
   }
+  if (!Object.keys(patch).length) return;
+
   fetch(SHEETDB, {
     method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
     body: JSON.stringify({
@@ -2110,17 +2121,15 @@ async function submitAction(uid, folder, idx, action) {
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
     }
 
-    // ==== AUTO-LINK approved creative → matching task ====
-    // When a creative is approved, push its preview + open-file links onto the matching
-    // task row so the client portal Live Tasks tab can show them inline.
-    // Matching heuristic: same designer (Assignee on task = parts[1] on creative)
-    // AND task title overlaps creative name (one contains the other, case-insensitive).
-    if (action === 'Approved') {
-      try {
-        autoLinkCreativeToTask(item, designerName);
-      } catch(e) {
-        console.log('Auto-link to task skipped:', e.message);
-      }
+    // ==== Batch 2C — cascade the client's decision onto the linked task ====
+    // approve → Open Files, feedback → Rework, reject → Rejected. The helper
+    // finds the matching task (same designer + name overlap) and patches it;
+    // on approval it also pushes the creative's links onto the task.
+    const TASK_CASCADE = { 'Approved': 'Open Files', 'Comment': 'Rework', 'Rejected': 'Rejected' };
+    try {
+      await autoLinkCreativeToTask(item, designerName, TASK_CASCADE[action]);
+    } catch(e) {
+      console.log('Task cascade skipped:', e.message);
     }
 
     // On approval — move file in Dropbox to client's permanent Creatives folder
