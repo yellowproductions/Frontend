@@ -108,6 +108,21 @@ input, select, textarea {
 .fos-link-field { flex:0 1 320px; display:flex; gap:6px; align-items:center; }
 .fos-link-field input { width:100%; font-size:12px; padding:7px 10px !important; border:1px solid var(--border); border-radius:8px; background:#fff; }
 .fos-link-arrow { font-size:14px; text-decoration:none; color:var(--yellow); flex-shrink:0; }
+/* Day 9 — link chips */
+.fos-chip-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%; }
+.fos-chip {
+  display:inline-flex; align-items:center; padding:5px 10px;
+  font-size:11px; font-weight:500; border:1px solid var(--border);
+  border-radius:6px; background:#fff; color:#1a1a1a;
+  text-decoration:none; cursor:pointer; transition:background 0.12s, border-color 0.12s;
+}
+.fos-chip:hover { background:#fef9ee; border-color:#FEBC06; }
+.fos-chip-review { background:#FAEEDA; border-color:#c89324; color:#854F0B; }
+.fos-chip-review:hover { background:#fae0bd; }
+.fos-chip-add { border-style:dashed; color:#888; font-weight:600; padding:5px 9px; }
+.fos-chip-add:hover { color:#1a1a1a; border-style:solid; }
+.fos-chip-project { border-color:#d8d4cc; }
+.fos-chip-spacer { flex:1 1 auto; }
 .fos-update-add { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
 .fos-update-add input { flex:1; min-width:200px; max-width:340px; font-size:12px; padding:7px 10px !important; border:1px solid var(--border); border-radius:8px; background:#fff; }
 .fos-save { font-size:11px; padding:7px 18px; border-radius:8px; background:var(--yellow); color:#000; border:none; cursor:pointer; font-weight:600; }
@@ -826,10 +841,14 @@ async function fetchSheetRows() {
       Update: _supaJoinUpdates(t.task_updates),
       Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
-      'Folder Link': t.folder_link || '',
+      // Day 9 four-link folder model — auto-stamped by Studio uploads.
+      DocLink:     t.doc_link            || '',
+      CrtLink:     t.creative_link       || '',
+      OpenLink:    t.open_link           || '',
+      ProjectLink: t.project_folder_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
-      ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
+      ClosedAt: t.closed_at || '',
       _sb_id: t.id, _sb_table: 'tasks'
     });
   }
@@ -3148,11 +3167,7 @@ function renderTaskRows(tasks, startIdx) {
               <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)">
             </div>
             <div class="fos-link-row">
-              <div class="fos-link-field" style="flex:1">
-                <input type="text" id="link-folder-${idx}" value="${t['Folder Link']||''}" placeholder="Project folder" title="Brief, creative & open files all live in this folder">
-                ${t['Folder Link'] ? `<a href="${t['Folder Link']}" target="_blank" class="fos-link-arrow" title="Open project folder">↗</a>` : ''}
-              </div>
-              <button class="fos-save" onclick="saveTask(${idx}, '${taskKey}')">Save</button>
+              ${renderLinkChips(t)}
             </div>
           </div>
         </div>`;
@@ -3715,41 +3730,120 @@ async function updateStatus(idx, encodedTask) {
   } catch(e) {}
 }
 
-async function saveTask(idx, encodedTask) {
-  const task = decodeURIComponent(encodedTask);
-  const statusEl = document.getElementById(`status-dropdown-${idx}`);
-  const folderEl = document.getElementById(`link-folder-${idx}`);
-  if (!folderEl) { alert('Could not find link field.'); return; }
-  const status = statusEl ? statusEl.value : 'Pending';
-  const folderLink = folderEl.value.trim();
-  const btn = event && event.target;
-  const originalLabel = btn ? btn.textContent : '';
-  if (btn) { btn.textContent = '...'; btn.disabled = true; }
-  try {
-    // Find the in-memory row to get its Supabase id
-    const row = (window._allTasks || []).find(t => t.Task === task);
-    if (row && row._sb_id) {
-      await sb.from('tasks').update({
-        status: status,
-        folder_link: folderLink || null
-      }).eq('id', row._sb_id);
-      row.Status = status;
-      row['Folder Link'] = folderLink;
-    } else {
-      // Fallback: legacy SheetDB patch (very old rows pre-Supabase)
-      fetch(SHEETDB, {
-        method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status } })
-      });
-    }
-    if (btn) { btn.textContent = '✓ Saved'; btn.style.background = '#22c55e'; btn.style.color = '#fff'; }
-    setTimeout(() => {
-      if (btn) { btn.textContent = originalLabel; btn.disabled = false; btn.style.background = ''; btn.style.color = ''; }
-    }, 1500);
-  } catch(e) {
-    if (btn) { btn.textContent = '✕ Error'; btn.style.background = '#ef4444'; btn.style.color = '#fff'; }
-    alert('Error saving. Try again.');
+// ============================================================
+// DAY 9 — Link chips for the team task panel.
+// Mirrors founder.html's chip system. Studio auto-stamps the links;
+// the + button lets anyone paste a manual link if needed.
+// ============================================================
+
+const REVIEW_STATUSES_TM = ['Pending', 'In Progress', 'SPOC Review', 'Client Review', 'Rework'];
+function isCreativeInReview(taskStatus) {
+  return REVIEW_STATUSES_TM.includes(taskStatus || '');
+}
+
+function renderLinkChips(t) {
+  const taskKey = encodeURIComponent(`${t.Task}|${t.Assignee||''}|${t.Date||''}|${t._sb_id||''}`);
+  const chips = [];
+
+  if (t.DocLink) {
+    chips.push(`<a href="${t.DocLink}" target="_blank" class="fos-chip" title="Open Doc folder">Doc</a>`);
   }
+  if (t.CrtLink) {
+    const inReview = isCreativeInReview(t.Status);
+    const cls = inReview ? 'fos-chip fos-chip-review' : 'fos-chip';
+    const label = inReview ? 'Creative · review' : 'Creative';
+    const tip = inReview ? 'Opens /REVIEW/ — pre-client-approval staging' : 'Opens /Project/Creative/ — client-approved finals';
+    chips.push(`<a href="${t.CrtLink}" target="_blank" class="${cls}" title="${tip}">${label}</a>`);
+  }
+  if (t.OpenLink) {
+    chips.push(`<a href="${t.OpenLink}" target="_blank" class="fos-chip" title="Open source files folder">Open</a>`);
+  }
+
+  chips.push(`<button class="fos-chip fos-chip-add" title="Add a link manually"
+    onclick="openAddLinkPopover('${taskKey}', this)">+</button>`);
+
+  const projectChip = t.ProjectLink
+    ? `<a href="${t.ProjectLink}" target="_blank" class="fos-chip fos-chip-project" title="Open parent project folder">Project</a>`
+    : '';
+
+  return `<div class="fos-chip-row">${chips.join('')}${projectChip ? `<span class="fos-chip-spacer"></span>${projectChip}` : ''}</div>`;
+}
+
+function openAddLinkPopover(taskKey, anchorBtn) {
+  document.querySelectorAll('.fos-add-pop').forEach(p => p.remove());
+  const pop = document.createElement('div');
+  pop.className = 'fos-add-pop';
+  pop.style.cssText = 'position:absolute;background:#fff;border:1px solid #d8d4cc;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.08);padding:10px;width:260px;z-index:1000;font-size:12px';
+  pop.innerHTML = `
+    <div style="color:#888;margin-bottom:6px;font-size:11px">Add a link</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">
+      <button data-which="doc"      class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Doc</button>
+      <button data-which="creative" class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Creative</button>
+      <button data-which="open"     class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Open</button>
+    </div>
+    <input type="text" class="fos-pop-url" placeholder="Paste URL" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d8d4cc;border-radius:6px;font-size:12px;margin-bottom:8px">
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="fos-pop-cancel" style="padding:5px 10px;border:1px solid #d8d4cc;border-radius:6px;background:#f5f1ea;cursor:pointer;font-size:11px">Cancel</button>
+      <button class="fos-pop-save"   style="padding:5px 10px;border:1px solid #FEBC06;border-radius:6px;background:#FEBC06;color:#000;cursor:pointer;font-size:11px;font-weight:600">Save</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const rect = anchorBtn.getBoundingClientRect();
+  pop.style.left = `${Math.min(rect.left, window.innerWidth - 280)}px`;
+  pop.style.top  = `${rect.bottom + window.scrollY + 4}px`;
+
+  let which = 'doc';
+  const types = pop.querySelectorAll('.fos-pop-type');
+  types.forEach(b => b.addEventListener('click', () => {
+    which = b.dataset.which;
+    types.forEach(x => { x.style.background = '#f5f1ea'; x.style.borderColor = '#d8d4cc'; });
+    b.style.background = '#FEBC06'; b.style.borderColor = '#FEBC06';
+  }));
+  types[0].click();
+
+  const urlInput = pop.querySelector('.fos-pop-url');
+  urlInput.focus();
+
+  const close = () => { pop.remove(); document.removeEventListener('click', outsideHandler, true); };
+  const outsideHandler = (e) => { if (!pop.contains(e.target) && e.target !== anchorBtn) close(); };
+  setTimeout(() => document.addEventListener('click', outsideHandler, true), 50);
+
+  pop.querySelector('.fos-pop-cancel').addEventListener('click', close);
+  pop.querySelector('.fos-pop-save').addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    if (!url) { urlInput.style.borderColor = '#ef4444'; return; }
+    await saveTaskLink(taskKey, which, url);
+    close();
+  });
+  urlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') pop.querySelector('.fos-pop-save').click();
+    if (e.key === 'Escape') close();
+  });
+}
+
+async function saveTaskLink(taskKey, which, url) {
+  const decoded = decodeURIComponent(taskKey);
+  const [task, assignee, date, sbId] = decoded.split('|');
+  const t = (window._allTasks || []).find(x =>
+    x.Task === task && (x.Assignee||'') === assignee && (x.Date||'') === date);
+  if (!t) { console.warn('Task not found for link save:', taskKey); return; }
+  const colMap   = { doc: 'doc_link',  creative: 'creative_link', open: 'open_link' };
+  const fieldMap = { doc: 'DocLink',   creative: 'CrtLink',       open: 'OpenLink'  };
+  const col   = colMap[which];
+  const field = fieldMap[which];
+  if (!col) return;
+  try {
+    if (sbId) await sb.from('tasks').update({ [col]: url || null }).eq('id', sbId);
+    t[field] = url;
+    if (typeof renderTeamTasks === 'function') renderTeamTasks();
+    else if (typeof renderTasks === 'function') renderTasks();
+  } catch(e) { console.warn('Link save failed:', e); }
+}
+
+// Legacy saveTask — used to live on the panel as a manual Save button next to a
+// folder-link input field. The Day 9 chip system removed that input, so this
+// function is now orphaned. Kept as a stub in case something else calls it.
+async function saveTask(idx, encodedTask) {
+  console.warn('saveTask called — legacy, no-op in Day 9 chip model.');
 }
 
 // ====== ATTENDANCE ======
@@ -4341,66 +4435,37 @@ async function submitReview(idx, action) {
     notifyInApp(designer, 'accept', `${currentUser} approved ${cName} and sent it to client`, { actor: currentUser });
   }
 
-  // Approve: move file(s) from /REVIEW/ into the client's project folder,
-  // and stamp folder_link on the linked task. Files were uploaded by Studio
-  // to /REVIEW/[task — designer — client]/; now they move into
-  // /[CLIENT]/Creatives/[task]/ where the client can see them.
+  // Approve: SPOC approval moves status to Client Review. Files STAY in /REVIEW/
+  // until the CLIENT approves (handled in client.html). The "Creative · review"
+  // chip badge stays through both review gates per locked design.
+  //
+  // We do stamp creative_link with the /REVIEW/ share URL if it's not already
+  // set, so the chip appears on the founder/team panels right away — pointing
+  // at the staging folder. On client approval, client.html overwrites
+  // creative_link to point at /Project/Creative/ instead.
   if (action === 'approve') {
-    // Inline client-folder map — single source of truth lives in studio.html's
-    // CLIENT_REGISTRY; mirror it here. Add any new client to BOTH places.
-    const CLIENT_FOLDERS = {
-      'Jindal Steel':'/JINDAL', 'Jindal League':'/Jindal League',
-      'Jindal Youth League':'/Jindal Youth League', 'Jindal Steel Duqm':'/Jindal Steel Duqm',
-      'Sohar Steel':'/Sohar Steel', 'RM Universal':'/RM Universal',
-      'Kotak':'/KOTAK', 'TEAM YP':'/TEAM YP', 'Pitches':'/PITCHES',
-      'Marico':'/Marico', 'Zouk':'/Zouk', 'TATA Mutual Funds':'/TATA Mutual Funds',
-      'HZL':'/HZL', 'Adhoc':'/ADHOC'
-    };
-    const LEGACY_CLIENT = {
-      steelcity:'Jindal Steel', youthleague:'Jindal League',
-      'jindal-youth':'Jindal Youth League', 'sohar-steel':'Sohar Steel',
-      duqm:'Jindal Steel Duqm', kotak:'Kotak', adhoc:'Adhoc', pitches:'Pitches'
-    };
-    const canonicalClient = LEGACY_CLIENT[client] || client;
-    const clientBase = CLIENT_FOLDERS[canonicalClient];
-
-    if (!clientBase) {
-      console.warn(`Unknown client "${client}" — file not moved. Add to CLIENT_FOLDERS in team.html.`);
-    } else {
-      const safeBase = cName.replace(/[^a-zA-Z0-9 _-]/g, '');
-      const projectFolder = `${clientBase}/Creatives/${safeBase}`;
-
-      // Move every file in the review folder over. Use file_urls if available
-      // (per-file URLs), otherwise fall back to the single preview_link.
-      const urlsToMove = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
-        ? item._sb_file_urls
-        : (fileUrl ? [fileUrl] : []);
-
-      urlsToMove.forEach(url => {
-        fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ fromPath: url, toFolder: projectFolder })
-        }).catch(e => console.log('Approve-move error:', e.message));
-      });
-
-      // Stamp the project folder share URL on the linked task. Idempotent —
-      // same path returns same URL, safe to write repeatedly.
-      if (item._sb_id) {
-        (async () => {
-          try {
-            const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
-            if (!cRow || !cRow.task_id) return;
-            const fres = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
-              method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ folderPath: projectFolder })
-            });
-            const fdata = await fres.json().catch(() => ({}));
-            if (fdata.success && fdata.url) {
-              await sb.from('tasks').update({ folder_link: fdata.url }).eq('id', cRow.task_id);
-            }
-          } catch(e) { console.warn('folder_link stamp on approve failed:', e); }
-        })();
-      }
+    if (item._sb_id) {
+      (async () => {
+        try {
+          const { data: cRow } = await sb.from('creatives').select('task_id, folder_path').eq('id', item._sb_id).single();
+          if (!cRow || !cRow.task_id) return;
+          // Check current creative_link — only stamp if null (don't overwrite).
+          const { data: tRow } = await sb.from('tasks').select('creative_link').eq('id', cRow.task_id).single();
+          if (tRow && tRow.creative_link) return;
+          // Resolve REVIEW folder share URL — folder_path on creative row IS the
+          // staging folder Studio uploaded into.
+          const reviewPath = cRow.folder_path || '';
+          if (!reviewPath) return;
+          const fres = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ folderPath: reviewPath })
+          });
+          const fdata = await fres.json().catch(() => ({}));
+          if (fdata.success && fdata.url) {
+            await sb.from('tasks').update({ creative_link: fdata.url }).eq('id', cRow.task_id);
+          }
+        } catch(e) { console.warn('creative_link stamp on SPOC approve failed:', e); }
+      })();
     }
   }
 
