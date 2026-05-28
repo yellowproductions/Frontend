@@ -964,14 +964,93 @@ function clientFolder(clientName, subfolder) {
   return entry.folder + (subfolder ? '/' + subfolder : '');
 }
 
+// ============================================================
+// DAY 9 — three-link folder model.
+// One parent folder per task at /[Client]/[Project name]/
+// with three sub-folders inside: Doc, Creative, Open.
+// Briefs land in /Doc/, open files land in /Open/, creatives stage
+// in /REVIEW/[Project]/ until client-approved, then move to /Creative/.
+// ============================================================
+
+// Sanitize a project name for use as a folder name.
+// Strips ASCII-incompatible chars (Dropbox API can choke on certain unicode)
+// and trims excessive whitespace.
+function sanitizeProjectName(raw) {
+  return String(raw || 'Untitled')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u00A0]/g, ' ')
+    .replace(/[^a-zA-Z0-9 _\-']/g, '')
+    .trim() || 'Untitled';
+}
+
+// Build all 4 folder paths for a given task.
+// Returns { parent, doc, creative, open, review } — review is the staging folder.
+function projectPaths(clientName, projectName) {
+  const safe = sanitizeProjectName(projectName);
+  const base = clientFolder(clientName);  // e.g. "/Marico"
+  return {
+    parent:   `${base}/${safe}`,
+    doc:      `${base}/${safe}/Doc`,
+    creative: `${base}/${safe}/Creative`,
+    open:     `${base}/${safe}/Open`,
+    review:   `/REVIEW/${safe}`
+  };
+}
+
+// Get share URL for a Dropbox folder. Idempotent — same path always returns
+// the same URL. Returns '' on any failure (caller decides whether that's fatal).
+async function shareFolderUrl(folderPath) {
+  try {
+    const r = await fetch(`${BACKEND}/api/dropbox-share-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderPath })
+    });
+    const d = await r.json().catch(() => ({}));
+    return (d.success && d.url) ? d.url : '';
+  } catch(e) {
+    console.warn('shareFolderUrl failed for', folderPath, e.message);
+    return '';
+  }
+}
+
+// Stamp the appropriate link columns on a task after an upload.
+// Only writes columns that are still null in DB (idempotent / non-destructive).
+// `which` is one of 'doc' | 'creative' | 'open' — picks which sub-folder URL
+// to stamp. The parent project_folder_link is always stamped if null.
+//
+// IMPORTANT for 'creative': the URL passed in should point at /REVIEW/[Project]/
+// while in flight. team.html overwrites creative_link to /Creative/ on client approval.
+async function stampTaskLinks(taskId, which, subfolderUrl, parentUrl) {
+  if (!taskId) return;
+  try {
+    // Read current state so we only write null fields (don't blow away existing).
+    const { data: cur } = await sb.from('tasks')
+      .select('doc_link, creative_link, open_link, project_folder_link')
+      .eq('id', taskId).single();
+    const patch = {};
+    const colMap = { doc: 'doc_link', creative: 'creative_link', open: 'open_link' };
+    const col = colMap[which];
+    if (col && subfolderUrl && !cur?.[col]) patch[col] = subfolderUrl;
+    if (parentUrl && !cur?.project_folder_link) patch.project_folder_link = parentUrl;
+    if (Object.keys(patch).length) {
+      await sb.from('tasks').update(patch).eq('id', taskId);
+    }
+  } catch(e) {
+    console.warn('stampTaskLinks failed:', e.message);
+  }
+}
+
 function updateFileTypeHint() {
   const ft = document.getElementById('q-filetype').value;
   const hint = document.getElementById('filetype-hint');
   if (ft === 'open') {
-    hint.innerHTML = '📂 Open file mode — lands directly in the project folder. No review step. Use for PSDs, AI files, working masters.';
+    hint.innerHTML = '📂 Open file mode — lands in /Project/Open/. No review step. Use for PSDs, AI files, working masters.';
     hint.style.color = '#15803d';
   } else {
-    hint.innerHTML = 'Final files go to /REVIEW/ for Viplav. On approval they move into the client\'s project folder. Drafts stay hidden from the client.';
+    hint.innerHTML = 'Final files stage in /REVIEW/ for SPOC review. On client approval they move into /Project/Creative/. Hidden from client until then.';
     hint.style.color = 'var(--muted)';
   }
 }
@@ -1260,23 +1339,28 @@ async function submitUpload(){
 
   setProgress(5);
 
-  // ============== SESSION FOLDER PATH ==============
-  // Routing splits by file type:
-  //  - Final/Preview (creative) → /REVIEW/ staging. Hidden from client until
-  //    a reviewer approves; then team.html moves it into the project folder.
-  //  - Open file → /[CLIENT]/Creatives/[Task]/ (project folder, immediate).
-  //    Sources don't need review.
-  //  - Briefs (from the Brief tab below) → also project folder, immediate.
-  const safeBase = baseCreativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-  const sessionFolderRaw = isOpenFile
-    ? `${clientFolder(client, 'Creatives')}/${safeBase}`
-    : `/REVIEW/${safeBase} — ${designer} — ${client}`;
-  const sessionFolder = sessionFolderRaw
-    .replace(/[\u2010-\u2015]/g, '-')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u00A0]/g, ' ')
-    .replace(/[\u007f-\uffff]/g, '');
+  // ============== SESSION FOLDER PATH — NEW MODEL (Day 9) ==============
+  // Each task owns one project folder: /[Client]/[Project name]/
+  // with sub-folders Doc, Creative, Open. Creative uploads stage in
+  // /REVIEW/[Project]/ until client-approved.
+  //
+  // Open files land directly in /[Client]/[Project]/Open/
+  // Brief tab handles its own path → /[Client]/[Project]/Doc/
+  //
+  // For ad-hoc uploads (no originating task), we fall back to a designer-named
+  // /REVIEW/ folder so files don't collide.
+  const projectName = baseCreativeName;  // task title (or ad-hoc name)
+  let sessionFolder;
+  if (isAdhoc) {
+    // Ad-hoc has no task → no project folder; keep old staging pattern
+    const adhocSafe = sanitizeProjectName(projectName);
+    sessionFolder = `/REVIEW/${adhocSafe} — ${designer} — ${client}`;
+  } else {
+    const paths = projectPaths(client, projectName);
+    sessionFolder = isOpenFile ? paths.open : paths.review;
+  }
+  // Final defensive sanitization — strip anything Dropbox might choke on
+  sessionFolder = sessionFolder.replace(/[\u007f-\uffff]/g, '');
 
   const fileUrls = [];   // per-file share URLs (for thumbnails)
   const filePaths = [];  // per-file Dropbox paths (for any future move/cleanup)
@@ -1356,15 +1440,20 @@ async function submitUpload(){
     // deployed with new endpoint), use first file URL as preview_link.
     const previewLink = folderUrl || fileUrls[0] || '';
 
-    // Stamp folder_link on the originating task ONLY when this upload actually
-    // landed inside the project folder (open files). Creative uploads land in
-    // /REVIEW/ so the project folder may not even exist yet — folder_link will
-    // get stamped when team approve moves the first creative into the project
-    // folder, or when a brief is uploaded via the Brief tab.
-    if (folderUrl && originatingTaskId && isOpenFile) {
+    // ============== STAMP LINK COLUMNS (Day 9) ==============
+    // Stamp the appropriate sub-folder link + the parent project_folder_link.
+    // Skipped for ad-hoc uploads (no originating task).
+    // Creative uploads stamp creative_link with the /REVIEW/ URL — it gets
+    // overwritten to /Project/Creative/ on client approval (team.html).
+    if (folderUrl && originatingTaskId && !isAdhoc) {
+      const which = isOpenFile ? 'open' : 'creative';
+      // Resolve parent URL separately (skip extra call for ad-hoc / failed paths).
+      let parentUrl = '';
       try {
-        await sb.from('tasks').update({ folder_link: folderUrl }).eq('id', originatingTaskId);
-      } catch(e) { console.warn('folder_link stamp failed:', e); }
+        const paths = projectPaths(client, baseCreativeName);
+        parentUrl = await shareFolderUrl(paths.parent);
+      } catch(e) { console.warn('parent path resolution failed:', e.message); }
+      await stampTaskLinks(originatingTaskId, which, folderUrl, parentUrl);
     }
 
     if (isOpenFile) {
@@ -1557,10 +1646,10 @@ function switchUploadMode(mode) {
 }
 
 // (existing brief upload code below)
-// attach brief docs, strategy docs, or reference files to a task. Files
-// land in the SAME per-project folder as the creative + open files.
+// Attach brief docs, strategy docs, or reference files to a task. Files
+// land in /[Client]/[Project]/Doc/ — the brief sub-folder of the project.
 // No creative row, no review queue — just files into the folder and the
-// folder_link stamped on the task so the panel link works.
+// doc_link + project_folder_link stamped on the task so the panel chip appears.
 
 let briefSelectedFiles = [];
 
@@ -1637,10 +1726,11 @@ async function submitBriefUpload() {
 
     const client = tRow.client;
     const titleRaw = tRow.title || 'Untitled';
-    const safeBase = titleRaw.replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'Untitled';
-    const sessionFolder = `${clientFolder(client, 'Creatives')}/${safeBase}`;
+    // Day 9: briefs land in /Project/Doc/, not the project root.
+    const paths = projectPaths(client, titleRaw);
+    const sessionFolder = paths.doc;
 
-    // Upload each file into the project folder
+    // Upload each file into the Doc sub-folder
     let done = 0;
     for (const f of briefSelectedFiles) {
       const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1655,22 +1745,13 @@ async function submitBriefUpload() {
       fill.style.width = `${Math.floor((done / briefSelectedFiles.length) * 85)}%`;
     }
 
-    // Get folder share URL and stamp on task (idempotent — same path, same URL)
-    let folderUrl = '';
-    try {
-      const fres = await fetch(`${BACKEND}/api/dropbox-share-folder`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ folderPath: sessionFolder })
-      });
-      const fdata = await fres.json().catch(() => ({}));
-      if (fdata.success && fdata.url) folderUrl = fdata.url;
-    } catch(e) { console.warn('Brief folder share failed:', e.message); }
+    // Get share URLs for the Doc sub-folder + the parent project folder.
+    // Both are idempotent (same path always returns same URL).
+    const docUrl    = await shareFolderUrl(paths.doc);
+    const parentUrl = await shareFolderUrl(paths.parent);
 
-    if (folderUrl) {
-      try {
-        await sb.from('tasks').update({ folder_link: folderUrl }).eq('id', taskId);
-      } catch(e) { console.warn('folder_link stamp failed:', e); }
-    }
+    // Stamp doc_link + project_folder_link on task (non-destructive).
+    await stampTaskLinks(taskId, 'doc', docUrl, parentUrl);
 
     fill.style.width = '100%';
     // Hide the form fields + button, show inline success state
