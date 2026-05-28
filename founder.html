@@ -243,6 +243,28 @@
     width: 100%; font-size: 12px; padding: 7px 10px !important;
     border: 1px solid var(--border); border-radius: 8px; background: #fff;
   }
+  /* Day 9 — link chips (auto-stamped Doc/Creative/Open + Project) */
+  .fos-chip-row {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap; width: 100%;
+  }
+  .fos-chip {
+    display: inline-flex; align-items: center;
+    padding: 5px 10px; font-size: 11px; font-weight: 500;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; color: #1a1a1a;
+    text-decoration: none; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .fos-chip:hover { background: #fef9ee; border-color: #FEBC06; }
+  .fos-chip-review { background: #FAEEDA; border-color: #c89324; color: #854F0B; }
+  .fos-chip-review:hover { background: #fae0bd; }
+  .fos-chip-add {
+    border-style: dashed; color: #888; font-weight: 600; padding: 5px 9px;
+  }
+  .fos-chip-add:hover { color: #1a1a1a; border-style: solid; }
+  .fos-chip-project { border-color: #d8d4cc; }
+  .fos-chip-spacer { flex: 1 1 auto; }
   .fos-update-add { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .fos-update-add input {
     flex: 1; min-width: 200px; max-width: 340px; font-size: 12px; padding: 7px 10px !important;
@@ -1485,7 +1507,12 @@ async function fetchSheetRows() {
       Update: _supaJoinUpdates(t.task_updates),
       Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
-      'Folder Link': t.folder_link || '',
+      // Day 9 four-link folder model — auto-stamped by Studio uploads.
+      // creative_link points at /REVIEW/ during review, migrates to /Project/Creative/ on client approval.
+      DocLink:     t.doc_link            || '',
+      CrtLink:     t.creative_link       || '',
+      OpenLink:    t.open_link           || '',
+      ProjectLink: t.project_folder_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
       ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
@@ -4010,12 +4037,7 @@ function renderTasks(tasks) {
           </select>
         </div>
         <div class="fos-link-row">
-          <div class="fos-link-field" style="flex:1">
-            <input type="text" placeholder="Project folder" value="${t['Folder Link']||''}"
-              title="Project folder — brief, creative & open files all live inside (auto-stamped by Studio uploads)"
-              onblur="updateTaskFolderLink('${t._sb_id||''}','${t.Task}','${t.Assignee}','${t.Date}',this.value)">
-            ${t['Folder Link'] ? `<a href="${t['Folder Link']}" target="_blank" class="fos-link-arrow" title="Open project folder">↗</a>` : ''}
-          </div>
+          ${renderLinkChips(t)}
         </div>
         <div class="fos-update-add">
           <input type="text" placeholder="+ Add update for today..."
@@ -4311,19 +4333,129 @@ async function updateTaskOpenFileLink(task, assignee, date, link) {
   } catch(e) { console.log('Error updating open file link'); }
 }
 
-// Single Project Folder link — the one link on every task panel. Studio
-// auto-stamps it on first upload (creative or brief). Suriti can also paste
-// one manually here (legacy / external Dropbox folders). Supabase-direct.
-async function updateTaskFolderLink(sbId, task, assignee, date, link) {
-  const v = (link || '').trim();
-  const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
-  if (t && (t['Folder Link'] || '') === v) return; // unchanged
+// ============================================================
+// DAY 9 — Link chips for the task panel.
+// Each task can have up to 4 links: doc, creative, open, project.
+// Studio auto-stamps them on upload. The "+" button lets Suriti or anyone
+// paste a link manually if needed.
+//
+// Creative chip shows "Creative · review" badge while task status is
+// pre-client-approval (Pending → Client Review). Flips to plain "Creative"
+// once the client has approved (status: Open Files or Closed) — at which
+// point team.html has also overwritten creative_link to point at the
+// final /Project/Creative/ folder instead of /REVIEW/.
+// ============================================================
+
+const REVIEW_STATUSES = ['Pending', 'In Progress', 'SPOC Review', 'Client Review', 'Rework'];
+function isCreativeInReview(taskStatus) {
+  return REVIEW_STATUSES.includes(taskStatus || '');
+}
+
+// Build the chip row HTML for a task row. Empty link types are hidden.
+// `t` is the task row object with DocLink/CrtLink/OpenLink/ProjectLink fields.
+function renderLinkChips(t) {
+  const taskKey = encodeURIComponent(`${t.Task}|${t.Assignee||''}|${t.Date||''}|${t._sb_id||''}`);
+  const chips = [];
+
+  if (t.DocLink) {
+    chips.push(`<a href="${t.DocLink}" target="_blank" class="fos-chip" title="Open Doc folder">Doc</a>`);
+  }
+  if (t.CrtLink) {
+    const inReview = isCreativeInReview(t.Status);
+    const cls = inReview ? 'fos-chip fos-chip-review' : 'fos-chip';
+    const label = inReview ? 'Creative · review' : 'Creative';
+    const tip = inReview ? 'Opens /REVIEW/ — pre-client-approval staging' : 'Opens /Project/Creative/ — client-approved finals';
+    chips.push(`<a href="${t.CrtLink}" target="_blank" class="${cls}" title="${tip}">${label}</a>`);
+  }
+  if (t.OpenLink) {
+    chips.push(`<a href="${t.OpenLink}" target="_blank" class="fos-chip" title="Open source files folder">Open</a>`);
+  }
+
+  // Plus button to add a link manually (dashed border to distinguish from links)
+  chips.push(`<button class="fos-chip fos-chip-add" title="Add a link manually"
+    onclick="openAddLinkPopover('${taskKey}', this)">+</button>`);
+
+  // Project chip pinned to the right (parent folder shortcut)
+  const projectChip = t.ProjectLink
+    ? `<a href="${t.ProjectLink}" target="_blank" class="fos-chip fos-chip-project" title="Open parent project folder">Project</a>`
+    : '';
+
+  return `<div class="fos-chip-row">${chips.join('')}${projectChip ? `<span class="fos-chip-spacer"></span>${projectChip}` : ''}</div>`;
+}
+
+// Popover anchored to the + button. Lets the user pick a link type and paste a URL.
+// Click outside or Esc closes. Uses inline styles to avoid CSS conflicts.
+function openAddLinkPopover(taskKey, anchorBtn) {
+  // Close any existing popover first
+  document.querySelectorAll('.fos-add-pop').forEach(p => p.remove());
+  const pop = document.createElement('div');
+  pop.className = 'fos-add-pop';
+  pop.style.cssText = 'position:absolute;background:#fff;border:1px solid #d8d4cc;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.08);padding:10px;width:260px;z-index:1000;font-size:12px';
+  pop.innerHTML = `
+    <div style="color:#888;margin-bottom:6px;font-size:11px">Add a link</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">
+      <button data-which="doc"      class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Doc</button>
+      <button data-which="creative" class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Creative</button>
+      <button data-which="open"     class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Open</button>
+    </div>
+    <input type="text" class="fos-pop-url" placeholder="Paste URL" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d8d4cc;border-radius:6px;font-size:12px;margin-bottom:8px">
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="fos-pop-cancel" style="padding:5px 10px;border:1px solid #d8d4cc;border-radius:6px;background:#f5f1ea;cursor:pointer;font-size:11px">Cancel</button>
+      <button class="fos-pop-save"   style="padding:5px 10px;border:1px solid #FEBC06;border-radius:6px;background:#FEBC06;color:#000;cursor:pointer;font-size:11px;font-weight:600">Save</button>
+    </div>`;
+  document.body.appendChild(pop);
+  // Anchor: position popover below the + button
+  const rect = anchorBtn.getBoundingClientRect();
+  pop.style.left = `${Math.min(rect.left, window.innerWidth - 280)}px`;
+  pop.style.top  = `${rect.bottom + window.scrollY + 4}px`;
+
+  // State
+  let which = 'doc';
+  const types = pop.querySelectorAll('.fos-pop-type');
+  types.forEach(b => b.addEventListener('click', () => {
+    which = b.dataset.which;
+    types.forEach(x => { x.style.background = '#f5f1ea'; x.style.borderColor = '#d8d4cc'; });
+    b.style.background = '#FEBC06'; b.style.borderColor = '#FEBC06';
+  }));
+  types[0].click();  // pre-select Doc
+
+  const urlInput = pop.querySelector('.fos-pop-url');
+  urlInput.focus();
+
+  const close = () => { pop.remove(); document.removeEventListener('click', outsideHandler, true); };
+  const outsideHandler = (e) => { if (!pop.contains(e.target) && e.target !== anchorBtn) close(); };
+  setTimeout(() => document.addEventListener('click', outsideHandler, true), 50);
+
+  pop.querySelector('.fos-pop-cancel').addEventListener('click', close);
+  pop.querySelector('.fos-pop-save').addEventListener('click', async () => {
+    const url = urlInput.value.trim();
+    if (!url) { urlInput.style.borderColor = '#ef4444'; return; }
+    await saveTaskLink(taskKey, which, url);
+    close();
+  });
+  urlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') pop.querySelector('.fos-pop-save').click();
+    if (e.key === 'Escape') close();
+  });
+}
+
+// Persist a manually-added link to Supabase + update in-memory row, then re-render.
+async function saveTaskLink(taskKey, which, url) {
+  const decoded = decodeURIComponent(taskKey);
+  const [task, assignee, date, sbId] = decoded.split('|');
+  const t = allTasks.find(x => x.Task === task && (x.Assignee||'') === assignee && (x.Date||'') === date);
+  if (!t) { console.warn('Task not found for link save:', taskKey); return; }
+  const colMap   = { doc: 'doc_link',  creative: 'creative_link', open: 'open_link' };
+  const fieldMap = { doc: 'DocLink',   creative: 'CrtLink',       open: 'OpenLink'  };
+  const col   = colMap[which];
+  const field = fieldMap[which];
+  if (!col) return;
   try {
-    if (sbId) {
-      await sb.from('tasks').update({ folder_link: v || null }).eq('id', sbId);
-    }
-    if (t) t['Folder Link'] = v;
-  } catch(e) { console.warn('Folder link update failed:', e); }
+    if (sbId) await sb.from('tasks').update({ [col]: url || null }).eq('id', sbId);
+    t[field] = url;
+    // Force re-render of the task list
+    if (typeof renderTasks === 'function') renderTasks();
+  } catch(e) { console.warn('Link save failed:', e); }
 }
 
 // Click a task name in Today's Brief → jump to Tasks panel, search for it, highlight briefly
