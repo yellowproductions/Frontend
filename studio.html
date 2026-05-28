@@ -199,6 +199,22 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
   <div class="right">
     <div class="form-card">
       <div id="form-view">
+        <!-- Mode toggle: Creative (default) vs Brief / Doc.
+             Same card, switches the visible fields. Keeps the right column
+             a single card so the page layout stays balanced. -->
+        <div style="display:flex;gap:4px;background:#f5f1ea;border-radius:10px;padding:4px;margin-bottom:18px">
+          <button type="button" id="tab-creative" onclick="switchUploadMode('creative')"
+                  style="flex:1;background:#fff;border:none;border-radius:7px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,0.06);color:#1a1a1a">
+            ⚡ Creative
+          </button>
+          <button type="button" id="tab-brief" onclick="switchUploadMode('brief')"
+                  style="flex:1;background:transparent;border:none;border-radius:7px;padding:8px;font-size:12px;font-weight:600;color:#777;cursor:pointer;font-family:inherit">
+            📋 Brief / Doc
+          </button>
+        </div>
+
+        <!-- CREATIVE MODE — designer's final / preview / open file upload -->
+        <div id="creative-mode">
         <div class="form-title">Upload Creative</div>
         <div class="form-sub">Pick a task, drop the file, done</div>
 
@@ -279,67 +295,63 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
         <div class="err" id="err-msg"></div>
 
         <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
-      </div>
+        </div><!-- /creative-mode -->
+
+        <!-- BRIEF / DOC MODE — for SPOCs & copywriters. Hidden until tab clicked -->
+        <div id="brief-mode" style="display:none">
+          <div class="form-title">📋 Brief / Doc</div>
+          <div class="form-sub">Attach to a task — for SPOCs &amp; copywriters</div>
+
+          <div class="field">
+            <label>Your name</label>
+            <select id="brief-uploader">
+              <option value="">Pick who's uploading</option>
+              <option>Viplav</option><option>Suriti</option><option>Kritya</option><option>Siddhesh</option>
+              <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+              <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+              <option>Sonal</option><option>Vishvanath</option><option>Ajay</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Task</label>
+            <select id="brief-task">
+              <option value="">Loading open tasks…</option>
+            </select>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">File goes into the project folder, visible to client.</div>
+          </div>
+
+          <div class="field">
+            <label>File(s)</label>
+            <div class="drop-zone" id="brief-drop-zone">
+              <input type="file" id="brief-file" multiple accept="*/*" onchange="briefHandleFile(this)">
+              <div class="drop-icon">📎</div>
+              <div class="drop-text">Tap or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">PDFs, docs, references</span></div>
+              <div id="brief-file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px;max-height:120px;overflow-y:auto;text-align:left;line-height:1.6"></div>
+            </div>
+          </div>
+
+          <div class="progress-bar" id="brief-progress-bar">
+            <div class="progress-fill" id="brief-progress-fill"></div>
+          </div>
+          <div class="err" id="brief-err-msg"></div>
+
+          <button class="upload-btn" id="brief-submit-btn" onclick="submitBriefUpload()">📋 Upload Brief / Doc</button>
+
+          <div id="brief-success" style="display:none;text-align:center;padding:20px 0">
+            <div style="font-size:42px;margin-bottom:8px">✅</div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">Brief uploaded!</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:14px">It's in the project folder.</div>
+            <button class="again-btn" onclick="briefReset()">+ Upload Another</button>
+          </div>
+        </div><!-- /brief-mode -->
+      </div><!-- /form-view -->
 
       <div class="success" id="success-view">
         <div class="success-icon">✅</div>
         <div class="success-title">Uploaded!</div>
         <div class="success-sub" id="success-detail">File is live on the portal.</div>
         <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
-      </div>
-    </div>
-
-    <!-- BRIEF / DOC CARD — for Viplav, copywriters, SPOCs to attach the
-         brief, strategy doc, or any reference file to a task. Lands in
-         the same per-project folder as the creative + open files. No
-         creative row, no review step. Just files + folder_link stamp. -->
-    <div class="form-card" id="brief-card" style="margin-top:18px">
-      <div id="brief-form-view">
-        <div class="form-title">📋 Brief / Doc</div>
-        <div class="form-sub">Attach the brief, strategy, or reference to a task — for SPOCs &amp; copywriters</div>
-
-        <div class="field">
-          <label>Your name</label>
-          <select id="brief-uploader">
-            <option value="">Pick who's uploading</option>
-            <option>Viplav</option><option>Suriti</option><option>Kritya</option><option>Siddhesh</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishvanath</option><option>Ajay</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Task</label>
-          <select id="brief-task">
-            <option value="">Loading open tasks…</option>
-          </select>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">Pick any open task. File goes into that project's folder.</div>
-        </div>
-
-        <div class="field">
-          <label>File(s)</label>
-          <div class="drop-zone" id="brief-drop-zone">
-            <input type="file" id="brief-file" multiple accept="*/*" onchange="briefHandleFile(this)">
-            <div class="drop-icon">📎</div>
-            <div class="drop-text">Tap to select or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">PDFs, docs, references — pick one or many</span></div>
-            <div id="brief-file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px;max-height:120px;overflow-y:auto;text-align:left;line-height:1.6"></div>
-          </div>
-        </div>
-
-        <div class="progress-bar" id="brief-progress-bar">
-          <div class="progress-fill" id="brief-progress-fill"></div>
-        </div>
-        <div class="err" id="brief-err-msg"></div>
-
-        <button class="upload-btn" id="brief-submit-btn" onclick="submitBriefUpload()">📋 Upload Brief / Doc</button>
-      </div>
-
-      <div class="success" id="brief-success-view">
-        <div class="success-icon">✅</div>
-        <div class="success-title">Brief uploaded!</div>
-        <div class="success-sub">It's in the project folder. Whoever opens the task will find it there.</div>
-        <button class="again-btn" onclick="briefReset()">+ Upload Another</button>
       </div>
     </div>
   </div>
@@ -956,10 +968,10 @@ function updateFileTypeHint() {
   const ft = document.getElementById('q-filetype').value;
   const hint = document.getElementById('filetype-hint');
   if (ft === 'open') {
-    hint.innerHTML = '📂 Open file mode — skips the review queue. Lands in the same project folder as the creative. Use this for PSDs, AI files, working masters.';
+    hint.innerHTML = '📂 Open file mode — lands directly in the project folder. No review step. Use for PSDs, AI files, working masters.';
     hint.style.color = '#15803d';
   } else {
-    hint.innerHTML = 'Final files flow through Viplav → client. Both types land in the same project folder; open files just skip the review step.';
+    hint.innerHTML = 'Final files go to /REVIEW/ for Viplav. On approval they move into the client\'s project folder. Drafts stay hidden from the client.';
     hint.style.color = 'var(--muted)';
   }
 }
@@ -1249,12 +1261,16 @@ async function submitUpload(){
   setProgress(5);
 
   // ============== SESSION FOLDER PATH ==============
-  // All files in this upload session go into ONE per-project folder:
-  // /[CLIENT]/Creatives/[Project Name]/ — same folder holds the brief (added
-  // via the Brief/Doc card), the creatives, and the open files. One link on
-  // the task panel opens this folder; everything's in there.
+  // Routing splits by file type:
+  //  - Final/Preview (creative) → /REVIEW/ staging. Hidden from client until
+  //    a reviewer approves; then team.html moves it into the project folder.
+  //  - Open file → /[CLIENT]/Creatives/[Task]/ (project folder, immediate).
+  //    Sources don't need review.
+  //  - Briefs (from the Brief tab below) → also project folder, immediate.
   const safeBase = baseCreativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-  const sessionFolderRaw = `${clientFolder(client, 'Creatives')}/${safeBase}`;
+  const sessionFolderRaw = isOpenFile
+    ? `${clientFolder(client, 'Creatives')}/${safeBase}`
+    : `/REVIEW/${safeBase} — ${designer} — ${client}`;
   const sessionFolder = sessionFolderRaw
     .replace(/[\u2010-\u2015]/g, '-')
     .replace(/[\u2018\u2019]/g, "'")
@@ -1340,11 +1356,12 @@ async function submitUpload(){
     // deployed with new endpoint), use first file URL as preview_link.
     const previewLink = folderUrl || fileUrls[0] || '';
 
-    // Stamp the project folder link on the originating task — that's the ONE
-    // link that shows on the founder/team task panel ("Project folder"). Same
-    // URL for every upload into the same project folder, so safe to write
-    // repeatedly. Only stamps when we have a real folder URL + a linked task.
-    if (folderUrl && originatingTaskId) {
+    // Stamp folder_link on the originating task ONLY when this upload actually
+    // landed inside the project folder (open files). Creative uploads land in
+    // /REVIEW/ so the project folder may not even exist yet — folder_link will
+    // get stamped when team approve moves the first creative into the project
+    // folder, or when a brief is uploaded via the Brief tab.
+    if (folderUrl && originatingTaskId && isOpenFile) {
       try {
         await sb.from('tasks').update({ folder_link: folderUrl }).eq('id', originatingTaskId);
       } catch(e) { console.warn('folder_link stamp failed:', e); }
@@ -1517,6 +1534,29 @@ function resetForm(){
 
 // ─── BRIEF / DOC UPLOAD ──────────────────────────────────────────────────
 // Separate flow from creative upload. For Viplav / SPOCs / copywriters to
+
+// Toggle between Creative and Brief modes inside the same form-card.
+// Keeps the right column a single card so the page layout stays balanced.
+function switchUploadMode(mode) {
+  const creative = document.getElementById('creative-mode');
+  const brief = document.getElementById('brief-mode');
+  const tabC = document.getElementById('tab-creative');
+  const tabB = document.getElementById('tab-brief');
+  const isCreative = mode === 'creative';
+  creative.style.display = isCreative ? 'block' : 'none';
+  brief.style.display    = isCreative ? 'none'  : 'block';
+  // Active tab visual: white pill + shadow; inactive: transparent
+  tabC.style.background  = isCreative ? '#fff' : 'transparent';
+  tabC.style.boxShadow   = isCreative ? '0 1px 2px rgba(0,0,0,0.06)' : 'none';
+  tabC.style.color       = isCreative ? '#1a1a1a' : '#777';
+  tabC.style.fontWeight  = isCreative ? '700' : '600';
+  tabB.style.background  = !isCreative ? '#fff' : 'transparent';
+  tabB.style.boxShadow   = !isCreative ? '0 1px 2px rgba(0,0,0,0.06)' : 'none';
+  tabB.style.color       = !isCreative ? '#1a1a1a' : '#777';
+  tabB.style.fontWeight  = !isCreative ? '700' : '600';
+}
+
+// (existing brief upload code below)
 // attach brief docs, strategy docs, or reference files to a task. Files
 // land in the SAME per-project folder as the creative + open files.
 // No creative row, no review queue — just files into the folder and the
@@ -1633,8 +1673,12 @@ async function submitBriefUpload() {
     }
 
     fill.style.width = '100%';
-    document.getElementById('brief-form-view').style.display = 'none';
-    document.getElementById('brief-success-view').style.display = 'block';
+    // Hide the form fields + button, show inline success state
+    const form = document.getElementById('brief-mode');
+    Array.from(form.children).forEach(el => {
+      if (el.id !== 'brief-success') el.style.display = 'none';
+    });
+    document.getElementById('brief-success').style.display = 'block';
   } catch(e) {
     err.textContent = 'Upload failed: ' + (e.message || 'unknown error');
     btn.disabled = false; btn.textContent = '📋 Upload Brief / Doc';
@@ -1653,8 +1697,12 @@ function briefReset() {
   document.getElementById('brief-progress-fill').style.width = '0%';
   const btn = document.getElementById('brief-submit-btn');
   btn.disabled = false; btn.textContent = '📋 Upload Brief / Doc';
-  document.getElementById('brief-form-view').style.display = 'block';
-  document.getElementById('brief-success-view').style.display = 'none';
+  // Show form children again, hide inline success
+  const form = document.getElementById('brief-mode');
+  Array.from(form.children).forEach(el => {
+    if (el.id !== 'brief-success') el.style.display = '';
+  });
+  document.getElementById('brief-success').style.display = 'none';
   // Refresh task list in case tasks changed since the page loaded
   loadBriefTasks();
 }
