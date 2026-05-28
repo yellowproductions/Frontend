@@ -3772,8 +3772,12 @@ function getApprovedLeaveForDate(name, dateStr, allRows) {
     // for every future date, leaking the single-day override forward indefinitely.
     // Override resolution lives in resolveTodayStatus; skip override rows here.
     if (/override/i.test(r.Notes || '')) return false;
-    const from = r.Date;
-    const to   = r.Task || r.Date;   // Task col stores the end-date
+    // Use the REAL leave dates stamped on the row during load. Earlier this
+    // used r.Date (actually the request-creation date) which made leaves leak
+    // backwards from the request day to the start day. Fallbacks keep older
+    // rows working.
+    const from = r._sb_start_date || r.Date;
+    const to   = r._sb_end_date   || r._sb_start_date || r.Task || r.Date;
     if (!from) return false;
     return from <= dateStr && to >= dateStr;
   }) || null;
