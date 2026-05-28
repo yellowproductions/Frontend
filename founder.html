@@ -1485,6 +1485,7 @@ async function fetchSheetRows() {
       Update: _supaJoinUpdates(t.task_updates),
       Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
+      'Folder Link': t.folder_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
       ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
@@ -3452,14 +3453,16 @@ function renderMorningDigest(tasks) {
     return !recentUpdate;
   });
 
-  // Per-designer open task counts
+  // Per-designer open task counts — counts collaborators too, not just assignees,
+  // so a designer pulled in as collaborator gets credit for the load (and won't
+  // be falsely flagged "idle" while actually working on collab tasks).
   const byPerson = {};
   const normName = s => (s || '').trim().toLowerCase();
   openTasks.forEach(t => {
-    if (!t.Assignee) return;
-    const key = normName(t.Assignee);
-    if (!byPerson[key]) byPerson[key] = 0;
-    byPerson[key]++;
+    const involved = new Set();
+    if (t.Assignee) involved.add(normName(t.Assignee));
+    (t.Collaborators || []).forEach(c => { if (c) involved.add(normName(c)); });
+    involved.forEach(key => { byPerson[key] = (byPerson[key] || 0) + 1; });
   });
 
   // Idle calculation — only people who SHOULD be working today AND have no open tasks
@@ -3578,8 +3581,16 @@ function checkTeamNotifications(tasks) {
 
   // Notification 2: Designers who cleared their queue
   const openCounts = {};
-  TEAM_LIST.forEach(name => {
-    openCounts[name] = tasks.filter(t => t.Assignee === name && t.Status !== 'Done' && t.Status !== 'done' && t.Status !== 'Closed' && t.Status !== 'closed' && t.Status !== 'Rejected' && t.Status !== 'rejected').length;
+  const normNameN = s => (s || '').trim().toLowerCase();
+  TEAM_LIST.forEach(name => { openCounts[name] = 0; });
+  tasks.forEach(t => {
+    if (t.Status === 'Done' || t.Status === 'done' || t.Status === 'Closed' || t.Status === 'closed' || t.Status === 'Rejected' || t.Status === 'rejected') return;
+    const involved = new Set();
+    if (t.Assignee) involved.add(normNameN(t.Assignee));
+    (t.Collaborators || []).forEach(c => { if (c) involved.add(normNameN(c)); });
+    TEAM_LIST.forEach(name => {
+      if (involved.has(normNameN(name))) openCounts[name] += 1;
+    });
   });
   const cleared = [];
   TEAM_LIST.forEach(name => {
@@ -3999,17 +4010,11 @@ function renderTasks(tasks) {
           </select>
         </div>
         <div class="fos-link-row">
-          <div class="fos-link-field">
-            <input type="text" placeholder="Preview link" value="${t['Preview Link']||''}"
-              title="Preview / final-creative link"
-              onblur="updateTaskLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
-            ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-link-arrow" title="Open preview">↗</a>` : ''}
-          </div>
-          <div class="fos-link-field">
-            <input type="text" placeholder="Open file link" value="${t['Open File Link']||''}"
-              title="Source file link (AI / PSD in Dropbox)"
-              onblur="updateTaskOpenFileLink('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
-            ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-link-arrow" title="Open source file">↗</a>` : ''}
+          <div class="fos-link-field" style="flex:1">
+            <input type="text" placeholder="Project folder" value="${t['Folder Link']||''}"
+              title="Project folder — brief, creative & open files all live inside (auto-stamped by Studio uploads)"
+              onblur="updateTaskFolderLink('${t._sb_id||''}','${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+            ${t['Folder Link'] ? `<a href="${t['Folder Link']}" target="_blank" class="fos-link-arrow" title="Open project folder">↗</a>` : ''}
           </div>
         </div>
         <div class="fos-update-add">
@@ -4304,6 +4309,21 @@ async function updateTaskOpenFileLink(task, assignee, date, link) {
     const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
     if(t) t['Open File Link'] = link;
   } catch(e) { console.log('Error updating open file link'); }
+}
+
+// Single Project Folder link — the one link on every task panel. Studio
+// auto-stamps it on first upload (creative or brief). Suriti can also paste
+// one manually here (legacy / external Dropbox folders). Supabase-direct.
+async function updateTaskFolderLink(sbId, task, assignee, date, link) {
+  const v = (link || '').trim();
+  const t = allTasks.find(t => t.Task === task && t.Assignee === assignee && t.Date === date);
+  if (t && (t['Folder Link'] || '') === v) return; // unchanged
+  try {
+    if (sbId) {
+      await sb.from('tasks').update({ folder_link: v || null }).eq('id', sbId);
+    }
+    if (t) t['Folder Link'] = v;
+  } catch(e) { console.warn('Folder link update failed:', e); }
 }
 
 // Click a task name in Today's Brief → jump to Tasks panel, search for it, highlight briefly
