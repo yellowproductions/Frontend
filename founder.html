@@ -2602,10 +2602,57 @@ async function sendChat() {
 }
 
 // ====== REMINDERS ======
-let reminders = JSON.parse(localStorage.getItem('yos-reminders') || '[]');
+let reminders = [];   // populated from Supabase on boot — see loadRemindersFromSupabase()
 let activeBannerIdx = -1;
 
-function saveReminders() { localStorage.setItem('yos-reminders', JSON.stringify(reminders)); }
+function formatReminderTime(d) {
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' · ' + d.toLocaleDateString('en-IN');
+}
+
+// Load reminders from Supabase so the bell shows the same items on every device
+// Suriti is signed in from. Also rescues any reminders still stranded in this
+// device's localStorage from before reminders were Supabase-backed.
+async function loadRemindersFromSupabase() {
+  try {
+    const { data, error } = await sb.from('reminders')
+      .select('*')
+      .eq('for_person', 'Suriti')
+      .neq('status', 'Done')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    reminders = (data || []).map(r => ({
+      text: r.message,
+      done: r.status === 'Done',
+      time: r.created_at ? formatReminderTime(new Date(r.created_at)) : '',
+      _sb_id: r.id
+    }));
+    // One-time migration: items still in localStorage from the old per-device
+    // setup get pushed up to Supabase, then localStorage is cleared. Only
+    // clears if every item migrated successfully — partial failure keeps
+    // localStorage so nothing is lost.
+    const localLeftover = JSON.parse(localStorage.getItem('yos-reminders') || '[]');
+    if (localLeftover.length) {
+      let successCount = 0;
+      for (const r of localLeftover) {
+        if (reminders.some(x => x.text === r.text)) { successCount++; continue; }
+        try {
+          const { data: inserted, error: insErr } = await sb.from('reminders').insert({
+            message: r.text, for_person: 'Suriti', status: 'Pending'
+          }).select().single();
+          if (insErr || !inserted) throw insErr || new Error('no data');
+          reminders.unshift({ text: r.text, done: false, time: r.time || formatReminderTime(new Date()), _sb_id: inserted.id });
+          successCount++;
+        } catch(e) { console.warn('Reminder migration failed for:', r.text, e); }
+      }
+      if (successCount === localLeftover.length) {
+        localStorage.removeItem('yos-reminders');
+      }
+    }
+    renderReminders();
+  } catch(e) {
+    console.warn('Failed to load reminders from Supabase:', e);
+  }
+}
 
 function renderReminders() {
   const list = document.getElementById('reminder-list');
@@ -2659,23 +2706,29 @@ function dismissBanner() {
   if(activeBannerIdx !== -1) doneReminder(activeBannerIdx);
 }
 
-function doneReminder(i) {
+async function doneReminder(i) {
+  const item = reminders[i];
   reminders.splice(i, 1);
-  saveReminders();
   renderReminders();
+  if (item && item._sb_id) {
+    try { await sb.from('reminders').delete().eq('id', item._sb_id); }
+    catch(e) { console.warn('Could not delete reminder from Supabase:', e); }
+  }
 }
 
-function deleteReminder(i) {
-  reminders.splice(i, 1);
-  saveReminders();
-  renderReminders();
+async function deleteReminder(i) {
+  return doneReminder(i);
 }
 
-function clearAllReminders() {
+async function clearAllReminders() {
   if(!confirm('Clear all reminders?')) return;
+  const ids = reminders.map(r => r._sb_id).filter(Boolean);
   reminders = [];
-  saveReminders();
   renderReminders();
+  if (ids.length) {
+    try { await sb.from('reminders').delete().in('id', ids); }
+    catch(e) { console.warn('Could not clear reminders from Supabase:', e); }
+  }
 }
 
 function toggleReminders() {
@@ -2683,16 +2736,27 @@ function toggleReminders() {
   dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
 }
 
-function addReminder(text) {
+async function addReminder(text) {
   const now = new Date();
-  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' · ' + now.toLocaleDateString('en-IN');
-  reminders.unshift({ text, done: false, time });
-  saveReminders();
+  const time = formatReminderTime(now);
+  // Optimistically render so the bell feels instant, then sync to Supabase
+  // and stamp the new row's id on the local item.
+  const localItem = { text, done: false, time };
+  reminders.unshift(localItem);
   renderReminders();
   // Flash bell
   const bell = document.getElementById('reminder-bell');
   bell.style.transform = 'scale(1.3)';
   setTimeout(() => bell.style.transform = 'scale(1)', 300);
+  try {
+    const { data, error } = await sb.from('reminders').insert({
+      message: text, for_person: 'Suriti', status: 'Pending'
+    }).select().single();
+    if (error) throw error;
+    if (data) localItem._sb_id = data.id;
+  } catch(e) {
+    console.warn('Could not save reminder to Supabase — will stay local for this session:', e);
+  }
 }
 
 function extractReminder(text) {
@@ -2720,6 +2784,7 @@ document.addEventListener('click', e => {
 
 // Init
 renderReminders();
+loadRemindersFromSupabase();   // hydrates the bell from Supabase + migrates any local leftovers
 let allTasks = [];
 
 // Sheets stringifies Date columns as "Tue May 06 2026 00:00:00 GMT+0530 (India Standard Time)".
