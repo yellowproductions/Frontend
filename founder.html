@@ -1466,6 +1466,17 @@ function _supaBracketDate(iso) {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   return `[${dd}-${mm}]`;
 }
+
+// Escape a string for use inside single-quoted inline JS attributes.
+// Prevents apostrophes in task titles (e.g. "Child's Hand") from breaking
+// the surrounding string literal — without that, the malformed quote
+// closes the JS string early, corrupting the entire DOM element and
+// breaking click/expand/edit handlers on that row.
+// Caller does: onclick="foo('${jsq(someString)}')"
+function jsq(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function _supaShortTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -3986,7 +3997,7 @@ function renderTasks(tasks) {
             onclick="event.stopPropagation()"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
             onfocus="this.style.background='#fef9ee'"
-            onblur="this.style.background='';updateTaskTitle('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)">${displayName}</span>
+            onblur="this.style.background='';updateTaskTitle('${jsq(t.Task)}','${jsq(t.Assignee||'')}','${jsq(t.Date||'')}',this.textContent)">${displayName}</span>
         </div>
         <div class="fos-cell" onclick="event.stopPropagation()">
           <select class="fos-mini-select" title="Owner — reassign"
@@ -4006,7 +4017,7 @@ function renderTasks(tasks) {
         </div>
         <div class="fos-cell" onclick="event.stopPropagation()">
           <select class="fos-status-select" style="${selectStyle}"
-            onchange="updateTaskStatus('${t.Task}','${t.Assignee}','${t.Date}',this.value)">
+            onchange="updateTaskStatus('${jsq(t.Task)}','${jsq(t.Assignee)}','${jsq(t.Date)}',this.value)">
             <option ${status==='Pending'?'selected':''}>Pending</option>
             <option ${status==='In Progress'?'selected':''}>In Progress</option>
             <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
@@ -4026,7 +4037,7 @@ function renderTasks(tasks) {
         ${showDesc ? `<div class="fos-detail-desc" contenteditable="true" spellcheck="true" title="Click to edit"
           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
           onfocus="this.style.background='#fef9ee'"
-          onblur="this.style.background='';updateTaskDescription('${t.Task}','${t.Assignee||''}','${t.Date||''}',this.textContent)">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
+          onblur="this.style.background='';updateTaskDescription('${jsq(t.Task)}','${jsq(t.Assignee||'')}','${jsq(t.Date||'')}',this.textContent)">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
         ${updatesHtml}
         <div class="fos-collab-row">
           ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
@@ -4043,7 +4054,7 @@ function renderTasks(tasks) {
           <input type="text" placeholder="+ Add update for today..."
             onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)">
           <button class="fos-del" title="Delete this task"
-            onclick="deleteTask('${t.Task}','${t.Assignee}','${t.Date}')">Delete</button>
+            onclick="deleteTask('${jsq(t.Task)}','${jsq(t.Assignee)}','${jsq(t.Date)}')">Delete</button>
         </div>
       </div>`;
     });
