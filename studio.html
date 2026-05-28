@@ -288,6 +288,60 @@ html,body { width:100%; height:100%; font-family:'Poppins',sans-serif; overflow:
         <button class="again-btn" onclick="resetForm()">+ Upload Another</button>
       </div>
     </div>
+
+    <!-- BRIEF / DOC CARD — for Viplav, copywriters, SPOCs to attach the
+         brief, strategy doc, or any reference file to a task. Lands in
+         the same per-project folder as the creative + open files. No
+         creative row, no review step. Just files + folder_link stamp. -->
+    <div class="form-card" id="brief-card" style="margin-top:18px">
+      <div id="brief-form-view">
+        <div class="form-title">📋 Brief / Doc</div>
+        <div class="form-sub">Attach the brief, strategy, or reference to a task — for SPOCs &amp; copywriters</div>
+
+        <div class="field">
+          <label>Your name</label>
+          <select id="brief-uploader">
+            <option value="">Pick who's uploading</option>
+            <option>Viplav</option><option>Suriti</option><option>Kritya</option><option>Siddhesh</option>
+            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Sonal</option><option>Vishvanath</option><option>Ajay</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Task</label>
+          <select id="brief-task">
+            <option value="">Loading open tasks…</option>
+          </select>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Pick any open task. File goes into that project's folder.</div>
+        </div>
+
+        <div class="field">
+          <label>File(s)</label>
+          <div class="drop-zone" id="brief-drop-zone">
+            <input type="file" id="brief-file" multiple accept="*/*" onchange="briefHandleFile(this)">
+            <div class="drop-icon">📎</div>
+            <div class="drop-text">Tap to select or <strong>drag and drop</strong><br><span style="font-size:10px;color:#bbb">PDFs, docs, references — pick one or many</span></div>
+            <div id="brief-file-name" style="font-size:12px;color:#FEBC06;font-weight:600;display:none;margin-top:4px;max-height:120px;overflow-y:auto;text-align:left;line-height:1.6"></div>
+          </div>
+        </div>
+
+        <div class="progress-bar" id="brief-progress-bar">
+          <div class="progress-fill" id="brief-progress-fill"></div>
+        </div>
+        <div class="err" id="brief-err-msg"></div>
+
+        <button class="upload-btn" id="brief-submit-btn" onclick="submitBriefUpload()">📋 Upload Brief / Doc</button>
+      </div>
+
+      <div class="success" id="brief-success-view">
+        <div class="success-icon">✅</div>
+        <div class="success-title">Brief uploaded!</div>
+        <div class="success-sub">It's in the project folder. Whoever opens the task will find it there.</div>
+        <button class="again-btn" onclick="briefReset()">+ Upload Another</button>
+      </div>
+    </div>
   </div>
 
   </div>
@@ -902,10 +956,10 @@ function updateFileTypeHint() {
   const ft = document.getElementById('q-filetype').value;
   const hint = document.getElementById('filetype-hint');
   if (ft === 'open') {
-    hint.innerHTML = '📂 Open file mode — file will go directly to the client\'s <strong>Open Files</strong> folder. No review step. Use this for PSDs, AI files, working masters.';
+    hint.innerHTML = '📂 Open file mode — skips the review queue. Lands in the same project folder as the creative. Use this for PSDs, AI files, working masters.';
     hint.style.color = '#15803d';
   } else {
-    hint.innerHTML = 'Final files flow through Viplav → client. Open files skip review and land directly in the client\'s source folder.';
+    hint.innerHTML = 'Final files flow through Viplav → client. Both types land in the same project folder; open files just skip the review step.';
     hint.style.color = 'var(--muted)';
   }
 }
@@ -1195,15 +1249,12 @@ async function submitUpload(){
   setProgress(5);
 
   // ============== SESSION FOLDER PATH ==============
-  // All files in this upload session go into ONE folder.
-  // Folder name = creative name + designer + client (sanitized for Dropbox).
-  // After all files upload, we get the FOLDER share URL — that becomes the
-  // single preview_link the reviewer + client see. Per-file URLs are also kept
-  // (in file_urls) so the review card can show inline thumbnails.
+  // All files in this upload session go into ONE per-project folder:
+  // /[CLIENT]/Creatives/[Project Name]/ — same folder holds the brief (added
+  // via the Brief/Doc card), the creatives, and the open files. One link on
+  // the task panel opens this folder; everything's in there.
   const safeBase = baseCreativeName.replace(/[^a-zA-Z0-9 _-]/g, '');
-  const sessionFolderRaw = isOpenFile
-    ? `${clientFolder(client, 'Open Files')}/${safeBase} — ${designer}`
-    : `/REVIEW/${safeBase} — ${designer} — ${client}`;
+  const sessionFolderRaw = `${clientFolder(client, 'Creatives')}/${safeBase}`;
   const sessionFolder = sessionFolderRaw
     .replace(/[\u2010-\u2015]/g, '-')
     .replace(/[\u2018\u2019]/g, "'")
@@ -1288,6 +1339,16 @@ async function submitUpload(){
     // Fallback: if folder share endpoint isn't available (e.g. backend not yet
     // deployed with new endpoint), use first file URL as preview_link.
     const previewLink = folderUrl || fileUrls[0] || '';
+
+    // Stamp the project folder link on the originating task — that's the ONE
+    // link that shows on the founder/team task panel ("Project folder"). Same
+    // URL for every upload into the same project folder, so safe to write
+    // repeatedly. Only stamps when we have a real folder URL + a linked task.
+    if (folderUrl && originatingTaskId) {
+      try {
+        await sb.from('tasks').update({ folder_link: folderUrl }).eq('id', originatingTaskId);
+      } catch(e) { console.warn('folder_link stamp failed:', e); }
+    }
 
     if (isOpenFile) {
       // OPEN FILE flow — patch the task's Open File Link, and move it to Closed
@@ -1452,6 +1513,150 @@ function resetForm(){
   document.getElementById('progress-fill').style.width='0%';
   document.getElementById('form-view').style.display='block';
   document.getElementById('success-view').style.display='none';
+}
+
+// ─── BRIEF / DOC UPLOAD ──────────────────────────────────────────────────
+// Separate flow from creative upload. For Viplav / SPOCs / copywriters to
+// attach brief docs, strategy docs, or reference files to a task. Files
+// land in the SAME per-project folder as the creative + open files.
+// No creative row, no review queue — just files into the folder and the
+// folder_link stamped on the task so the panel link works.
+
+let briefSelectedFiles = [];
+
+async function loadBriefTasks() {
+  const sel = document.getElementById('brief-task');
+  if (!sel) return;
+  try {
+    // All open tasks (anything not Closed/Rejected) grouped by client.
+    const { data, error } = await sb.from('tasks')
+      .select('id, title, client, assignee, status')
+      .not('status', 'in', '("Closed","Rejected")')
+      .order('client', { ascending: true });
+    if (error || !data || !data.length) {
+      sel.innerHTML = '<option value="">No open tasks found</option>';
+      return;
+    }
+    const byClient = {};
+    data.forEach(t => {
+      const c = t.client || 'Unassigned';
+      if (!byClient[c]) byClient[c] = [];
+      byClient[c].push(t);
+    });
+    let html = '<option value="">Pick a task</option>';
+    Object.keys(byClient).sort().forEach(c => {
+      html += `<optgroup label="${c}">`;
+      byClient[c].forEach(t => {
+        const label = `${t.title || '(untitled)'} — ${t.assignee || 'unassigned'}`;
+        html += `<option value="${t.id}">${label.replace(/</g, '&lt;')}</option>`;
+      });
+      html += '</optgroup>';
+    });
+    sel.innerHTML = html;
+  } catch(e) {
+    console.error('Brief task load failed:', e);
+    sel.innerHTML = '<option value="">Could not load tasks</option>';
+  }
+}
+// Load brief tasks once on page ready
+window.addEventListener('DOMContentLoaded', () => { setTimeout(loadBriefTasks, 500); });
+
+function briefHandleFile(input) {
+  briefSelectedFiles = Array.from(input.files || []);
+  const out = document.getElementById('brief-file-name');
+  if (briefSelectedFiles.length) {
+    out.style.display = 'block';
+    out.innerHTML = briefSelectedFiles.map(f => `📎 ${f.name}`).join('<br>');
+  } else {
+    out.style.display = 'none';
+    out.innerHTML = '';
+  }
+}
+
+async function submitBriefUpload() {
+  const uploader = document.getElementById('brief-uploader').value;
+  const taskId = document.getElementById('brief-task').value;
+  const err = document.getElementById('brief-err-msg');
+  err.textContent = '';
+
+  if (!uploader) { err.textContent = 'Pick your name first'; return; }
+  if (!taskId)   { err.textContent = 'Pick a task'; return; }
+  if (!briefSelectedFiles.length) { err.textContent = 'Pick at least one file'; return; }
+
+  const btn = document.getElementById('brief-submit-btn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  const bar = document.getElementById('brief-progress-bar');
+  const fill = document.getElementById('brief-progress-fill');
+  bar.style.display = 'block'; fill.style.width = '5%';
+
+  try {
+    // Look up the task to get client + title for folder path
+    const { data: tRow, error: tErr } = await sb.from('tasks')
+      .select('title, client').eq('id', taskId).single();
+    if (tErr || !tRow) throw new Error('Task not found');
+
+    const client = tRow.client;
+    const titleRaw = tRow.title || 'Untitled';
+    const safeBase = titleRaw.replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'Untitled';
+    const sessionFolder = `${clientFolder(client, 'Creatives')}/${safeBase}`;
+
+    // Upload each file into the project folder
+    let done = 0;
+    for (const f of briefSelectedFiles) {
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const dropboxPath = `${sessionFolder}/${safeName}`;
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('path', dropboxPath);
+      const ures = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body: fd });
+      const udata = await ures.json().catch(() => ({}));
+      if (!udata.success) console.warn('Brief file upload failed:', f.name, udata);
+      done++;
+      fill.style.width = `${Math.floor((done / briefSelectedFiles.length) * 85)}%`;
+    }
+
+    // Get folder share URL and stamp on task (idempotent — same path, same URL)
+    let folderUrl = '';
+    try {
+      const fres = await fetch(`${BACKEND}/api/dropbox-share-folder`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ folderPath: sessionFolder })
+      });
+      const fdata = await fres.json().catch(() => ({}));
+      if (fdata.success && fdata.url) folderUrl = fdata.url;
+    } catch(e) { console.warn('Brief folder share failed:', e.message); }
+
+    if (folderUrl) {
+      try {
+        await sb.from('tasks').update({ folder_link: folderUrl }).eq('id', taskId);
+      } catch(e) { console.warn('folder_link stamp failed:', e); }
+    }
+
+    fill.style.width = '100%';
+    document.getElementById('brief-form-view').style.display = 'none';
+    document.getElementById('brief-success-view').style.display = 'block';
+  } catch(e) {
+    err.textContent = 'Upload failed: ' + (e.message || 'unknown error');
+    btn.disabled = false; btn.textContent = '📋 Upload Brief / Doc';
+  }
+}
+
+function briefReset() {
+  briefSelectedFiles = [];
+  document.getElementById('brief-uploader').value = '';
+  document.getElementById('brief-task').value = '';
+  document.getElementById('brief-file').value = '';
+  document.getElementById('brief-file-name').style.display = 'none';
+  document.getElementById('brief-file-name').innerHTML = '';
+  document.getElementById('brief-err-msg').textContent = '';
+  document.getElementById('brief-progress-bar').style.display = 'none';
+  document.getElementById('brief-progress-fill').style.width = '0%';
+  const btn = document.getElementById('brief-submit-btn');
+  btn.disabled = false; btn.textContent = '📋 Upload Brief / Doc';
+  document.getElementById('brief-form-view').style.display = 'block';
+  document.getElementById('brief-success-view').style.display = 'none';
+  // Refresh task list in case tasks changed since the page loaded
+  loadBriefTasks();
 }
 </script>
 
