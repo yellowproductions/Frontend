@@ -738,6 +738,23 @@
   </div>
 </div>
 
+<!-- NOTIFICATION BELL (left of reminder bell) -->
+<div id="notif-bell" style="position:fixed;top:60px;right:80px;z-index:9000;display:none">
+  <div onclick="toggleNotifs()" style="cursor:pointer;background:#fff;border:1px solid #e0ddd8;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.1);position:relative">
+    <span style="font-size:18px">💬</span>
+    <span id="notif-count" style="position:absolute;top:-4px;right:-4px;background:#e74c3c;color:#fff;font-size:10px;font-weight:800;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;font-family:'Poppins',sans-serif">0</span>
+  </div>
+  <div id="notif-dropdown" style="display:none;position:absolute;top:50px;right:0;width:340px;background:#fff;border:1px solid #e0ddd8;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12);overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid #e0ddd8;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;font-weight:700;color:#1a1a1a">Notifications</div>
+      <div id="notif-mark-all" onclick="markAllNotifsRead()" style="font-size:11px;color:#1a73e8;cursor:pointer;font-weight:600;display:none">Mark all read</div>
+    </div>
+    <div id="notif-list" style="max-height:420px;overflow-y:auto;padding:0">
+      <div id="notif-empty" style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nothing new.<br><span style="font-size:11px">@mentions and review pings show up here.</span></div>
+    </div>
+  </div>
+</div>
+
 <!-- REMINDER BANNER (top sticky) -->
 <div id="reminder-banner" style="display:none;position:fixed;top:0;left:220px;right:0;z-index:8999;background:#fdfaf3;border-bottom:1px solid #f0e6d2;padding:7px 20px;display:none;align-items:center;justify-content:space-between;gap:12px">
   <div style="display:flex;align-items:center;gap:8px;flex:1;overflow:hidden">
@@ -2186,6 +2203,9 @@ function enterFounder() {
   if (fab) fab.style.display = 'flex';
   const bell = document.getElementById('reminder-bell');
   if (bell) bell.style.display = 'block';
+  const nbell = document.getElementById('notif-bell');
+  if (nbell) nbell.style.display = 'block';
+  loadNotifs();
   loadTasks();
   loadHR();
   renderAgentChat();
@@ -2774,11 +2794,124 @@ function extractReminder(text) {
   return null;
 }
 
+// ====== NOTIFICATIONS (in-app bell) ======
+let notifications = [];
+
+function escNotif(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Writes one row to the notifications table. Used everywhere a user-facing
+// event happens (@mentions, review submits, client actions, etc.).
+// Self-pings are skipped (recipient === actor).
+async function notifyInApp(recipient, type, message, opts) {
+  opts = opts || {};
+  if (!recipient) return;
+  if (opts.actor && recipient === opts.actor) return;
+  try {
+    await sb.from('notifications').insert({
+      recipient, type, message,
+      link: opts.link || null,
+      task_id: opts.taskId || null,
+      actor: opts.actor || null
+    });
+  } catch(e) { console.warn('notifyInApp failed:', e); }
+}
+
+async function loadNotifs() {
+  try {
+    const { data, error } = await sb.from('notifications')
+      .select('*')
+      .eq('recipient', 'Suriti')
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (error) throw error;
+    notifications = data || [];
+    renderNotifs();
+  } catch(e) { console.warn('Failed to load notifications:', e); }
+}
+
+function renderNotifs() {
+  const list = document.getElementById('notif-list');
+  const empty = document.getElementById('notif-empty');
+  const count = document.getElementById('notif-count');
+  const markAll = document.getElementById('notif-mark-all');
+  if (!list || !empty || !count || !markAll) return;
+  const unread = notifications.filter(n => !n.read).length;
+  count.textContent = unread > 99 ? '99+' : unread;
+  count.style.display = unread ? 'flex' : 'none';
+  markAll.style.display = unread ? 'block' : 'none';
+  empty.style.display = notifications.length ? 'none' : 'block';
+  list.querySelectorAll('.notif-item').forEach(e => e.remove());
+  notifications.forEach(n => {
+    const div = document.createElement('div');
+    div.className = 'notif-item';
+    const bg = n.read ? '#fafafa' : '#fffbf0';
+    const border = n.read ? '1px solid #f0eeea' : '1px solid #fce4a6';
+    const dot = n.read ? '<span style="width:6px;flex-shrink:0"></span>' : '<span style="display:inline-block;width:6px;height:6px;background:#FEBC06;border-radius:50%;flex-shrink:0;margin-top:5px"></span>';
+    const cursor = n.link ? 'pointer' : 'default';
+    const when = n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short' }) : '';
+    div.style = `padding:10px 14px;border-bottom:${border};background:${bg};cursor:${cursor};display:flex;align-items:flex-start;gap:8px`;
+    div.innerHTML = `
+      ${dot}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:#1a1a1a;line-height:1.4">${escNotif(n.message)}</div>
+        <div style="font-size:10px;color:#999;margin-top:3px">${escNotif(n.actor||'')}${n.actor?' · ':''}${when}</div>
+      </div>
+    `;
+    div.onclick = () => onNotifClick(n);
+    list.appendChild(div);
+  });
+}
+
+function onNotifClick(n) {
+  if (!n.read) markNotifRead(n.id);
+  if (n.link) {
+    if (n.link.startsWith('#')) {
+      const target = document.querySelector(n.link);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      window.location.href = n.link;
+    }
+  }
+  document.getElementById('notif-dropdown').style.display = 'none';
+}
+
+async function markNotifRead(id) {
+  const n = notifications.find(x => x.id === id);
+  if (n) { n.read = true; n.read_at = new Date().toISOString(); }
+  renderNotifs();
+  try { await sb.from('notifications').update({ read: true, read_at: new Date().toISOString() }).eq('id', id); }
+  catch(e) { console.warn('markNotifRead failed:', e); }
+}
+
+async function markAllNotifsRead() {
+  const ids = notifications.filter(n => !n.read).map(n => n.id);
+  if (!ids.length) return;
+  const now = new Date().toISOString();
+  notifications.forEach(n => { if (!n.read) { n.read = true; n.read_at = now; } });
+  renderNotifs();
+  try { await sb.from('notifications').update({ read: true, read_at: now }).in('id', ids); }
+  catch(e) { console.warn('markAllNotifsRead failed:', e); }
+}
+
+function toggleNotifs() {
+  const dd = document.getElementById('notif-dropdown');
+  const rdd = document.getElementById('reminder-dropdown');
+  if (rdd) rdd.style.display = 'none';
+  dd.style.display = (dd.style.display === 'block') ? 'none' : 'block';
+}
+
 // Close dropdown on outside click
 document.addEventListener('click', e => {
   const bell = document.getElementById('reminder-bell');
   if(bell && !bell.contains(e.target)) {
     document.getElementById('reminder-dropdown').style.display = 'none';
+  }
+  const nbell = document.getElementById('notif-bell');
+  if(nbell && !nbell.contains(e.target)) {
+    const dd = document.getElementById('notif-dropdown');
+    if (dd) dd.style.display = 'none';
   }
 });
 
@@ -5127,6 +5260,14 @@ async function rejectCheckedFiles(idx) {
       notifyTelegram(name, `👀 <b>You were tagged in feedback</b>\n\nCreative: <b>${cName}</b>\nBy: ${designer}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     });
 
+    // In-app notifications — bell for designer + each @mentioned teammate.
+    if (designer) {
+      notifyInApp(designer, 'feedback', `Suriti sent back ${checked.length} file${checked.length>1?'s':''} on ${cName}`, { actor: 'Suriti' });
+    }
+    mentioned.forEach(name => {
+      notifyInApp(name, 'tag', `Suriti tagged you in feedback on ${cName}`, { actor: 'Suriti' });
+    });
+
     renderReview();
     updateReviewBadge();
   } catch(e) {
@@ -5372,6 +5513,33 @@ async function founderSubmitReview(idx, action) {
       // and either becomes client-visible ('Client Review'), goes 'Rejected',
       // or goes to 'Rework' (sent back for rework).
       await cascadeTaskFromCreative(item, newStatus, item['Preview Link']);
+
+      // In-app notifications: ping the designer, the SPOC, and anyone @mentioned
+      // in the feedback. Telegram pings still fire below — these add an in-app
+      // bell history that doesn't get buried in chats.
+      try {
+        let spoc = null, taskIdForNotif = null;
+        if (item._sb_id) {
+          const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+          if (cRow && cRow.task_id) {
+            taskIdForNotif = cRow.task_id;
+            const { data: tRow } = await sb.from('tasks').select('spoc').eq('id', taskIdForNotif).single();
+            spoc = (tRow && tRow.spoc) || null;
+          }
+        }
+        const verdict =
+          action === 'approve' ? 'sent to client' :
+          action === 'sendback' ? 'sent back for rework' :
+                                  'rejected — concept scrapped';
+        const notifType =
+          action === 'approve' ? 'accept' :
+          action === 'sendback' ? 'feedback' : 'reject';
+        const baseMsg = `Suriti ${verdict}: ${cName}` + (note ? ` — "${note}"` : '');
+        if (designer) notifyInApp(designer, notifType, baseMsg, { actor: 'Suriti', taskId: taskIdForNotif });
+        if (spoc && spoc !== designer) notifyInApp(spoc, 'review', baseMsg, { actor: 'Suriti', taskId: taskIdForNotif });
+        const mentioned = extractMentions(note || '').filter(n => n && n !== designer && n !== 'Suriti' && n !== spoc);
+        mentioned.forEach(name => notifyInApp(name, 'tag', `Suriti tagged you on ${cName}: "${note}"`, { actor: 'Suriti', taskId: taskIdForNotif }));
+      } catch(e) { console.warn('founder review notif writes failed:', e); }
     } else {
       // Fallback through interceptor (which routes to Supabase mirror anyway)
       await fetch(SHEETDB_URL, {
