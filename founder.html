@@ -1976,9 +1976,14 @@ function getApprovedLeaveForDate(name, dateStr, allRows) {
     // future date, leaking a single-day override into perpetuity. Override
     // priority is handled by the day-resolver layer; skip override rows here.
     if (/override/i.test(r.Notes || '')) return false;
-    // Regular leave: Date is the start; Task is the end (or Date itself for single-day)
-    const from = r.Date;
-    const to   = r.Task || r.Date;
+    // Use the REAL leave dates from the leaves table — _sb_start_date and
+    // _sb_end_date are stamped on the row during load. Earlier this used r.Date
+    // (which is actually the request-created date, not the leave start) and
+    // r.Task (which holds start_date), making leaves leak from the request day
+    // up to the start day. Falling back to r.Date / r.Task preserves behaviour
+    // for older rows that didn't carry _sb_* fields.
+    const from = r._sb_start_date || r.Date;
+    const to   = r._sb_end_date   || r._sb_start_date || r.Task || r.Date;
     if (!from) return false;
     return from <= dateStr && to >= dateStr;
   }) || null;
