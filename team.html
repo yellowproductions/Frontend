@@ -1952,9 +1952,13 @@ async function loadReminders() {
     pendingReminders = rows
       .filter(r => r.Type === 'reminder' && r.Assignee === currentUser && (r.Status === 'Pending' || r.Status === 'pending' || !r.Status))
       .map(r => ({
-        rowKey: r.Task,            // used to mark done
-        from: r.Notes || 'team',
-        message: r.Task,
+        // _sb_id for Supabase rows (the source of truth now), Task for legacy SheetDB rows
+        rowKey: r._sb_id || r.Task,
+        _sb_id: r._sb_id,
+        // The message lives in Title for Supabase-loaded rows (mapped from `message`),
+        // and in Task for older SheetDB rows. Try Title first, fall back to Task.
+        message: r.Title || r.Task || '',
+        from: r.Notes || (r.Assignee === currentUser ? 'self' : 'team'),
         date: normalizeDate(r.Date)
       }));
     updateBellBadge();
@@ -1963,10 +1967,19 @@ async function loadReminders() {
 
 async function markReminderDone(rowKey) {
   try {
-    await fetch(SHEETDB, {
-      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-      body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: rowKey, data: { Status: 'Done' } })
-    });
+    // Find the reminder so we know whether to update Supabase or fall back to SheetDB
+    const rem = pendingReminders.find(r => r.rowKey === rowKey);
+    if (rem && rem._sb_id) {
+      // Supabase-backed: delete the row (matches the founder bell's behaviour
+      // where Done removes the reminder rather than leaving a tombstone).
+      await sb.from('reminders').delete().eq('id', rem._sb_id);
+    } else {
+      // Legacy SheetDB row — patch status via the interceptor.
+      await fetch(SHEETDB, {
+        method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+        body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: rowKey, data: { Status: 'Done' } })
+      });
+    }
     pendingReminders = pendingReminders.filter(r => r.rowKey !== rowKey);
     updateBellBadge();
     openNotifPanel(true); // re-render
