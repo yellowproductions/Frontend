@@ -4296,11 +4296,10 @@ async function submitReview(idx, action) {
     Siddhesh:'siddhesh@yellowproductions.co.in', Ajay:'ajay@yellowproductions.co.in'
   };
 
-  const CLIENT_PENDING = {
-    steelcity: '/JINDAL/Pending', youthleague: '/Jindal League/Pending',
-    'jindal-youth': '/Jindal Youth League/Pending',
-    'sohar-steel': '/Sohar Steel/Pending', duqm: '/Jindal Steel Duqm/Pending'
-  };
+  // NOTE: the old CLIENT_PENDING map and per-client /Pending/ routing were
+  // removed. In the new model, Studio uploads creatives to /REVIEW/; on
+  // approve, the file moves into the client's per-project folder. There's
+  // no intermediate /[CLIENT]/Pending/ folder anymore.
 
   if (action === 'sendback' && !note) { alert('Please add feedback before sending back.'); return; }
   const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
@@ -4342,12 +4341,67 @@ async function submitReview(idx, action) {
     notifyInApp(designer, 'accept', `${currentUser} approved ${cName} and sent it to client`, { actor: currentUser });
   }
 
-  // Approve: move file to client folder, no emails
-  if (action === 'approve' && fileUrl) {
-    fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ fromPath: filePath || fileUrl, toFolder: CLIENT_PENDING[client] || '/JINDAL/Pending' })
-    }).catch(e => console.log('Move error:', e.message));
+  // Approve: move file(s) from /REVIEW/ into the client's project folder,
+  // and stamp folder_link on the linked task. Files were uploaded by Studio
+  // to /REVIEW/[task — designer — client]/; now they move into
+  // /[CLIENT]/Creatives/[task]/ where the client can see them.
+  if (action === 'approve') {
+    // Inline client-folder map — single source of truth lives in studio.html's
+    // CLIENT_REGISTRY; mirror it here. Add any new client to BOTH places.
+    const CLIENT_FOLDERS = {
+      'Jindal Steel':'/JINDAL', 'Jindal League':'/Jindal League',
+      'Jindal Youth League':'/Jindal Youth League', 'Jindal Steel Duqm':'/Jindal Steel Duqm',
+      'Sohar Steel':'/Sohar Steel', 'RM Universal':'/RM Universal',
+      'Kotak':'/KOTAK', 'TEAM YP':'/TEAM YP', 'Pitches':'/PITCHES',
+      'Marico':'/Marico', 'Zouk':'/Zouk', 'TATA Mutual Funds':'/TATA Mutual Funds',
+      'HZL':'/HZL', 'Adhoc':'/ADHOC'
+    };
+    const LEGACY_CLIENT = {
+      steelcity:'Jindal Steel', youthleague:'Jindal League',
+      'jindal-youth':'Jindal Youth League', 'sohar-steel':'Sohar Steel',
+      duqm:'Jindal Steel Duqm', kotak:'Kotak', adhoc:'Adhoc', pitches:'Pitches'
+    };
+    const canonicalClient = LEGACY_CLIENT[client] || client;
+    const clientBase = CLIENT_FOLDERS[canonicalClient];
+
+    if (!clientBase) {
+      console.warn(`Unknown client "${client}" — file not moved. Add to CLIENT_FOLDERS in team.html.`);
+    } else {
+      const safeBase = cName.replace(/[^a-zA-Z0-9 _-]/g, '');
+      const projectFolder = `${clientBase}/Creatives/${safeBase}`;
+
+      // Move every file in the review folder over. Use file_urls if available
+      // (per-file URLs), otherwise fall back to the single preview_link.
+      const urlsToMove = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
+        ? item._sb_file_urls
+        : (fileUrl ? [fileUrl] : []);
+
+      urlsToMove.forEach(url => {
+        fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ fromPath: url, toFolder: projectFolder })
+        }).catch(e => console.log('Approve-move error:', e.message));
+      });
+
+      // Stamp the project folder share URL on the linked task. Idempotent —
+      // same path returns same URL, safe to write repeatedly.
+      if (item._sb_id) {
+        (async () => {
+          try {
+            const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+            if (!cRow || !cRow.task_id) return;
+            const fres = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ folderPath: projectFolder })
+            });
+            const fdata = await fres.json().catch(() => ({}));
+            if (fdata.success && fdata.url) {
+              await sb.from('tasks').update({ folder_link: fdata.url }).eq('id', cRow.task_id);
+            }
+          } catch(e) { console.warn('folder_link stamp on approve failed:', e); }
+        })();
+      }
+    }
   }
 
   // Reject: email designer + move file out of /REVIEW/ to /REJECTED/ with date prefix
