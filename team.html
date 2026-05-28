@@ -304,8 +304,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
 </head>
 <body>
 
-<!-- NOTIFICATION BELL (top right, shown after login) -->
-<div id="notif-bell" style="position:fixed;top:18px;right:24px;z-index:9000;display:none">
+<!-- NOTIFICATION BELL (top right, shown after login).
+     IDs suffixed -b3 (Batch 3) to avoid collision with the older cluster
+     bell at line ~423 which also uses `notif-bell`/`notif-list`. Positioned
+     left of the cluster (right:78px) so both bells are visible side by side. -->
+<div id="notif-bell-b3" style="position:fixed;top:18px;right:78px;z-index:9000;display:none">
   <div onclick="toggleNotifs()" style="cursor:pointer;background:#fff;border:1px solid #e0ddd8;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.1);position:relative">
     <span style="font-size:18px">💬</span>
     <span id="notif-count" style="position:absolute;top:-4px;right:-4px;background:#e74c3c;color:#fff;font-size:10px;font-weight:800;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;font-family:inherit">0</span>
@@ -315,7 +318,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <div style="font-size:13px;font-weight:700;color:#1a1a1a">Notifications</div>
       <div id="notif-mark-all" onclick="markAllNotifsRead()" style="font-size:11px;color:#1a73e8;cursor:pointer;font-weight:600;display:none">Mark all read</div>
     </div>
-    <div id="notif-list" style="max-height:420px;overflow-y:auto;padding:0">
+    <div id="notif-list-b3" style="max-height:420px;overflow-y:auto;padding:0">
       <div id="notif-empty" style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nothing new.<br><span style="font-size:11px">@mentions and review pings show up here.</span></div>
     </div>
   </div>
@@ -823,6 +826,7 @@ async function fetchSheetRows() {
       Update: _supaJoinUpdates(t.task_updates),
       Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
+      'Folder Link': t.folder_link || '',
       Type: 'task', Client: t.client || '',
       Collaborators: Array.isArray(t.collaborators) ? t.collaborators : [],
       ClosedAt: t.closed_at || '',  // stamp set by trigger when status moves to Closed — used for 7-day visibility window
@@ -1384,7 +1388,7 @@ async function loadNotifs() {
 }
 
 function renderNotifs() {
-  const list = document.getElementById('notif-list');
+  const list = document.getElementById('notif-list-b3');
   const empty = document.getElementById('notif-empty');
   const count = document.getElementById('notif-count');
   const markAll = document.getElementById('notif-mark-all');
@@ -1455,7 +1459,7 @@ function toggleNotifs() {
 
 // Close on outside click
 document.addEventListener('click', e => {
-  const nbell = document.getElementById('notif-bell');
+  const nbell = document.getElementById('notif-bell-b3');
   if (nbell && !nbell.contains(e.target)) {
     const dd = document.getElementById('notif-dropdown');
     if (dd) dd.style.display = 'none';
@@ -1511,7 +1515,7 @@ function proceedToApp(name) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('sidebar-name').textContent = name;
   // Show notification bell now that we know who's logged in
-  const nbell = document.getElementById('notif-bell');
+  const nbell = document.getElementById('notif-bell-b3');
   if (nbell) nbell.style.display = 'block';
   loadNotifs();
   const roles = {
@@ -3144,13 +3148,9 @@ function renderTaskRows(tasks, startIdx) {
               <input type="text" placeholder="+ Add update for today..." onkeydown="if(event.key==='Enter') addUpdate('${taskKey}', this)">
             </div>
             <div class="fos-link-row">
-              <div class="fos-link-field">
-                <input type="text" id="link-final-${idx}" value="${t['Preview Link']||''}" placeholder="Final file link">
-                ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-link-arrow" title="Open">↗</a>` : ''}
-              </div>
-              <div class="fos-link-field">
-                <input type="text" id="link-open-${idx}" value="${t['Open File Link']||''}" placeholder="Open file link">
-                ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-link-arrow" title="Open">↗</a>` : ''}
+              <div class="fos-link-field" style="flex:1">
+                <input type="text" id="link-folder-${idx}" value="${t['Folder Link']||''}" placeholder="Project folder" title="Brief, creative & open files all live in this folder">
+                ${t['Folder Link'] ? `<a href="${t['Folder Link']}" target="_blank" class="fos-link-arrow" title="Open project folder">↗</a>` : ''}
               </div>
               <button class="fos-save" onclick="saveTask(${idx}, '${taskKey}')">Save</button>
             </div>
@@ -3718,20 +3718,30 @@ async function updateStatus(idx, encodedTask) {
 async function saveTask(idx, encodedTask) {
   const task = decodeURIComponent(encodedTask);
   const statusEl = document.getElementById(`status-dropdown-${idx}`);
-  const finalEl = document.getElementById(`link-final-${idx}`);
-  const openEl = document.getElementById(`link-open-${idx}`);
-  if (!finalEl && !openEl) { alert('Could not find link fields.'); return; }
+  const folderEl = document.getElementById(`link-folder-${idx}`);
+  if (!folderEl) { alert('Could not find link field.'); return; }
   const status = statusEl ? statusEl.value : 'Pending';
-  const finalLink = finalEl ? finalEl.value.trim() : '';
-  const openLink = openEl ? openEl.value.trim() : '';
+  const folderLink = folderEl.value.trim();
   const btn = event && event.target;
   const originalLabel = btn ? btn.textContent : '';
   if (btn) { btn.textContent = '...'; btn.disabled = true; }
   try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status, 'Preview Link': finalLink, 'Open File Link': openLink } })
-    });
+    // Find the in-memory row to get its Supabase id
+    const row = (window._allTasks || []).find(t => t.Task === task);
+    if (row && row._sb_id) {
+      await sb.from('tasks').update({
+        status: status,
+        folder_link: folderLink || null
+      }).eq('id', row._sb_id);
+      row.Status = status;
+      row['Folder Link'] = folderLink;
+    } else {
+      // Fallback: legacy SheetDB patch (very old rows pre-Supabase)
+      fetch(SHEETDB, {
+        method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+        body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status } })
+      });
+    }
     if (btn) { btn.textContent = '✓ Saved'; btn.style.background = '#22c55e'; btn.style.color = '#fff'; }
     setTimeout(() => {
       if (btn) { btn.textContent = originalLabel; btn.disabled = false; btn.style.background = ''; btn.style.color = ''; }
