@@ -834,6 +834,22 @@ function notifyTelegram(to, message) {
     }).catch(() => {});
   } catch(e) {}
 }
+
+// In-app notification — writes to Supabase so the recipient sees it in their
+// bell on team.html (or founder.html for Suriti). Fire-and-forget.
+async function notifyInApp(recipient, type, message, opts) {
+  opts = opts || {};
+  if (!recipient) return;
+  if (opts.actor && recipient === opts.actor) return;
+  try {
+    await sb.from('notifications').insert({
+      recipient, type, message,
+      link: opts.link || null,
+      task_id: opts.taskId || null,
+      actor: opts.actor || null
+    });
+  } catch(e) { console.warn('notifyInApp failed:', e); }
+}
 // Canonical client registry — single source of truth.
 // `name` is what's written to the sheet (Assignee and Client columns).
 // `folder` is the Dropbox base path. New clients auto-create on first move.
@@ -1322,6 +1338,14 @@ async function submitUpload(){
             // see the re-submitted task in review state, mirroring the creative.
             if (existing[0].task_id) {
               await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', existing[0].task_id);
+              // Ping SPOC in their bell for the rework
+              try {
+                const { data: tRow } = await sb.from('tasks').select('spoc').eq('id', existing[0].task_id).single();
+                const spoc = tRow && tRow.spoc;
+                if (spoc && spoc !== designer) {
+                  notifyInApp(spoc, 'review', `${designer} re-uploaded rework on ${baseCreativeName}`, { actor: designer, taskId: existing[0].task_id });
+                }
+              } catch(e) { console.warn('SPOC rework notif lookup failed:', e); }
             }
           } else {
             // Edge case — creative not found, fall back to insert
@@ -1346,6 +1370,14 @@ async function submitUpload(){
           });
           if (originatingTaskId) {
             await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', originatingTaskId);
+            // Ping the SPOC in their bell — Telegram broadcast below covers leads too.
+            try {
+              const { data: tRow } = await sb.from('tasks').select('spoc').eq('id', originatingTaskId).single();
+              const spoc = tRow && tRow.spoc;
+              if (spoc && spoc !== designer) {
+                notifyInApp(spoc, 'review', `${designer} submitted ${baseCreativeName} for your review`, { actor: designer, taskId: originatingTaskId });
+              }
+            } catch(e) { console.warn('SPOC notif lookup failed:', e); }
           }
         } catch(e) { console.error('First-time submission failed:', e); }
       } else {
