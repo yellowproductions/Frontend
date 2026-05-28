@@ -780,6 +780,22 @@ const SUPABASE_URL = 'https://qchvnnicsoxptmmokozy.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RbsT22PqnuSRqGUwWEwNDQ_hQGXZqmv';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// In-app notification — writes to Supabase so the recipient sees it in their
+// bell on team.html (or founder.html for Suriti). Fire-and-forget.
+async function notifyInApp(recipient, type, message, opts) {
+  opts = opts || {};
+  if (!recipient) return;
+  if (opts.actor && recipient === opts.actor) return;
+  try {
+    await sb.from('notifications').insert({
+      recipient, type, message,
+      link: opts.link || null,
+      task_id: opts.taskId || null,
+      actor: opts.actor || null
+    });
+  } catch(e) { console.warn('notifyInApp failed:', e); }
+}
+
 // =============== HELPERS ===============
 
 const _LEGACY_CLIENT_MAP = {
@@ -2131,6 +2147,33 @@ async function submitAction(uid, folder, idx, action) {
     } catch(e) {
       console.log('Task cascade skipped:', e.message);
     }
+
+    // ==== Batch 3 — in-app notifications to designer + SPOC ====
+    // Client's action lands in the bells of the people who own this work.
+    try {
+      const clientName = folder;
+      const verdict =
+        action === 'Approved' ? 'approved' :
+        action === 'Rejected' ? 'rejected' :
+                                'left feedback on';
+      const notifType =
+        action === 'Approved' ? 'accept' :
+        action === 'Rejected' ? 'reject' :
+                                'feedback';
+      const baseMsg = `${clientName} ${verdict}: ${cName}` + (comment ? ` — "${comment}"` : '');
+      // Look up the SPOC via the linked task (if we have it on the creative row)
+      let spoc = null, taskIdForNotif = null;
+      if (item._sb_id) {
+        const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+        if (cRow && cRow.task_id) {
+          taskIdForNotif = cRow.task_id;
+          const { data: tRow } = await sb.from('tasks').select('spoc').eq('id', taskIdForNotif).single();
+          spoc = (tRow && tRow.spoc) || null;
+        }
+      }
+      if (designerName) notifyInApp(designerName, notifType, baseMsg, { actor: clientName, taskId: taskIdForNotif });
+      if (spoc && spoc !== designerName) notifyInApp(spoc, notifType, baseMsg, { actor: clientName, taskId: taskIdForNotif });
+    } catch(e) { console.warn('client action notif writes failed:', e); }
 
     // On approval — move file in Dropbox to client's permanent Creatives folder
     if (action === 'Approved' && fileDropboxPath) {
