@@ -54,7 +54,7 @@ input, select, textarea {
 /* ===== Task list — aligned table with expandable rows (matches Founder OS) ===== */
 .fos-task-table { background:#fff; border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:6px; }
 .fos-col-head, .fos-task-row {
-  display:grid; grid-template-columns:minmax(0,1fr) 152px 122px 140px 56px; gap:14px; align-items:center;
+  display:grid; grid-template-columns:minmax(0,1fr) 152px 122px 140px; gap:14px; align-items:center;
 }
 .fos-col-head { padding:9px 16px; font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); border-bottom:1px solid var(--border); }
 .fos-task-row { padding:12px 16px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.12s; }
@@ -3083,7 +3083,7 @@ function renderTaskRows(tasks, startIdx) {
 
   return `
     <div class="fos-task-table">
-      <div class="fos-col-head"><span>Task</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span></div>
+      <div class="fos-col-head"><span>Task</span><span>Client</span><span>SPOC</span><span>Status</span></div>
       ${tasks.map((t, i) => {
         const idx = startIdx + i;
         // Normalize legacy "Done" → "Closed" — single closed status going forward
@@ -3136,10 +3136,6 @@ function renderTaskRows(tasks, startIdx) {
                 <option ${status==='Closed'?'selected':''}>Closed</option>
                 <option ${status==='Rejected'?'selected':''}>Rejected</option>
               </select>
-            </div>
-            <div class="fos-cell-files" onclick="event.stopPropagation()">
-              ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-fi" title="Open final file">🔗</a>` : `<span class="fos-fi off" title="No final file yet">🔗</span>`}
-              ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-fi" title="Open source file">📂</a>` : `<span class="fos-fi off" title="No open file yet">📂</span>`}
             </div>
           </div>
           <div class="fos-task-detail" style="display:${isOpen?'block':'none'}">
@@ -4469,16 +4465,35 @@ async function submitReview(idx, action) {
     }
   }
 
-  // Reject: email designer + move file out of /REVIEW/ to /REJECTED/ with date prefix
+  // Reject: email designer + move EVERY file out of /REVIEW/ into /REJECTED/.
+  // Files are stored as per-file Dropbox share URLs in file_urls; the backend
+  // resolves each share URL to its real path before moving. (The old code moved
+  // item['Preview Link'] — the /REVIEW/ FOLDER link — which can't be moved as a
+  // file, so the move silently failed and the files stayed in /REVIEW/.)
   if (action === 'sendback') {
-    if (filePath || fileUrl) {
-      const sourcePath = filePath || fileUrl;
-      const sourceName = sourcePath.split('/').pop();
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ fromPath: sourcePath, toFolder: '/REJECTED', toFilename: `${today}_${sourceName}` })
-      }).catch(e => console.log('Reject move error:', e.message));
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const reviewFiles = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
+      ? item._sb_file_urls
+      : (fileUrl ? [fileUrl] : []);
+    if (reviewFiles.length) {
+      (async () => {
+        const safeC = (cName || 'creative').replace(/[^a-zA-Z0-9]/g, '-');
+        let fails = 0;
+        await Promise.all(reviewFiles.map(async (src, i) => {
+          const origName = (String(src).split('/').pop() || `file${i+1}`).split('?')[0];
+          try {
+            const resp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ fromPath: src, toFolder: '/REJECTED', toFilename: `${today}_${safeC}_File${i+1}_${origName}` })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) { fails++; console.warn('Reject move failed:', data.error || resp.status, src); }
+          } catch(e) { fails++; console.warn('Reject move error:', e.message, src); }
+        }));
+        if (fails) {
+          alert(`⚠️ ${fails} of ${reviewFiles.length} file(s) couldn't be moved out of /REVIEW/.\nThe send-back went through — but tell Suriti so the leftover files can be cleared.`);
+        }
+      })();
     }
     if (DESIGNER_EMAILS[designer]) {
       emailjs.send(EJS_SVC, EJS_TPL, {

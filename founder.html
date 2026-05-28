@@ -160,7 +160,7 @@
   }
   .fos-col-head, .fos-task-row {
     display: grid;
-    grid-template-columns: minmax(0,1fr) 132px 152px 122px 140px 56px;
+    grid-template-columns: minmax(0,1fr) 132px 152px 122px 140px;
     gap: 14px;
     align-items: center;
   }
@@ -908,7 +908,7 @@
             style="background:transparent;border:1px solid var(--border);color:#666;font-size:11px;padding:3px 10px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif">↻ Refresh</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="task-search" placeholder="🔍 Search: name, status, client..." style="width:240px" oninput="filterTasks()">
+          <input type="text" id="task-search" placeholder="🔍 Search: name, status, client..." style="width:240px" oninput="debouncedFilterTasks()">
           <input type="date" id="task-filter-date" onchange="filterTasks()" style="width:140px">
         </div>
       </div>
@@ -3971,7 +3971,7 @@ function renderTasks(tasks) {
       <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace">${done}/${total} closed</span>
     </div>
     <div class="fos-task-table">
-      <div class="fos-col-head"><span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span><span>Files</span></div>`;
+      <div class="fos-col-head"><span>Task</span><span>Owner</span><span>Client</span><span>SPOC</span><span>Status</span></div>`;
     grouped[date].forEach((t) => {
       // Normalize legacy "Done" → "Closed". Going forward only "Closed" exists.
       const rawStatus = t.Status || 'Pending';
@@ -4028,10 +4028,6 @@ function renderTasks(tasks) {
             <option ${status==='Rejected'?'selected':''}>Rejected</option>
           </select>
         </div>
-        <div class="fos-cell-files" onclick="event.stopPropagation()">
-          ${t['Preview Link'] ? `<a href="${t['Preview Link']}" target="_blank" class="fos-fi" title="Open preview link">🔗</a>` : `<span class="fos-fi off" title="No preview link yet">🔗</span>`}
-          ${t['Open File Link'] ? `<a href="${t['Open File Link']}" target="_blank" class="fos-fi" title="Open source file">📂</a>` : `<span class="fos-fi off" title="No open file link yet">📂</span>`}
-        </div>
       </div>
       <div class="fos-task-detail" style="display:${isOpen?'block':'none'}">
         ${showDesc ? `<div class="fos-detail-desc" contenteditable="true" spellcheck="true" title="Click to edit"
@@ -4072,6 +4068,10 @@ function renderTasks(tasks) {
   const months = Object.keys(monthGroups).sort((a,b) => b.localeCompare(a));
   const currentMonthKey = new Date().toISOString().substring(0, 7);
 
+  // Lazy month rendering: collapsed (non-current) months render an empty shell and
+  // register a builder here; their rows are built only when the month is expanded.
+  // Keeps initial render cost tied to the current month, not the whole task history.
+  window._fosMonthBuilders = {};
   months.forEach(m => {
     const isCurrent = m === currentMonthKey;
     const monthDates = monthGroups[m];
@@ -4097,9 +4097,8 @@ function renderTasks(tasks) {
         </div>
         <span id="month-arrow-${m}" style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">▼ expand</span>
       </div>
-      <div id="month-content-${m}" style="display:none;padding:0 4px 14px">
-        ${monthDates.map(d => renderDateGroup(d)).join('')}
-      </div>`;
+      <div id="month-content-${m}" style="display:none;padding:0 4px 14px"></div>`;
+      window._fosMonthBuilders[m] = () => monthDates.map(d => renderDateGroup(d)).join('');
     }
   });
   el.innerHTML = filterBanner + html;
@@ -4109,6 +4108,11 @@ function toggleMonth(monthKey) {
   const content = document.getElementById('month-content-' + monthKey);
   const arrow = document.getElementById('month-arrow-' + monthKey);
   if (!content) return;
+  // Build the month's rows on first expand (collapsed months render empty for speed).
+  if (!content.dataset.built && window._fosMonthBuilders && window._fosMonthBuilders[monthKey]) {
+    content.innerHTML = window._fosMonthBuilders[monthKey]();
+    content.dataset.built = '1';
+  }
   if (content.style.display === 'none' || !content.style.display) {
     content.style.display = 'block';
     if (arrow) arrow.textContent = '▲ collapse';
@@ -4623,6 +4627,15 @@ function filterTasks() {
   if(date) filtered = filtered.filter(t => t.Date === date);
 
   renderTasks(filtered);
+}
+
+// Debounce search keystrokes — renderTasks rebuilds the whole list, so firing it
+// on every character is what makes typing feel laggy. Wait 250ms after the last
+// keystroke before re-rendering.
+let _filterTasksTimer = null;
+function debouncedFilterTasks() {
+  clearTimeout(_filterTasksTimer);
+  _filterTasksTimer = setTimeout(filterTasks, 250);
 }
 
 // Toggle visibility of the custom client text input when "Other..." is picked
@@ -5381,15 +5394,23 @@ async function rejectCheckedFiles(idx) {
   try {
     // Move each rejected file to Dropbox /REJECTED — parallel, best-effort.
     const datePrefix = new Date().toISOString().split('T')[0];
-    await Promise.allSettled(checked.map(ui => {
+    // Move each ticked file out of /REVIEW/ into /REJECTED/. Verify each move so a
+    // failure surfaces in the console instead of silently leaving files in /REVIEW/.
+    let moveFails = 0;
+    await Promise.all(checked.map(async (ui) => {
       const fileUrl = urls[ui];
       const origName = (fileUrl.split('/').pop() || `file${ui+1}`).split('?')[0];
       const safeName = `${datePrefix}_${cName.replace(/[^a-zA-Z0-9]/g,'-')}_File${ui+1}_${origName}`;
-      return fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
-      }).catch(e => console.warn('Dropbox move failed:', e.message));
+      try {
+        const resp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) { moveFails++; console.warn('Dropbox move failed:', data.error || resp.status, fileUrl); }
+      } catch(e) { moveFails++; console.warn('Dropbox move error:', e.message, fileUrl); }
     }));
+    if (moveFails) console.warn(`${moveFails}/${checked.length} rejected file(s) did NOT move out of /REVIEW/ — check backend logs.`);
 
     // One DB write: remove ticked files from file_urls, add to rejected_files.
     const checkedSet = new Set(checked);
