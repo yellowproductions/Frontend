@@ -1512,6 +1512,11 @@ function jsq(s) {
   return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+// Apostrophe-safe key for inline onclick handlers. encodeURIComponent leaves
+// apostrophes unescaped, which break single-quoted onclick strings — e.g. a task
+// titled "...Child's Hand" wouldn't open. %27 round-trips through decodeURIComponent.
+function ek(s) { return encodeURIComponent(s == null ? '' : s).replace(/'/g, '%27'); }
+
 function _supaShortTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -3802,7 +3807,7 @@ function showClientRequestBanner(requests) {
     const dateBit = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
     const title = (t.Title || t.Task || '—').replace(/"/g, '&quot;');
     const desc = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
-    const taskKey = encodeURIComponent(t.Task || '');
+    const taskKey = ek(t.Task);
     const assigneeOptions = ACTIVE_TEAM.map(n => `<option value="${n}">→ ${n}</option>`).join('');
     return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #dbeafe">
       <div style="flex:1;min-width:0">
@@ -4031,7 +4036,7 @@ function renderTasks(tasks) {
       const desc = t.Task || '';
       const showDesc = title && desc && desc !== title;
       const displayName = (title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;');
-      const taskKey = encodeURIComponent(t.Task || '');
+      const taskKey = ek(t.Task);
       const isOpen = !!(window._fosExpanded && window._fosExpanded.has(t.Task));
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
@@ -4051,7 +4056,7 @@ function renderTasks(tasks) {
         </div>
         <div class="fos-cell" onclick="event.stopPropagation()">
           <select class="fos-mini-select" title="Owner — reassign"
-            onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)">
+            onchange="reassignTask('${ek(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)">
             <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
             ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
           </select>
@@ -4089,9 +4094,9 @@ function renderTasks(tasks) {
           onblur="this.style.background='';updateTaskDescription('${jsq(t.Task)}','${jsq(t.Assignee||'')}','${jsq(t.Date||'')}',this.textContent)">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
         ${updatesHtml}
         <div class="fos-collab-row">
-          ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
+          ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${ek(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
           <select class="fos-addcollab" title="Add collaborator"
-            onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''">
+            onchange="addCollaborator('${ek(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''">
             <option value="" selected>+ Add collaborator</option>
             ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
           </select>
@@ -4208,7 +4213,7 @@ function renderFosClientEditor(t) {
   const c = t.Client || '';
   const label = c ? `🏷 ${c}` : '🏷 Client —';
   return `<select class="fos-mini-select" title="Client tag"
-    onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')">
+    onchange="updateTaskClient('${ek(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')">
     <option value="" selected>${label}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
