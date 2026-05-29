@@ -1016,6 +1016,38 @@ function clientFolder(clientName, subfolder) {
 // Sanitize a project name for use as a folder name.
 // Strips ASCII-incompatible chars (Dropbox API can choke on certain unicode)
 // and trims excessive whitespace.
+// Memory-safe chunked upload: file → ~8MB pieces → Dropbox upload session via the
+// backend. No whole-file buffering (no OOM), no 150MB cap. Returns { success, path, url }.
+async function uploadFileChunked(file, dropboxPath, onProgress) {
+  const CHUNK = 8 * 1024 * 1024;
+  const api = `${BACKEND}/api/dropbox-chunk`;
+  const sres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'start' } });
+  const sj = await sres.json();
+  if (!sj.success || !sj.session_id) throw new Error(sj.error || 'upload start failed');
+  const sid = sj.session_id;
+  let offset = 0;
+  for (let pos = 0; pos < file.size; pos += CHUNK) {
+    const blob = file.slice(pos, Math.min(pos + CHUNK, file.size));
+    let ok = false, lastErr;
+    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const r = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'append', 'X-Session-Id': sid, 'X-Offset': String(offset) }, body: blob });
+        const j = await r.json();
+        if (!j.success) throw new Error(j.error || 'chunk failed');
+        ok = true;
+      } catch (e) { lastErr = e; }
+    }
+    if (!ok) throw lastErr || new Error('chunk upload failed');
+    offset += blob.size;
+    if (onProgress) onProgress(Math.min(1, offset / Math.max(1, file.size)));
+  }
+  const fres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'finish', 'X-Session-Id': sid, 'X-Offset': String(offset), 'X-Path': encodeURIComponent(dropboxPath) } });
+  const fj = await fres.json();
+  if (!fj.success) throw new Error(fj.error || 'upload finish failed');
+  return fj;
+}
+
 function sanitizeProjectName(raw) {
   return String(raw || 'Untitled')
     .replace(/[\u2010-\u2015]/g, '-')
@@ -1420,38 +1452,14 @@ async function submitUpload(){
     const safeFileName = file.name.replace(/[\u2010-\u2015]/g, '-').replace(/[\u007f-\uffff]/g, '');
 
     try {
-      const formData = new FormData();
-      // Each file lives inside the session folder. We use the actual filename
-      // (sanitized) — no need to re-include designer/client in the filename since
-      // the parent folder already encodes that context.
       const dropboxPath = `${sessionFolder}/${safeFileName}`;
-      formData.append('file', file, file.name);
-      formData.append('dropboxPath', dropboxPath);
-
-      // Upload with up to 3 retries on transient network failure. Render's free
-      // tier can take 15-30 seconds to cold-start after idle; the browser may
-      // throw "Load failed" before the server is ready. Backoff: 3s, 8s, 20s
-      // between attempts (worst case ~30s of waiting on one file). Real server
-      // errors come back as JSON success:false and don't trigger retries —
-      // only network-level fetch throws do.
-      let uploadRes, lastErr;
-      const backoffs = [0, 3000, 8000, 20000];
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) {
-          btn.textContent = `Retrying ${i+1} of ${total}… (${attempt}/3)`;
-          await new Promise(r => setTimeout(r, backoffs[attempt]));
-        }
-        try {
-          uploadRes = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body:formData });
-          break;
-        } catch(e) {
-          lastErr = e;
-          console.warn(`Upload attempt ${attempt + 1} failed for ${file.name}:`, e.message);
-        }
-      }
-      if (!uploadRes) throw lastErr || new Error('network');
-      const uploadData = await uploadRes.json();
-      if(!uploadData.success) throw new Error(uploadData.error || 'Upload failed');
+      // Chunked upload — the file goes up in ~8MB pieces via a Dropbox upload
+      // session, so a big video/PSD never sits in the backend's memory (no OOM
+      // crash) and there's no 150MB cap. Works for any file size.
+      const uploadData = await uploadFileChunked(file, dropboxPath, (pct) => {
+        setProgress(Math.round((i / total) * 85) + 5 + Math.round(pct * (80 / total)));
+      });
+      if (!uploadData || !uploadData.success) throw new Error((uploadData && uploadData.error) || 'Upload failed');
       const fileUrl = uploadData.url || uploadData.path;
       const dropPath = uploadData.path || '';
 
