@@ -1606,9 +1606,7 @@ async function loadClientTasks() {
       const style = STATUS_STYLE[status] || { bg:'#f3f4f6', fg:'#666' };
 
       const rows = items.map(t => {
-        // Latest update line (if any) — give client visibility into recent progress
-        const updates = (t.Update || '').trim().split('\n').filter(l => l.trim());
-        const latestUpdate = updates[updates.length - 1] || '';
+        // NOTE: internal task updates are NOT shown to clients (internal team notes).
         const dueDate = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
         // Day 9 — client sees ONE link only: Project (parent folder).
         // Gated by status: only visible when SPOC has approved (Client Review
@@ -1634,7 +1632,6 @@ async function loadClientTasks() {
             <div style="font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0">${dueDate}</div>
           </div>
           ${hasActions ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">${linksHtml}${tagHtml}</div>` : ''}
-          ${latestUpdate ? `<div style="margin-top:8px;font-size:11px;color:#666;line-height:1.4"><span style="color:#aaa;font-weight:700;font-size:9px;letter-spacing:0.08em;margin-right:6px">LATEST</span>${latestUpdate}</div>` : ''}
         </div>`;
       }).join('');
 
