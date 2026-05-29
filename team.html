@@ -1478,6 +1478,7 @@ function renderNotifs() {
     div.onclick = () => onNotifClick(n);
     list.appendChild(div);
   });
+  if (typeof updateBellBadge === 'function') updateBellBadge();
 }
 
 function onNotifClick(n) {
@@ -1490,8 +1491,12 @@ function onNotifClick(n) {
       window.location.href = n.link;
     }
   }
-  document.getElementById('notif-dropdown').style.display = 'none';
+  const _dd = document.getElementById('notif-dropdown'); if (_dd) _dd.style.display = 'none';
+  const _np = document.getElementById('notif-panel'); if (_np) _np.style.display = 'none';
 }
+
+// Open a folded notification from the merged cluster panel by index.
+function _openNotifByIdx(i) { const n = (notifications || [])[i]; if (n) onNotifClick(n); }
 
 async function markNotifRead(id) {
   const n = notifications.find(x => x.id === id);
@@ -1574,9 +1579,8 @@ function proceedToApp(name) {
   currentUser = name;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('sidebar-name').textContent = name;
-  // Show notification bell now that we know who's logged in
-  const nbell = document.getElementById('notif-bell-b3');
-  if (nbell) nbell.style.display = 'block';
+  // Notifications are merged into the single cluster bell — keep the second bell
+  // hidden; loadNotifs() still populates the feed that the one bell shows.
   loadNotifs();
   const roles = {
     Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
@@ -2106,7 +2110,8 @@ function updateBellBadge() {
   const badge = document.getElementById('notif-badge');
   if (!badge) return;
   const items = buildInboxItems();
-  const total = items.length;
+  const unreadNotifs = (notifications || []).filter(n => !n.read).length;
+  const total = items.length + unreadNotifs;
   if (total > 0) {
     badge.textContent = total > 99 ? '99+' : total;
     badge.style.display = 'flex';
@@ -2129,8 +2134,16 @@ function openNotifPanel(forceShow) {
     approved: { color: '#15803d', bg: '#dcfce7' }
   };
 
+  // Supabase notifications (@mentions, review pings) folded into this one panel.
+  const notifHtml = (notifications || []).map((n, i) => {
+    const nbg = n.read ? '#fff' : '#fffbf0';
+    const ndot = n.read ? '<span style="width:6px;flex-shrink:0"></span>' : '<span style="display:inline-block;width:6px;height:6px;background:#FEBC06;border-radius:50%;flex-shrink:0;margin-top:5px"></span>';
+    const nwhen = n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short' }) : '';
+    return `<div onclick="_openNotifByIdx(${i})" style="padding:10px 16px;border-bottom:1px solid #f0eeea;background:${nbg};cursor:pointer;display:flex;gap:8px;align-items:flex-start">${ndot}<div style="flex:1;min-width:0"><div style="font-size:12px;color:#1a1a1a;line-height:1.4">${(n.message||'').replace(/</g,'&lt;')}</div><div style="font-size:10px;color:#999;margin-top:3px">${(n.actor||'').replace(/</g,'&lt;')}${n.actor?' · ':''}${nwhen}</div></div></div>`;
+  }).join('');
+
   let html = '';
-  if (!items.length) {
+  if (!items.length && !notifHtml) {
     html = '<div style="padding:24px 16px;font-size:12px;color:var(--muted);text-align:center">All clear ✨<br><span style="font-size:11px;margin-top:6px;display:block">You\'ll see notifications when someone assigns you a task, sends back rework, or when a creative needs your review.</span></div>';
   } else {
     html = items.map(item => {
@@ -2163,7 +2176,7 @@ function openNotifPanel(forceShow) {
         <div style="color:#1a1a1a;line-height:1.4;margin-left:22px">${safeTitle}</div>
         ${safeSub ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;margin-left:22px">${safeSub}</div>` : ''}
       </div>`;
-    }).join('');
+    }).join('') + notifHtml;
   }
 
   list.innerHTML = html;
@@ -4438,7 +4451,7 @@ async function submitReview(idx, action) {
   // no intermediate /[CLIENT]/Pending/ folder anymore.
 
   if (action === 'sendback' && !note) { alert('Please add feedback before sending back.'); return; }
-  const newStatus = action === 'approve' ? 'Client Review' : 'Sent Back';
+  const newStatus = action === 'approve' ? 'Client Review' : 'Rework';
   const reviewerStamp = action === 'approve'
     ? `approved by ${currentUser}`
     : `sent back by ${currentUser}: ${note}`;
