@@ -1397,7 +1397,10 @@ async function submitUpload(){
   if (isAdhoc) {
     // Ad-hoc has no task → no project folder; keep old staging pattern
     const adhocSafe = sanitizeProjectName(projectName);
-    sessionFolder = `/REVIEW/${adhocSafe} — ${designer} — ${client}`;
+    // One folder per job — named by the project/creative name only. Baking the
+    // designer into the name (old behavior) spawned a separate /REVIEW/ folder per
+    // designer for the SAME job (the 1/2/3 duplicates). Now matches /REVIEW/[Project].
+    sessionFolder = `/REVIEW/${adhocSafe}`;
   } else {
     const paths = projectPaths(client, projectName);
     sessionFolder = isOpenFile ? paths.open : paths.review;
