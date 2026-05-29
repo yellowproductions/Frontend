@@ -1960,7 +1960,7 @@ function renderPendingCard(item, idx, folder) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div>
         <div style="font-size:15px;font-weight:700">${cName}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Uploaded ${item.Date} · ${designer}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Uploaded ${item.Date}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="status-pill ${status==='Comment'?'pill-comment':'pill-pending'}">${status}</span>
@@ -2002,7 +2002,7 @@ function renderApprovedCard(item) {
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:14px;font-weight:700">${cName}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">${designer} · Approved ${fmtDM(approvedDate)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Approved ${fmtDM(approvedDate)}</div>
       </div>
       <span class="status-pill pill-approved">✅ Approved</span>
     </div>
