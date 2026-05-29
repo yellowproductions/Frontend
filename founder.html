@@ -1453,7 +1453,7 @@ function _dbRun(spec) {
 function _dbBuilder(table) {
   const spec = { table, action: 'select', columns: '*', filters: [], order: [] };
   const b = {
-    select(cols, opts) { spec.action = 'select'; spec.columns = cols || '*'; if (opts && opts.count) spec.count = opts.count; if (opts && opts.head) spec.head = true; return b; },
+    select(cols, opts) { if (!['insert','update','delete'].includes(spec.action)) spec.action = 'select'; spec.columns = cols || '*'; if (opts && opts.count) spec.count = opts.count; if (opts && opts.head) spec.head = true; return b; },
     insert(payload) { spec.action = 'insert'; spec.payload = payload; return b; },
     update(payload) { spec.action = 'update'; spec.payload = payload; return b; },
     delete() { spec.action = 'delete'; return b; },
