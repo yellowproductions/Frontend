@@ -3464,12 +3464,17 @@ async function loadTasks() {
       return aDate.localeCompare(bDate);
     });
 
-    // ===== 🎯 FOCUS TODAY — top 5 most urgent tasks =====
+    // ===== 🎯 FOCUS TODAY — urgent tasks, plus anything with an un-ticked update =====
+    const hasPendingUpdate = t => (t.Update || '').split('\n').some(l => l.trim() && !/^✓\s/.test(l));
     const openSorted = sorted.filter(t => FOCUS_STATUSES.includes(t.Status || 'Pending'));
     const overdueTasks = openSorted.filter(t => t.Date && t.Date < today);
     const todayTasks   = openSorted.filter(t => t.Date === today);
     const upcomingTasks = openSorted.filter(t => t.Date && t.Date > today).slice(0, 3);
-    const focusItems = [...overdueTasks, ...todayTasks, ...upcomingTasks].slice(0, 5);
+    const dateFocus = [...overdueTasks, ...todayTasks, ...upcomingTasks].slice(0, 5);
+    // Keep any task with an un-ticked update line in Focus Today until it's ticked —
+    // regardless of date/status — so nothing drops off before it's marked done.
+    const pendingUpdateTasks = sorted.filter(t => hasPendingUpdate(t) && !dateFocus.includes(t));
+    const focusItems = [...dateFocus, ...pendingUpdateTasks];
     renderFocusToday(focusItems, overdueTasks.length, todayTasks.length);
     renderUpdatesToday(sorted);
 

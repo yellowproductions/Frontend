@@ -265,27 +265,29 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   </div>
 
   <div class="container">
-    <div style="margin-bottom:24px">
-      <h1 style="font-size:22px;font-weight:800;margin-bottom:4px">Your Projects</h1>
-      <p style="font-size:13px;color:var(--muted)">View creatives, share files and give feedback.</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px">
+      <div>
+        <h1 style="font-size:22px;font-weight:800;margin-bottom:4px">Your Projects</h1>
+        <p style="font-size:13px;color:var(--muted)">View creatives, share files and give feedback.</p>
+      </div>
+      <button class="tab-btn active" onclick="switchTab('live-tasks',this); loadClientTasks();" style="flex-shrink:0;border:1px solid var(--border);border-radius:8px;margin-bottom:0;padding:10px 18px">📊 Live Tasks</button>
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchTab('live-tasks',this); loadClientTasks();">📊 Live Tasks</button>
-      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-steel',this)">🏗️ Jindal Steel</button>
-      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-league',this)">⚽ Jindal League</button>
-      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-youth',this)">🏆 Jindal Youth League</button>
-      <button class="tab-btn" data-portal="jindal" onclick="switchTab('sohar-steel',this)">🇴🇲 Sohar Steel</button>
-      <button class="tab-btn" data-portal="jindal" onclick="switchTab('duqm',this)">⚙️ Jindal Steel Duqm</button>
-      <button class="tab-btn" data-portal="rm-universal" onclick="switchTab('rm-universal',this)">🌐 RM Universal</button>
-      <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">🏦 Kotak</button>
-      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('team-yp',this)">🟡 TEAM YP</button>
-      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('pitches',this)">💡 Pitches</button>
-      <button class="tab-btn" data-portal="marico" onclick="switchTab('marico',this)">🌾 Marico</button>
-      <button class="tab-btn" data-portal="zouk" onclick="switchTab('zouk',this)">👜 Zouk</button>
-      <button class="tab-btn" data-portal="tata-mf" onclick="switchTab('tata-mf',this)">💼 TATA Mutual Funds</button>
-      <button class="tab-btn" data-portal="hzl" onclick="switchTab('hzl',this)">⛏️ HZL</button>
-      <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">📁 Adhoc</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-steel',this)">Jindal Steel</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-league',this)">Jindal League</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('jindal-youth',this)">Jindal Youth League</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('sohar-steel',this)">Sohar Steel</button>
+      <button class="tab-btn" data-portal="jindal" onclick="switchTab('duqm',this)">Jindal Steel Duqm</button>
+      <button class="tab-btn" data-portal="rm-universal" onclick="switchTab('rm-universal',this)">RM Universal</button>
+      <button class="tab-btn" data-portal="kotak" onclick="switchTab('kotak',this)">Kotak</button>
+      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('team-yp',this)">TEAM YP</button>
+      <button class="tab-btn" data-portal="team-yp" onclick="switchTab('pitches',this)">Pitches</button>
+      <button class="tab-btn" data-portal="marico" onclick="switchTab('marico',this)">Marico</button>
+      <button class="tab-btn" data-portal="zouk" onclick="switchTab('zouk',this)">Zouk</button>
+      <button class="tab-btn" data-portal="tata-mf" onclick="switchTab('tata-mf',this)">TATA Mutual Funds</button>
+      <button class="tab-btn" data-portal="hzl" onclick="switchTab('hzl',this)">HZL</button>
+      <button class="tab-btn" data-portal="adhoc" onclick="switchTab('adhoc',this)">Adhoc</button>
     </div>
 
         <div id="tab-jindal-steel" class="tab-content" data-portal="jindal">
