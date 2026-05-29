@@ -1032,10 +1032,12 @@ function projectPaths(clientName, projectName) {
   const safe = sanitizeProjectName(projectName);
   const base = clientFolder(clientName);  // e.g. "/Marico"
   return {
-    parent:   `${base}/${safe}`,
-    doc:      `${base}/${safe}/Doc`,
-    creative: `${base}/${safe}/Creative`,
-    open:     `${base}/${safe}/Open`,
+    // Project work nests under the client's Creatives/ folder, so it never mixes
+    // with reference folders (Brand Guidelines, Image Bank) at the client root.
+    parent:   `${base}/Creatives/${safe}`,
+    doc:      `${base}/Creatives/${safe}/Doc`,
+    creative: `${base}/Creatives/${safe}/Creative`,
+    open:     `${base}/Creatives/${safe}/Open`,
     review:   `/REVIEW/${safe}`
   };
 }
