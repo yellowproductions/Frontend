@@ -2210,14 +2210,14 @@ function extractMentions(text) {
 async function updateReviewBadge() {
   try {
     if (typeof sb === 'undefined' || !sb) return;
-    // Count FILES awaiting review, not whole creatives — so a partial reject
-    // (which removes files from file_urls) drops the number, and a rework
-    // re-upload (which appends files back) brings it back up.
+    // Count review CARDS (whole creatives) awaiting review — one card = one thing
+    // to review, regardless of how many files are inside it. A partial reject
+    // flips the whole creative to 'Sent Back' (dropping it from this count); a
+    // rework re-upload flips it back to 'Pending Review' (bringing it back).
     const r = await sb.from('creatives')
-      .select('file_urls')
+      .select('id', { count: 'exact', head: true })
       .eq('status', 'Pending Review');
-    const count = (r.data || []).reduce((s, row) =>
-      s + (Array.isArray(row.file_urls) ? row.file_urls.length : 0), 0);
+    const count = r.count || 0;
     const badge = document.getElementById('nav-review-count');
     if (!badge) return;
     if (count > 0) {
@@ -5254,11 +5254,10 @@ async function renderReview() {
     // Stays visible until she acts on them; auto-clears when count hits 0.
     const navBadge = document.getElementById('nav-review-count');
     if (navBadge) {
-      // File-level count: sum the files still awaiting review across pending creatives.
-      const fileCount = pending.reduce((s, it) =>
-        s + ((Array.isArray(it._sb_file_urls) && it._sb_file_urls.length) || 0), 0);
-      if (fileCount > 0) {
-        navBadge.textContent = fileCount;
+      // Card-level count: one pending creative = one thing to review (not its file count).
+      const cardCount = pending.length;
+      if (cardCount > 0) {
+        navBadge.textContent = cardCount;
         navBadge.style.display = 'inline-block';
       } else {
         navBadge.style.display = 'none';
