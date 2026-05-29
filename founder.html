@@ -5492,7 +5492,10 @@ async function rejectCheckedFiles(idx) {
 
     if (item._sb_id) {
       const { error } = await sb.from('creatives').update({
-        review_note: combinedNote, file_urls: newFileUrls, rejected_files: newRejected
+        // Hide from the active review queue until rework: 'Sent Back' drops it from
+        // the Pending Review filter. Studio's rework re-upload flips it back to
+        // 'Pending Review', so it returns for re-review with the fixed files.
+        status: 'Sent Back', review_note: combinedNote, file_urls: newFileUrls, rejected_files: newRejected
       }).eq('id', item._sb_id);
       if (error) {
         alert('⚠️ Reject did NOT save to the database:\n\n' + error.message +
@@ -5504,6 +5507,7 @@ async function rejectCheckedFiles(idx) {
     item.Notes = combinedNote;
     item._sb_file_urls = newFileUrls;
     item._sb_rejected_files = newRejected;
+    item.Status = 'Sent Back';
 
     if (designer) {
       notifyTelegram(designer, `↻ <b>Files sent back for rework</b>\n\n<b>${cName}</b>\n${noteLines.join('\n')}\n\nRework the noted files and re-upload via Studio.\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
