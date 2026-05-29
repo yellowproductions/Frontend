@@ -390,23 +390,38 @@ function _studioValidToken() {
   try { const a = JSON.parse(localStorage.getItem('yv-auth') || '{}'); return (a && a.token && (!a.expires || a.expires > Date.now())) ? a.token : ''; }
   catch(e) { return ''; }
 }
+// Called when the SERVER rejects our token (401) — the client-side expiry check
+// passed but the token is actually stale/invalid (old format, rotated secret, etc).
+// Drop the dead token and show the login so a fresh team login flows straight through.
+function _studioForceLogin(msg) {
+  try { localStorage.removeItem('yv-auth'); } catch(e) {}
+  const sl = document.getElementById('studio-login');
+  if (sl) sl.style.display = 'flex';
+  const err = document.getElementById('sl-error');
+  if (err) { err.textContent = msg || 'Please log in to continue.'; err.style.display = 'block'; }
+}
 async function doStudioLogin() {
   const name = document.getElementById('sl-name').value;
   const pass = document.getElementById('sl-pass').value;
   const err  = document.getElementById('sl-error');
   const btn  = document.getElementById('sl-btn');
   if (!name) { alert('Pick your name.'); return; }
-  if (!pass) { err.style.display = 'block'; return; }
+  if (!pass) { err.textContent = 'Incorrect login — check your name and password.'; err.style.display = 'block'; return; }
   btn.disabled = true; btn.textContent = '...';
   try {
     const r = await fetch(`${BACKEND}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'team', username: name, password: pass }) });
     const d = await r.json();
-    if (!d.success || !d.token) { err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; return; }
+    if (!d.success || !d.token) { err.textContent = 'Incorrect login — check your name and password.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; return; }
     localStorage.setItem('yv-auth', JSON.stringify({ user: d.user || name, token: d.token, role: 'team', expires: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
     document.getElementById('studio-login').style.display = 'none';
-  } catch(e) { err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; }
+    err.style.display = 'none';
+    btn.disabled = false; btn.textContent = 'Log in →';
+    // Seamless: drop the freshly logged-in name into the form and load their tasks.
+    const qd = document.getElementById('q-designer');
+    if (qd) { qd.value = d.user || name; if (typeof onDesignerChange === 'function') onDesignerChange(); }
+  } catch(e) { err.textContent = 'Could not reach the server. Try again.'; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; }
 }
-// Show the login gate unless a valid team token is already present.
+// Show the login gate unless a valid team token is already present (shared with the team portal).
 if (!_studioValidToken()) { var _sl = document.getElementById('studio-login'); if (_sl) _sl.style.display = 'flex'; }
 
 // ============================================================
@@ -1339,6 +1354,14 @@ async function onDesignerChange() {
     taskSelect.innerHTML = opts.join('');
     taskSelect.disabled = false;
   } catch(e) {
+    const m = (e && e.message) || '';
+    // A rejected token (401) means the saved session is stale — re-login, don't dead-end.
+    if (/not authenticated|unauthor|invalid token|401/i.test(m)) {
+      taskSelect.innerHTML = '<option value="">Log in to load your tasks…</option>';
+      taskSelect.disabled = true;
+      _studioForceLogin('Your session expired — please log in again.');
+      return;
+    }
     taskSelect.innerHTML = '<option value="">Could not load tasks. Refresh and try again.</option>';
     taskSelect.disabled = false;
   }

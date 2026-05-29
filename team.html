@@ -3800,25 +3800,13 @@ function renderLinkChips(t) {
   const taskKey = encodeURIComponent(`${t.Task}|${t.Assignee||''}|${t.Date||''}|${t._sb_id||''}`);
   const chips = [];
 
-  if (t.DocLink) {
-    chips.push(`<a href="${t.DocLink}" target="_blank" class="fos-chip" title="Open Doc folder">Doc</a>`);
-  }
-  if (t.CrtLink) {
-    const inReview = isCreativeInReview(t.Status);
-    const cls = inReview ? 'fos-chip fos-chip-review' : 'fos-chip';
-    const label = inReview ? 'Creative · review' : 'Creative';
-    const tip = inReview ? 'Opens /REVIEW/ — pre-client-approval staging' : 'Opens /Project/Creative/ — client-approved finals';
-    chips.push(`<a href="${t.CrtLink}" target="_blank" class="${cls}" title="${tip}">${label}</a>`);
-  }
-  if (t.OpenLink) {
-    chips.push(`<a href="${t.OpenLink}" target="_blank" class="fos-chip" title="Open source files folder">Open</a>`);
-  }
-
-  chips.push(`<button class="fos-chip fos-chip-add" title="Add a link manually"
+  // Doc / Creative / Open chips retired (2026-05-29) — one Project link is the
+  // single source of truth shown everywhere. The "+" adds/replaces it.
+  chips.push(`<button class="fos-chip fos-chip-add" title="${t.ProjectLink ? 'Replace' : 'Add'} project link"
     onclick="openAddLinkPopover('${taskKey}', this)">+</button>`);
 
   const projectChip = t.ProjectLink
-    ? `<a href="${t.ProjectLink}" target="_blank" class="fos-chip fos-chip-project" title="Open parent project folder">Project</a>`
+    ? `<a href="${t.ProjectLink}" target="_blank" class="fos-chip fos-chip-project" title="Open project folder">Project</a>`
     : '';
 
   return `<div class="fos-chip-row">${chips.join('')}${projectChip ? `<span class="fos-chip-spacer"></span>${projectChip}` : ''}</div>`;
@@ -3830,13 +3818,8 @@ function openAddLinkPopover(taskKey, anchorBtn) {
   pop.className = 'fos-add-pop';
   pop.style.cssText = 'position:absolute;background:#fff;border:1px solid #d8d4cc;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.08);padding:10px;width:260px;z-index:1000;font-size:12px';
   pop.innerHTML = `
-    <div style="color:#888;margin-bottom:6px;font-size:11px">Add a link</div>
-    <div style="display:flex;gap:4px;margin-bottom:8px">
-      <button data-which="doc"      class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Doc</button>
-      <button data-which="creative" class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Creative</button>
-      <button data-which="open"     class="fos-pop-type" style="flex:1;padding:5px;border:1px solid #d8d4cc;border-radius:14px;background:#f5f1ea;cursor:pointer;font-size:11px">Open</button>
-    </div>
-    <input type="text" class="fos-pop-url" placeholder="Paste URL" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d8d4cc;border-radius:6px;font-size:12px;margin-bottom:8px">
+    <div style="color:#888;margin-bottom:6px;font-size:11px">Project folder link</div>
+    <input type="text" class="fos-pop-url" placeholder="Paste project folder URL" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #d8d4cc;border-radius:6px;font-size:12px;margin-bottom:8px">
     <div style="display:flex;gap:6px;justify-content:flex-end">
       <button class="fos-pop-cancel" style="padding:5px 10px;border:1px solid #d8d4cc;border-radius:6px;background:#f5f1ea;cursor:pointer;font-size:11px">Cancel</button>
       <button class="fos-pop-save"   style="padding:5px 10px;border:1px solid #FEBC06;border-radius:6px;background:#FEBC06;color:#000;cursor:pointer;font-size:11px;font-weight:600">Save</button>
@@ -3846,14 +3829,8 @@ function openAddLinkPopover(taskKey, anchorBtn) {
   pop.style.left = `${Math.min(rect.left, window.innerWidth - 280)}px`;
   pop.style.top  = `${rect.bottom + window.scrollY + 4}px`;
 
-  let which = 'doc';
-  const types = pop.querySelectorAll('.fos-pop-type');
-  types.forEach(b => b.addEventListener('click', () => {
-    which = b.dataset.which;
-    types.forEach(x => { x.style.background = '#f5f1ea'; x.style.borderColor = '#d8d4cc'; });
-    b.style.background = '#FEBC06'; b.style.borderColor = '#FEBC06';
-  }));
-  types[0].click();
+  // Only one link type now — the Project folder link.
+  const which = 'project';
 
   const urlInput = pop.querySelector('.fos-pop-url');
   urlInput.focus();
@@ -3881,8 +3858,8 @@ async function saveTaskLink(taskKey, which, url) {
   const t = (window._allTasks || []).find(x =>
     x.Task === task && (x.Assignee||'') === assignee && (x.Date||'') === date);
   if (!t) { console.warn('Task not found for link save:', taskKey); return; }
-  const colMap   = { doc: 'doc_link',  creative: 'creative_link', open: 'open_link' };
-  const fieldMap = { doc: 'DocLink',   creative: 'CrtLink',       open: 'OpenLink'  };
+  const colMap   = { doc: 'doc_link',  creative: 'creative_link', open: 'open_link', project: 'project_folder_link' };
+  const fieldMap = { doc: 'DocLink',   creative: 'CrtLink',       open: 'OpenLink',  project: 'ProjectLink'         };
   const col   = colMap[which];
   const field = fieldMap[which];
   if (!col) return;
