@@ -5267,7 +5267,11 @@ async function renderReview() {
 
     // Split into pending queue (needs action) and history
     const pending = all.filter(r => r.Status === 'Pending Review' || r.Status === 'Pending Viplav');
-    const history = all.filter(r => !(r.Status === 'Pending Review' || r.Status === 'Pending Viplav'));
+    // 'Sent Back' = out for rework (in the designer's court). Hide it from BOTH the
+    // pending queue AND history until the rework re-upload flips it back to
+    // 'Pending Review' — so a reviewed-and-sent-back creative leaves Suriti's view
+    // entirely and only returns when there's something new to look at.
+    const history = all.filter(r => !['Pending Review', 'Pending Viplav', 'Sent Back'].includes(r.Status));
 
     window._reviewItems = pending; // stash for approve/reject lookup
 
