@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8">
+<body style="font:15px/1.5 monospace;padding:20px;max-width:720px">
+<h3>Gateway diagnostic</h3>
+<pre id="out">running…</pre>
+<script>
+var tok=(function(){try{return JSON.parse(localStorage.getItem('yos-auth')||'{}').token||'';}catch(e){return '';}})();
+var out=document.getElementById('out');
+out.textContent='login token present: '+(tok?('YES ('+tok.length+' chars)'):'NO — you are not logged in on this browser')+'\n\ncalling /api/db …';
+fetch('https://yellowbackend.onrender.com/api/db',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({table:'tasks',action:'select',columns:'id',limit:1})})
+.then(function(r){return r.text().then(function(t){out.textContent='login token present: '+(tok?'YES':'NO')+'\n\nHTTP status: '+r.status+'\n\nresponse:\n'+t;});})
+.catch(function(e){out.textContent='network error: '+e.message;});
+</script>
