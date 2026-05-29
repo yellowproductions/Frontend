@@ -383,7 +383,48 @@ const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YP
 
 const SUPABASE_URL = 'https://qchvnnicsoxptmmokozy.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RbsT22PqnuSRqGUwWEwNDQ_hQGXZqmv';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// RLS gateway: route DB access through the backend /api/db (service-role,
+// RLS-safe). Studio shares the team login token (yv-auth). Drop-in shim.
+const DB_API = 'https://yellowbackend.onrender.com/api/db';
+function _dbToken() { try { return (JSON.parse(localStorage.getItem('yv-auth') || '{}').token) || ''; } catch(e) { return ''; } }
+function _dbRun(spec) {
+  return fetch(DB_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _dbToken() },
+    body: JSON.stringify(spec)
+  }).then(async r => {
+    let j; try { j = await r.json(); } catch(e) { j = { data: null, error: { message: 'Bad gateway response' }, count: null }; }
+    if (r.status === 403 && spec.action === 'select') return { data: [], error: null, count: 0 };
+    return j;
+  }).catch(e => ({ data: null, error: { message: e.message }, count: null }));
+}
+function _dbBuilder(table) {
+  const spec = { table, action: 'select', columns: '*', filters: [], order: [] };
+  const b = {
+    select(cols, opts) { spec.action = 'select'; spec.columns = cols || '*'; if (opts && opts.count) spec.count = opts.count; if (opts && opts.head) spec.head = true; return b; },
+    insert(payload) { spec.action = 'insert'; spec.payload = payload; return b; },
+    update(payload) { spec.action = 'update'; spec.payload = payload; return b; },
+    delete() { spec.action = 'delete'; return b; },
+    eq(c, v) { spec.filters.push({ col: c, op: 'eq', val: v }); return b; },
+    neq(c, v) { spec.filters.push({ col: c, op: 'neq', val: v }); return b; },
+    in(c, v) { spec.filters.push({ col: c, op: 'in', val: v }); return b; },
+    gt(c, v) { spec.filters.push({ col: c, op: 'gt', val: v }); return b; },
+    gte(c, v) { spec.filters.push({ col: c, op: 'gte', val: v }); return b; },
+    lt(c, v) { spec.filters.push({ col: c, op: 'lt', val: v }); return b; },
+    lte(c, v) { spec.filters.push({ col: c, op: 'lte', val: v }); return b; },
+    like(c, v) { spec.filters.push({ col: c, op: 'like', val: v }); return b; },
+    ilike(c, v) { spec.filters.push({ col: c, op: 'ilike', val: v }); return b; },
+    is(c, v) { spec.filters.push({ col: c, op: 'is', val: v }); return b; },
+    match(obj) { Object.keys(obj || {}).forEach(k => spec.filters.push({ col: k, op: 'eq', val: obj[k] })); return b; },
+    order(c, opts) { spec.order.push({ col: c, asc: !(opts && opts.ascending === false) }); return b; },
+    limit(n) { spec.limit = n; return b; },
+    single() { spec.single = true; return _dbRun(spec); },
+    maybeSingle() { spec.single = true; return _dbRun(spec); },
+    then(res, rej) { return _dbRun(spec).then(res, rej); }
+  };
+  return b;
+}
+const sb = { from(table) { return _dbBuilder(table); } };
 
 // =============== HELPERS ===============
 

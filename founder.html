@@ -1437,7 +1437,46 @@ emailjs.init({ publicKey: EMAILJS_KEY });
 
 const SUPABASE_URL = 'https://qchvnnicsoxptmmokozy.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RbsT22PqnuSRqGUwWEwNDQ_hQGXZqmv';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// RLS gateway: the browser no longer talks to Supabase directly. `sb` is a
+// drop-in shim mimicking the supabase-js query builder, but every call routes
+// through the backend /api/db (service-role, RLS-safe) using the login token.
+const DB_API = 'https://yellowbackend.onrender.com/api/db';
+function _dbToken() { try { return (JSON.parse(localStorage.getItem('yos-auth') || '{}').token) || ''; } catch(e) { return ''; } }
+function _dbRun(spec) {
+  return fetch(DB_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _dbToken() },
+    body: JSON.stringify(spec)
+  }).then(async r => { try { return await r.json(); } catch(e) { return { data: null, error: { message: 'Bad gateway response' }, count: null }; } })
+    .catch(e => ({ data: null, error: { message: e.message }, count: null }));
+}
+function _dbBuilder(table) {
+  const spec = { table, action: 'select', columns: '*', filters: [], order: [] };
+  const b = {
+    select(cols, opts) { spec.action = 'select'; spec.columns = cols || '*'; if (opts && opts.count) spec.count = opts.count; if (opts && opts.head) spec.head = true; return b; },
+    insert(payload) { spec.action = 'insert'; spec.payload = payload; return b; },
+    update(payload) { spec.action = 'update'; spec.payload = payload; return b; },
+    delete() { spec.action = 'delete'; return b; },
+    eq(c, v) { spec.filters.push({ col: c, op: 'eq', val: v }); return b; },
+    neq(c, v) { spec.filters.push({ col: c, op: 'neq', val: v }); return b; },
+    in(c, v) { spec.filters.push({ col: c, op: 'in', val: v }); return b; },
+    gt(c, v) { spec.filters.push({ col: c, op: 'gt', val: v }); return b; },
+    gte(c, v) { spec.filters.push({ col: c, op: 'gte', val: v }); return b; },
+    lt(c, v) { spec.filters.push({ col: c, op: 'lt', val: v }); return b; },
+    lte(c, v) { spec.filters.push({ col: c, op: 'lte', val: v }); return b; },
+    like(c, v) { spec.filters.push({ col: c, op: 'like', val: v }); return b; },
+    ilike(c, v) { spec.filters.push({ col: c, op: 'ilike', val: v }); return b; },
+    is(c, v) { spec.filters.push({ col: c, op: 'is', val: v }); return b; },
+    match(obj) { Object.keys(obj || {}).forEach(k => spec.filters.push({ col: k, op: 'eq', val: obj[k] })); return b; },
+    order(c, opts) { spec.order.push({ col: c, asc: !(opts && opts.ascending === false) }); return b; },
+    limit(n) { spec.limit = n; return b; },
+    single() { spec.single = true; return _dbRun(spec); },
+    maybeSingle() { spec.single = true; return _dbRun(spec); },
+    then(res, rej) { return _dbRun(spec).then(res, rej); }
+  };
+  return b;
+}
+const sb = { from(table) { return _dbBuilder(table); } };
 
 // =============== HELPERS ===============
 
@@ -1472,6 +1511,11 @@ function _supaBracketDate(iso) {
 function jsq(s) {
   return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
+
+// Apostrophe-safe key for inline onclick handlers. encodeURIComponent leaves
+// apostrophes unescaped, which break single-quoted onclick strings — e.g. a task
+// titled "...Child's Hand" wouldn't open. %27 round-trips through decodeURIComponent.
+function ek(s) { return encodeURIComponent(s == null ? '' : s).replace(/'/g, '%27'); }
 
 function _supaShortTime(iso) {
   if (!iso) return '';
@@ -3763,7 +3807,7 @@ function showClientRequestBanner(requests) {
     const dateBit = t.Date ? `${t.Date.substring(8,10)}/${t.Date.substring(5,7)}` : '—';
     const title = (t.Title || t.Task || '—').replace(/"/g, '&quot;');
     const desc = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
-    const taskKey = encodeURIComponent(t.Task || '');
+    const taskKey = ek(t.Task);
     const assigneeOptions = ACTIVE_TEAM.map(n => `<option value="${n}">→ ${n}</option>`).join('');
     return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #dbeafe">
       <div style="flex:1;min-width:0">
@@ -3992,7 +4036,7 @@ function renderTasks(tasks) {
       const desc = t.Task || '';
       const showDesc = title && desc && desc !== title;
       const displayName = (title || desc || '—').replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;');
-      const taskKey = encodeURIComponent(t.Task || '');
+      const taskKey = ek(t.Task);
       const isOpen = !!(window._fosExpanded && window._fosExpanded.has(t.Task));
       const updatesText = (t.Update || '').trim();
       const updateLines = updatesText ? updatesText.split('\n').filter(l => l.trim()).reverse() : [];
@@ -4012,7 +4056,7 @@ function renderTasks(tasks) {
         </div>
         <div class="fos-cell" onclick="event.stopPropagation()">
           <select class="fos-mini-select" title="Owner — reassign"
-            onchange="reassignTask('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)">
+            onchange="reassignTask('${ek(t.Task)}','${t.Assignee||''}','${t.Date||''}',this.value)">
             <option value="${t.Assignee||''}" selected>👤 ${t.Assignee||'— assign —'}</option>
             ${ACTIVE_TEAM.filter(n => n !== t.Assignee).map(n => `<option value="${n}">→ ${n}</option>`).join('')}
           </select>
@@ -4050,9 +4094,9 @@ function renderTasks(tasks) {
           onblur="this.style.background='';updateTaskDescription('${jsq(t.Task)}','${jsq(t.Assignee||'')}','${jsq(t.Date||'')}',this.textContent)">${desc.replace(/[<>]/g, c => c==='<'?'&lt;':'&gt;')}</div>` : ''}
         ${updatesHtml}
         <div class="fos-collab-row">
-          ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
+          ${(t.Collaborators || []).map(c => `<span class="fos-collab-pill">👥 ${c}<button title="Remove collaborator" onclick="removeCollaborator('${ek(t.Task)}', ${t._sb_id || 'null'}, '${c}')">×</button></span>`).join('')}
           <select class="fos-addcollab" title="Add collaborator"
-            onchange="addCollaborator('${encodeURIComponent(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''">
+            onchange="addCollaborator('${ek(t.Task)}', ${t._sb_id || 'null'}, this.value); this.value=''">
             <option value="" selected>+ Add collaborator</option>
             ${ACTIVE_TEAM.filter(n => n !== t.Assignee && !(t.Collaborators || []).includes(n)).map(n => `<option value="${n}">${n}</option>`).join('')}
           </select>
@@ -4169,7 +4213,7 @@ function renderFosClientEditor(t) {
   const c = t.Client || '';
   const label = c ? `🏷 ${c}` : '🏷 Client —';
   return `<select class="fos-mini-select" title="Client tag"
-    onchange="updateTaskClient('${encodeURIComponent(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')">
+    onchange="updateTaskClient('${ek(t.Task)}','${t.Assignee||''}','${t.Date||''}', this.value, '${t._sb_id || ''}', '${t._sb_table || ''}')">
     <option value="" selected>${label}</option>
     ${c ? '<option value="__clear__">— Clear tag —</option>' : ''}
     <optgroup label="Jindal">
