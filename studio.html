@@ -140,6 +140,24 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div id="studio-login" style="position:fixed;inset:0;z-index:100000;background:#f7f5f0;display:none;align-items:center;justify-content:center;padding:24px;font-family:'Poppins',sans-serif">
+  <div style="background:#fff;border:1px solid #e8e3db;border-radius:20px;padding:32px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.08)">
+    <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;color:#1a1a1a;margin-bottom:4px">YELLOW STUDIO</div>
+    <div style="font-size:20px;font-weight:900;color:#1a1a1a;margin-bottom:18px">Log in to upload</div>
+    <label style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px">Your name</label>
+    <select id="sl-name" style="width:100%;padding:11px;border:1px solid #e0ddd8;border-radius:10px;font-family:inherit;font-size:14px;margin-bottom:14px">
+      <option value="">Select your name</option>
+      <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+      <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+      <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
+      <option>Siddhesh</option><option>Ajay</option><option>Kritya</option>
+    </select>
+    <label style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px">Password</label>
+    <input type="password" id="sl-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doStudioLogin()" style="width:100%;padding:11px;border:1px solid #e0ddd8;border-radius:10px;font-family:inherit;font-size:14px;margin-bottom:8px;box-sizing:border-box">
+    <div id="sl-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none">Incorrect login — check your name and password.</div>
+    <button id="sl-btn" onclick="doStudioLogin()" style="width:100%;padding:13px;background:#FEBC06;color:#000;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer">Log in →</button>
+  </div>
+</div>
 <div class="page">
   <div class="nav">
     <div class="nav-brand">YELLOW STUDIO</div>
@@ -363,6 +381,33 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
 <script>
 const BACKEND='https://yellowbackend.onrender.com';
 const SHEETDB='https://script.google.com/macros/s/AKfycby1z__E16VckPWjD_BRM6E7YPaX9EZreVdu_B6yU4aOb8wfx-ub7TsNtcEMXVvixJsK/exec';
+
+// ===== Studio login gate =====
+// Studio talks to the secured gateway, which needs the team login token (yv-auth).
+// Without it, task loads fail. So Studio has its own login (same team creds) instead
+// of relying on the user having logged into the team portal first in this browser.
+function _studioValidToken() {
+  try { const a = JSON.parse(localStorage.getItem('yv-auth') || '{}'); return (a && a.token && (!a.expires || a.expires > Date.now())) ? a.token : ''; }
+  catch(e) { return ''; }
+}
+async function doStudioLogin() {
+  const name = document.getElementById('sl-name').value;
+  const pass = document.getElementById('sl-pass').value;
+  const err  = document.getElementById('sl-error');
+  const btn  = document.getElementById('sl-btn');
+  if (!name) { alert('Pick your name.'); return; }
+  if (!pass) { err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(`${BACKEND}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'team', username: name, password: pass }) });
+    const d = await r.json();
+    if (!d.success || !d.token) { err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; return; }
+    localStorage.setItem('yv-auth', JSON.stringify({ user: d.user || name, token: d.token, role: 'team', expires: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
+    document.getElementById('studio-login').style.display = 'none';
+  } catch(e) { err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Log in →'; }
+}
+// Show the login gate unless a valid team token is already present.
+if (!_studioValidToken()) { var _sl = document.getElementById('studio-login'); if (_sl) _sl.style.display = 'flex'; }
 
 // ============================================================
 // SUPABASE DATA LAYER — full reads + dual-write mirror
