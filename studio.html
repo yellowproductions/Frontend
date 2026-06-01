@@ -1569,12 +1569,20 @@ async function submitUpload(){
     // overwritten to /Project/Creative/ on client approval (team.html).
     if (folderUrl && originatingTaskId && !isAdhoc) {
       const which = isOpenFile ? 'open' : 'creative';
-      // Resolve parent URL separately (skip extra call for ad-hoc / failed paths).
+      // Only OPEN files actually live in the project folder at upload time, so
+      // only then do we touch /[Client]/Creatives/[Project]. Creative files stage
+      // in /REVIEW/ until client approval — asking for that folder's share link
+      // here would CREATE it empty (ensureFolder), spawning a duplicate twin of
+      // the review folder (the bug Suriti saw). The project folder gets created
+      // when files MOVE there on approval; until then project_folder_link is left
+      // alone (set by the move step / her manual curation).
       let parentUrl = '';
-      try {
-        const paths = projectPaths(client, baseCreativeName);
-        parentUrl = await shareFolderUrl(paths.parent);
-      } catch(e) { console.warn('parent path resolution failed:', e.message); }
+      if (isOpenFile) {
+        try {
+          const paths = projectPaths(client, baseCreativeName);
+          parentUrl = await shareFolderUrl(paths.parent);
+        } catch(e) { console.warn('parent path resolution failed:', e.message); }
+      }
       await stampTaskLinks(originatingTaskId, which, folderUrl, parentUrl);
     }
 
