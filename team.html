@@ -1016,6 +1016,10 @@ async function _supaInsertRow(row) {
       preview_link: row['Preview Link'] || null,
       open_file_link: row['Open File Link'] || null,
     }).select().single();
+    // Defence: shim returns {error:{...}} on failure WITHOUT throwing. The
+    // _supaMirror interceptor would otherwise resolve happily and the UI would
+    // show "✓ Added" while no task landed. Throw so the caller sees the failure.
+    if (r && r.error) throw new Error(r.error.message || 'task insert failed');
     if (r.data && row.Update) await _syncTaskUpdates(r.data.id, row.Update);
   }
   else if (type === 'attendance') {
@@ -1652,6 +1656,24 @@ function doLogout() {
   document.getElementById('login-select').value = '';
   document.getElementById('login-password').value = '';
   document.getElementById('review-nav').style.display = 'none';
+}
+
+// Called when the SERVER rejects the team token (401) — client-side expiry
+// said the token was fine, but it's actually stale (old format, rotated secret).
+// Clears it + shows the login screen so a fresh login flows straight through.
+function _forceTeamLogin(msg) {
+  try {
+    localStorage.removeItem('yv-auth');
+    localStorage.removeItem('yv_user');
+  } catch(e) {}
+  currentUser = '';
+  const screen = document.getElementById('login-screen');
+  if (screen) screen.style.display = 'flex';
+  if (msg) {
+    const err = document.getElementById('login-error');
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+    else alert(msg);
+  }
 }
 
 // =================== MOBILE MENU ===================
@@ -2833,10 +2855,27 @@ async function addQuickTask() {
       Notes: assignTo !== currentUser ? `assigned by ${currentUser}` : '',
       Type: 'task'
     };
-    fetch(SHEETDB, {
-      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+    // AWAIT the fetch (the interceptor returns a synthetic Response — 200 on
+    // success, 500 if the Supabase mirror's insert threw). Without await we'd
+    // proceed to "✓ Added" UI regardless of whether anything actually saved.
+    const resp = await fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not save task';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // /api/db returns "Not authenticated" on a rejected token → kick to login.
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then re-add the task.');
+        btn.textContent = 'Add'; btn.disabled = false; btn.style.background = ''; btn.style.color = '';
+        return;
+      }
+      btn.textContent = '✕ ' + errMsg.substring(0, 30);
+      btn.style.background = '#c0392b'; btn.style.color = '#fff'; btn.disabled = false;
+      setTimeout(() => { btn.textContent = 'Add'; btn.style.background = ''; btn.style.color = ''; }, 4000);
+      return;
+    }
 
     // Telegram notify: only when CS assigns to someone else (not self-added)
     if (assignTo !== currentUser) {
@@ -2860,8 +2899,10 @@ async function addQuickTask() {
       loadTasks();
     }, 1100);
   } catch(e) {
-    btn.textContent = '✕ Error'; btn.disabled = false;
-    setTimeout(() => { btn.textContent = 'Add'; }, 2000);
+    console.error('Add task failed:', e);
+    btn.textContent = '✕ ' + (e.message || 'Error').substring(0, 30);
+    btn.style.background = '#c0392b'; btn.style.color = '#fff'; btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Add'; btn.style.background = ''; btn.style.color = ''; }, 4000);
   }
 }
 
