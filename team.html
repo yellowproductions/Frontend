@@ -713,7 +713,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
       <button class="btn btn-yellow" onclick="applyLeave()">Submit Leave Request</button>
     </div>
     <div class="card">
-      <div class="card-title">My Leave History</div>
+      <div class="card-title">My Leave History · last 3 months</div>
       <div id="leave-history"><div class="empty-state">Loading...</div></div>
     </div>
   </div>
@@ -1618,6 +1618,7 @@ function proceedToApp(name) {
   loadTasks();
   loadReminders();
   loadAttendance();
+  loadLeave();          // initial leave history load (was 60s-poll-only — left users staring at "Loading…")
 
   // Mobile: enable hamburger menu
   setupMobileMenu();
@@ -2628,6 +2629,8 @@ function showPanel(name) {
   if (name === 'calendar') renderCalendar();
   if (name === 'feedback') loadFeedback();
   if (name === 'agent' && agentHistory.length === 0) restoreAgentHistory();
+  if (name === 'leave') loadLeave?.();        // refresh on every open — otherwise users wait up to 60s for the poll
+  if (name === 'hr')    loadAttendance?.();   // same for the attendance panel
 }
 
 // Open the Pitches & Ideas portal in a new tab — auto-logs in based on URL params
@@ -4236,24 +4239,76 @@ async function markAttendance() {
 }
 
 // ====== LEAVE ======
+// Always shows the user's last 3 months of history at minimum. Anything older
+// is hidden behind a "Show older" toggle so the panel stays scannable.
 async function loadLeave() {
+  const el = document.getElementById('leave-history');
+  if (!el) return;
   try {
     const data = await fetchSheetRows();
-    const leaves = Array.isArray(data) ? data.filter(r =>
+    // Sort by the LEAVE start date (Task field), newest leave first — not by
+    // when the request was filed (Date field). Earlier code mixed the two.
+    const mine = (Array.isArray(data) ? data : []).filter(r =>
       r.Type === 'leave' && r.Assignee === currentUser
-    ).sort((a,b) => new Date(b.Date) - new Date(a.Date)) : [];
+    ).sort((a,b) => new Date(b.Task || b.Date) - new Date(a.Task || a.Date));
 
-    document.getElementById('leave-history').innerHTML = leaves.length
-      ? leaves.map(l => {
-          const statusClass = l.Status === 'Approved' ? 'status-done' : l.Status === 'Rejected' ? '' : 'status-pending';
-          const statusColor = l.Status === 'Rejected' ? 'var(--red)' : '';
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
-            <div><div style="font-weight:600">${l.Date} → ${l.Task || l.Date}</div></div>
-            <span class="status-badge ${statusClass}" style="${statusColor?'background:#301010;color:'+statusColor:''}">${l.Status || 'Pending'}</span>
-          </div>`;
-        }).join('')
-      : '<div class="empty-state">No leave requests yet.</div>';
-  } catch(e) {}
+    if (!mine.length) {
+      el.innerHTML = '<div class="empty-state">No leave requests yet.</div>';
+      return;
+    }
+
+    // 3-month floor — always show at least everything from the last 90 days.
+    const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const recent = mine.filter(l => new Date(l.Task || l.Date) >= ninetyDaysAgo);
+    const older  = mine.filter(l => new Date(l.Task || l.Date) <  ninetyDaysAgo);
+    const showOlder = window._leaveShowOlder === true;
+    const visible = showOlder ? mine : recent;
+
+    const fmt = (d) => {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return d || '—';
+      return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    };
+    const row = (l) => {
+      const startStr = l.Task || l.Date;
+      const endStr   = l._sb_end_date || l.Task || l.Date;
+      const sameDay  = startStr === endStr;
+      const dateLine = sameDay ? fmt(startStr) : `${fmt(startStr)} → ${fmt(endStr)}`;
+      // day count (inclusive)
+      let days = 1;
+      try {
+        const d1 = new Date(startStr), d2 = new Date(endStr);
+        if (!isNaN(d1) && !isNaN(d2)) days = Math.max(1, Math.round((d2-d1)/86400000) + 1);
+      } catch(e) {}
+      const statusClass = l.Status === 'Approved' ? 'status-done' : l.Status === 'Rejected' ? '' : 'status-pending';
+      const statusColor = l.Status === 'Rejected' ? 'var(--red)' : '';
+      const reasonLine = (l.Title || '').trim();
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;gap:12px">
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:600">${dateLine}${days>1?` <span style="font-weight:400;color:var(--muted);font-size:11px">· ${days} days</span>`:''}</div>
+          ${reasonLine ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${reasonLine}</div>` : ''}
+        </div>
+        <span class="status-badge ${statusClass}" style="${statusColor?'background:#301010;color:'+statusColor:''};flex-shrink:0">${l.Status || 'Pending'}</span>
+      </div>`;
+    };
+
+    el.innerHTML =
+      visible.map(row).join('') +
+      (older.length && !showOlder
+        ? `<div style="padding:12px 0;text-align:center">
+             <button onclick="window._leaveShowOlder=true;loadLeave()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 16px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↓ Show ${older.length} older</button>
+           </div>`
+        : (older.length && showOlder
+          ? `<div style="padding:12px 0;text-align:center">
+               <button onclick="window._leaveShowOlder=false;loadLeave()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 16px;border-radius:14px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↑ Show only last 3 months</button>
+             </div>`
+          : '')
+      );
+  } catch(e) {
+    // Don't silently swallow — was the reason "Loading…" hung forever before.
+    console.warn('loadLeave failed:', e);
+    el.innerHTML = `<div class="empty-state" style="color:#c0392b">Could not load leave history (${(e.message || 'unknown').substring(0,60)}). Refresh the page.</div>`;
+  }
 }
 
 async function applyLeave() {
