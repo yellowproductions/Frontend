@@ -1819,10 +1819,20 @@ async function loadBriefTasks() {
   if (!sel) return;
   try {
     // All open tasks (anything not Closed/Rejected) grouped by client.
+    // NOTE: the shim doesn't implement .not() — used to call
+    // .not('status','in','("Closed","Rejected")') which threw silently and
+    // landed in the catch ("Could not load tasks"). Two .neq()s AND naturally.
     const { data, error } = await sb.from('tasks')
       .select('id, title, client, assignee, status')
-      .not('status', 'in', '("Closed","Rejected")')
+      .neq('status', 'Closed')
+      .neq('status', 'Rejected')
       .order('client', { ascending: true });
+    // Surface auth failure as a re-login, not a dead-end (matches Creative tab).
+    if (error && /not authenticated|unauthor|invalid token|401/i.test(error.message || '')) {
+      sel.innerHTML = '<option value="">Log in to load tasks…</option>';
+      if (typeof _studioForceLogin === 'function') _studioForceLogin('Your session expired — please log in again.');
+      return;
+    }
     if (error || !data || !data.length) {
       sel.innerHTML = '<option value="">No open tasks found</option>';
       return;
@@ -1845,6 +1855,12 @@ async function loadBriefTasks() {
     sel.innerHTML = html;
   } catch(e) {
     console.error('Brief task load failed:', e);
+    const m = (e && e.message) || '';
+    if (/not authenticated|unauthor|invalid token|401/i.test(m)) {
+      sel.innerHTML = '<option value="">Log in to load tasks…</option>';
+      if (typeof _studioForceLogin === 'function') _studioForceLogin('Your session expired — please log in again.');
+      return;
+    }
     sel.innerHTML = '<option value="">Could not load tasks</option>';
   }
 }
