@@ -1081,7 +1081,10 @@ function clientFolder(clientName, subfolder) {
 async function uploadFileChunked(file, dropboxPath, onProgress) {
   const CHUNK = 8 * 1024 * 1024;
   const api = `${BACKEND}/api/dropbox-chunk`;
-  const sres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'start' } });
+  // Bearer token — /api/dropbox-chunk is now authed (matches /api/db).
+  // Shared with the team portal session via the yv-auth localStorage key.
+  const auth = 'Bearer ' + (typeof _dbToken === 'function' ? _dbToken() : '');
+  const sres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'start', 'Authorization': auth } });
   const sj = await sres.json();
   if (!sj.success || !sj.session_id) throw new Error(sj.error || 'upload start failed');
   const sid = sj.session_id;
@@ -1092,7 +1095,7 @@ async function uploadFileChunked(file, dropboxPath, onProgress) {
     for (let attempt = 0; attempt < 3 && !ok; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
       try {
-        const r = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'append', 'X-Session-Id': sid, 'X-Offset': String(offset) }, body: blob });
+        const r = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'append', 'X-Session-Id': sid, 'X-Offset': String(offset), 'Authorization': auth }, body: blob });
         const j = await r.json();
         if (!j.success) throw new Error(j.error || 'chunk failed');
         ok = true;
@@ -1102,7 +1105,7 @@ async function uploadFileChunked(file, dropboxPath, onProgress) {
     offset += blob.size;
     if (onProgress) onProgress(Math.min(1, offset / Math.max(1, file.size)));
   }
-  const fres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'finish', 'X-Session-Id': sid, 'X-Offset': String(offset), 'X-Path': encodeURIComponent(dropboxPath) } });
+  const fres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'finish', 'X-Session-Id': sid, 'X-Offset': String(offset), 'X-Path': encodeURIComponent(dropboxPath), 'Authorization': auth } });
   const fj = await fres.json();
   if (!fj.success) throw new Error(fj.error || 'upload finish failed');
   return fj;
