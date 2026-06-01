@@ -254,6 +254,9 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
           <select id="q-task" onchange="onTaskChange()" disabled>
             <option value="">Select your name first...</option>
           </select>
+          <!-- Folder peek: shows what's already in this task's /REVIEW/ folder
+               so the designer can avoid duplicate filenames during rework. -->
+          <div id="folder-peek" style="display:none;margin-top:6px;padding:8px 10px;background:#f8f5ee;border-radius:8px;border:1px solid #ece5d3"></div>
         </div>
 
         <div class="field" id="creative-name-field" style="display:none">
@@ -315,6 +318,13 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
         <div class="err" id="err-msg"></div>
 
         <button class="upload-btn" id="submit-btn" onclick="submitUpload()" disabled>Pick a task first to enable upload</button>
+
+        <!-- My Uploads: last 10 things this designer sent through Studio.
+             Hidden until a designer is selected. Refreshes after each upload. -->
+        <div id="my-uploads-section" style="display:none;margin-top:24px;border-top:1px solid var(--border);padding-top:18px">
+          <div style="font-size:11px;font-weight:700;color:#1a1a1a;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">📤 My recent uploads</div>
+          <div id="my-uploads-list"><div style="font-size:12px;color:var(--muted)">Loading…</div></div>
+        </div>
         </div><!-- /creative-mode -->
 
         <!-- BRIEF / DOC MODE — for SPOCs & copywriters. Hidden until tab clicked -->
@@ -1217,12 +1227,28 @@ function handleFile(input,file){
   const totalSize = Array.from(files).reduce((s,f)=>s+f.size,0);
   const sizeMB = (totalSize/1024/1024).toFixed(1);
   const nameEl = document.getElementById('file-name');
-  if (files.length === 1) {
-    nameEl.innerHTML = '📄 '+files[0].name+' ('+sizeMB+'MB)';
-  } else {
-    const list = Array.from(files).map(f => `• ${f.name}`).join('<br>');
-    nameEl.innerHTML = `<strong>📄 ${files.length} files (${sizeMB}MB total)</strong><div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;text-align:left">${list}</div>`;
-  }
+
+  // Per-file preview: image thumbnails (object URLs) for images, file-type icons
+  // for PDFs / sources / videos. Reveals at-a-glance what's about to be uploaded
+  // so the designer catches wrong-file mistakes BEFORE shipping.
+  const iconFor = (n) => /\.pdf$/i.test(n) ? '📄'
+    : /\.(psd|ai|sketch|fig|eps)$/i.test(n) ? '🎨'
+    : /\.(mp4|mov|avi|mkv)$/i.test(n) ? '🎬'
+    : /\.(doc|docx)$/i.test(n) ? '📝'
+    : '📎';
+  const chips = Array.from(files).map(f => {
+    const isImg = /^image\//.test(f.type || '');
+    const safeName = String(f.name).replace(/</g, '&lt;');
+    const thumb = isImg
+      ? `<img src="${URL.createObjectURL(f)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block">`
+      : `<div style="width:64px;height:64px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;background:#f5f1ea">${iconFor(f.name)}</div>`;
+    return `<div style="display:inline-block;vertical-align:top;margin:4px;text-align:center;width:72px">
+      ${thumb}
+      <div style="font-size:10px;margin-top:4px;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${safeName}">${safeName}</div>
+    </div>`;
+  }).join('');
+  nameEl.innerHTML = `<div style="text-align:left;margin:-4px">${chips}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:left">${files.length} file${files.length>1?'s':''} · ${sizeMB} MB total</div>`;
   nameEl.style.display='block';
   document.getElementById('drop-icon').textContent=files.length===1?'✅':'📚';
   document.getElementById('drop-text').style.display='none';
@@ -1365,6 +1391,8 @@ async function onDesignerChange() {
 
     taskSelect.innerHTML = opts.join('');
     taskSelect.disabled = false;
+    // Refresh the designer's "My recent uploads" section now that we know who they are.
+    loadMyUploads();
   } catch(e) {
     const m = (e && e.message) || '';
     // A rejected token (401) means the saved session is stale — re-login, don't dead-end.
@@ -1427,6 +1455,156 @@ function updateUploadButtonState() {
   }
 }
 
+// ====== FOLDER PEEK ======
+// When the designer picks a task, show what's already in that task's /REVIEW/
+// folder so they know what was previously submitted (rework context) and can
+// avoid filename collisions. Light-touch: one API call per task pick.
+let _peekCacheKey = '';
+async function loadFolderPeek(client, taskTitle) {
+  const peekEl = document.getElementById('folder-peek');
+  if (!peekEl) return;
+  if (!taskTitle) { peekEl.style.display = 'none'; _peekCacheKey = ''; return; }
+  const safe = sanitizeProjectName(taskTitle);
+  const key  = `/REVIEW/${safe}`;
+  if (_peekCacheKey === key) return; // already showing this folder
+  _peekCacheKey = key;
+  peekEl.style.display = 'block';
+  peekEl.innerHTML = '<span style="color:var(--muted);font-size:11px">📂 Checking review folder…</span>';
+  try {
+    const r = await fetch(`${BACKEND}/api/dropbox-list`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-List-Key':'map-run-7741'},
+      body: JSON.stringify({ path: key })
+    });
+    const d = await r.json().catch(() => ({}));
+    const files = (d.entries || []).filter(e => e.tag === 'file');
+    if (!files.length) {
+      peekEl.innerHTML = '<div style="font-size:11px;color:var(--muted)">📂 Review folder is empty — this will be the first upload.</div>';
+      return;
+    }
+    const shown = files.slice(0, 8);
+    const extra = files.length - shown.length;
+    peekEl.innerHTML =
+      `<div style="font-size:11px;color:#666;font-weight:600;margin-bottom:4px">📂 Already in review folder (${files.length}):</div>` +
+      shown.map(f => `<div style="font-size:11px;color:#444;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">• ${f.name}</div>`).join('') +
+      (extra > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">…and ${extra} more</div>` : '');
+  } catch(e) {
+    peekEl.style.display = 'none';
+    _peekCacheKey = '';
+  }
+}
+
+// ====== MY UPLOADS ======
+// Last 10 creatives this designer pushed through Studio, with live review state.
+// Closes the feedback loop without leaving Studio for team.html.
+async function loadMyUploads() {
+  const designer = (document.getElementById('q-designer') || {}).value;
+  const listEl = document.getElementById('my-uploads-list');
+  const sectionEl = document.getElementById('my-uploads-section');
+  if (!sectionEl || !listEl) return;
+  if (!designer) { sectionEl.style.display = 'none'; return; }
+  sectionEl.style.display = 'block';
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">Loading…</div>';
+  try {
+    const { data, error } = await sb.from('creatives')
+      .select('id, name, status, preview_link, created_at, file_urls, client')
+      .eq('designer', designer)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (error) throw new Error(error.message || 'load failed');
+    if (!data || !data.length) {
+      listEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">No uploads yet.</div>';
+      return;
+    }
+    const pillFor = (s) => ({
+      'Pending Review': {bg:'#fff3cd',color:'#92640a',label:'With reviewer'},
+      'Pending Viplav':{bg:'#fff3cd',color:'#92640a',label:'With reviewer'},
+      'Client Review': {bg:'#fce7f3',color:'#9d174d',label:'With client'},
+      'Approved':      {bg:'#dcfce7',color:'#15803d',label:'✓ Approved'},
+      'Open Files':    {bg:'#ccfbf1',color:'#0f766e',label:'✓ Approved'},
+      'Closed':        {bg:'#dcfce7',color:'#15803d',label:'✓ Closed'},
+      'Sent Back':     {bg:'#ffedd5',color:'#9a3412',label:'⟲ Sent back'},
+      'Scrapped':      {bg:'#fee2e2',color:'#991b1b',label:'✕ Scrapped'},
+      'Rejected':      {bg:'#fee2e2',color:'#991b1b',label:'✕ Rejected'}
+    })[s] || {bg:'#f5f1ea',color:'#666',label: s || '—'};
+    listEl.innerHTML = data.map(c => {
+      const p = pillFor(c.status);
+      const when = c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN', {day:'numeric', month:'short'}) : '';
+      const n = Array.isArray(c.file_urls) ? c.file_urls.length : 0;
+      const link = c.preview_link
+        ? `<a href="${c.preview_link}" target="_blank" style="color:#FEBC06;font-size:10px;margin-left:8px;text-decoration:none;font-weight:600">Open ↗</a>`
+        : '';
+      const safeName = String(c.name || '(unnamed)').replace(/</g,'&lt;');
+      const safeClient = String(c.client || '').replace(/</g,'&lt;');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeName}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${when}${safeClient ? ' · ' + safeClient : ''} · ${n} file${n!==1?'s':''}${link}</div>
+        </div>
+        <span style="background:${p.bg};color:${p.color};font-size:10px;padding:3px 9px;border-radius:11px;font-weight:700;white-space:nowrap;flex-shrink:0">${p.label}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = '<div style="font-size:11px;color:#c0392b">Could not load uploads.</div>';
+  }
+}
+
+// ====== UNDO BANNER ======
+// Stash what was JUST uploaded so the designer has 30s to take it back —
+// deletes the files from Dropbox + removes the creative row if one was created.
+let _undoState = null;
+let _undoTimer = null;
+function showUndoBanner({ filePaths, creativeId, taskId, oldTaskStatus, taskTitle }) {
+  const banner = document.getElementById('undo-banner');
+  if (!banner) return;
+  _undoState = { filePaths: filePaths || [], creativeId, taskId, oldTaskStatus, taskTitle, until: Date.now() + 30000 };
+  if (_undoTimer) clearInterval(_undoTimer);
+  banner.style.display = 'flex';
+  const render = () => {
+    if (!_undoState) { banner.style.display = 'none'; return; }
+    const left = Math.max(0, Math.ceil((_undoState.until - Date.now()) / 1000));
+    if (left <= 0) {
+      _undoState = null;
+      if (_undoTimer) { clearInterval(_undoTimer); _undoTimer = null; }
+      banner.style.display = 'none';
+      return;
+    }
+    banner.innerHTML = `<span>✓ Uploaded.</span>
+      <button onclick="doUndo()" style="background:#FEBC06;color:#000;border:none;border-radius:14px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif">Undo (${left}s)</button>`;
+  };
+  render();
+  _undoTimer = setInterval(render, 1000);
+}
+async function doUndo() {
+  const u = _undoState;
+  if (!u) return;
+  _undoState = null;
+  if (_undoTimer) { clearInterval(_undoTimer); _undoTimer = null; }
+  const banner = document.getElementById('undo-banner');
+  if (banner) banner.innerHTML = '<span>Undoing…</span>';
+  try {
+    // Delete files from Dropbox (uses the open delete endpoint — same one we use elsewhere)
+    if (u.filePaths.length) {
+      await fetch(`${BACKEND}/api/dropbox-delete`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ urls: u.filePaths })
+      }).catch(()=>{});
+    }
+    // Delete the creative row if one was created
+    if (u.creativeId) { try { await sb.from('creatives').delete().eq('id', u.creativeId); } catch(e) {} }
+    // Roll task status back if we changed it
+    if (u.taskId && u.oldTaskStatus) {
+      try { await sb.from('tasks').update({ status: u.oldTaskStatus }).eq('id', u.taskId); } catch(e) {}
+    }
+    if (banner) banner.innerHTML = '<span>✓ Upload undone — files removed.</span>';
+    setTimeout(() => { if (banner) banner.style.display = 'none'; }, 2000);
+    loadMyUploads();
+  } catch(e) {
+    if (banner) banner.innerHTML = '<span style="color:#fca">Undo partial — check Dropbox.</span>';
+    setTimeout(() => { if (banner) banner.style.display = 'none'; }, 3000);
+  }
+}
+
 function onTaskChange() {
   const val = document.getElementById('q-task').value;
   const clientSel = document.getElementById('q-client');
@@ -1447,6 +1625,7 @@ function onTaskChange() {
   if (!task) {
     clientSel.value = '';
     if (clientInfo) clientInfo.style.display = 'none';
+    loadFolderPeek(null, null);
     updateUploadButtonState();
     return;
   }
@@ -1468,6 +1647,9 @@ function onTaskChange() {
     if (clientInfo) clientInfo.style.display = 'block';
     if (clientDisplay) clientDisplay.innerHTML = `<span style="color:#b91c1c;font-size:13px">⚠️ This task has no client tagged.<br><span style="font-weight:400;font-size:12px;color:#666">Ask Suriti to tag it on Founder OS first — uploads need a client to route to the right folder.</span></span>`;
   }
+  // Folder peek — show what's already in /REVIEW/[Task]/ (rework context, dup-filename avoidance)
+  const taskTitle = task.Title || (task.Task || '').split('|')[0].trim();
+  loadFolderPeek(taskClient, taskTitle);
   updateUploadButtonState();
 }
 
@@ -1502,6 +1684,10 @@ async function submitUpload(){
 
   // Determine base creative name + whether we'll patch an existing task row
   let baseCreativeName, originalTaskText = null, isRework = false, originatingTaskId = null;
+  // Captured for the 30-sec undo banner: roll back task status if undone, and
+  // delete the just-created creative row if there is one.
+  let oldTaskStatus = '';
+  let createdCreativeId = null;
   if (isAdhoc) {
     baseCreativeName = adhocName;
   } else {
@@ -1515,6 +1701,7 @@ async function submitUpload(){
     }
     originalTaskText = item.Task;
     originatingTaskId = (item._sb_table === 'tasks') ? item._sb_id : null;
+    oldTaskStatus = String(item.Status || '');
 
     // Even when the user picked a TASK (not a creative), check if a matching
     // creative already exists for this task+designer. After dedupe, the
@@ -1734,8 +1921,9 @@ async function submitUpload(){
             const insRes = await sb.from('creatives').insert({
               name: baseCreativeName, designer, client,
               status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
-            });
+            }).select().single();
             if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
+            createdCreativeId = (insRes && insRes.data && insRes.data.id) || null;
             recordSaved = true;
           }
         } catch(e) {
@@ -1753,8 +1941,9 @@ async function submitUpload(){
             name: baseCreativeName, designer, client,
             status: 'Pending Review', preview_link: previewLink,
             file_urls: fileUrls, task_id: originatingTaskId || null
-          });
+          }).select().single();
           if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
+          createdCreativeId = (insRes && insRes.data && insRes.data.id) || null;
           recordSaved = true;
           if (originatingTaskId) {
             await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', originatingTaskId);
@@ -1807,6 +1996,18 @@ async function submitUpload(){
     btn.style.background = '#22c55e';
     btn.style.color = '#fff';
     btn.disabled = false;
+    // Refresh "My recent uploads" so the just-shipped row appears straight away.
+    loadMyUploads();
+    // 30-sec undo — only for task-bound uploads (we have something concrete to roll back).
+    if (!isAdhoc && originatingTaskId) {
+      showUndoBanner({
+        filePaths,
+        creativeId: createdCreativeId,
+        taskId: originatingTaskId,
+        oldTaskStatus,
+        taskTitle: baseCreativeName
+      });
+    }
     setTimeout(() => { resetForm(); }, 1600);
   } else if (successCount > 0) {
     btn.textContent = `⚠️ ${successCount}/${total} uploaded — ${errors.length} failed`;
@@ -2056,6 +2257,10 @@ function briefReset() {
   loadBriefTasks();
 }
 </script>
+
+<!-- Undo banner: appears for 30s after a successful upload — lets the designer
+     cancel an accidental send. Click 'Undo' → delete files + creative row. -->
+<div id="undo-banner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:24px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:99999;font-family:'Poppins',sans-serif;font-size:13px;display:flex;align-items:center;gap:14px"></div>
 
 <!-- Persistent yellow dot - always visible, always links home -->
 <a href="https://madebyyellow.com" target="_self" style="position:fixed;bottom:20px;right:20px;z-index:999999;pointer-events:all;width:42px;height:42px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,0.18);cursor:pointer;font-size:18px;color:#000;font-weight:700" title="Go to Made By Yellow"></a>
