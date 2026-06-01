@@ -105,6 +105,8 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
   box-shadow:0 4px 12px rgba(254,188,6,0.35);
 }
 .upload-btn:hover { opacity:0.88; }
+.upload-btn:disabled { background:#e0ddd8; color:#999; cursor:not-allowed; box-shadow:none; }
+.upload-btn:disabled:hover { opacity:1; }
 .err { color:#c0392b; font-size:11px; display:none; margin-top:6px; }
 .success { display:none; text-align:center; padding:20px 0; }
 .success-icon { font-size:48px; margin-bottom:12px; }
@@ -312,7 +314,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
         </div>
         <div class="err" id="err-msg"></div>
 
-        <button class="upload-btn" id="submit-btn" onclick="submitUpload()">⚡ Upload to Portal</button>
+        <button class="upload-btn" id="submit-btn" onclick="submitUpload()" disabled>Pick a task first to enable upload</button>
         </div><!-- /creative-mode -->
 
         <!-- BRIEF / DOC MODE — for SPOCs & copywriters. Hidden until tab clicked -->
@@ -322,7 +324,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
 
           <div class="field">
             <label>Your name</label>
-            <select id="brief-uploader">
+            <select id="brief-uploader" onchange="updateUploadButtonState()">
               <option value="">Pick who's uploading</option>
               <option>Viplav</option><option>Suriti</option><option>Kritya</option><option>Siddhesh</option>
               <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
@@ -333,7 +335,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
 
           <div class="field">
             <label>Task</label>
-            <select id="brief-task">
+            <select id="brief-task" onchange="updateUploadButtonState()">
               <option value="">Loading open tasks…</option>
             </select>
             <div style="font-size:11px;color:var(--muted);margin-top:6px">File goes into the project folder, visible to client.</div>
@@ -354,7 +356,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
           </div>
           <div class="err" id="brief-err-msg"></div>
 
-          <button class="upload-btn" id="brief-submit-btn" onclick="submitBriefUpload()">📋 Upload Brief / Doc</button>
+          <button class="upload-btn" id="brief-submit-btn" onclick="submitBriefUpload()" disabled>Pick a task first to enable upload</button>
 
           <div id="brief-success" style="display:none;text-align:center;padding:20px 0">
             <div style="font-size:42px;margin-bottom:8px">✅</div>
@@ -1219,6 +1221,7 @@ function handleFile(input,file){
   document.getElementById('drop-icon').textContent=files.length===1?'✅':'📚';
   document.getElementById('drop-text').style.display='none';
   dz.style.borderColor='#FEBC06';
+  if (typeof updateUploadButtonState === 'function') updateUploadButtonState();
 }
 
 function showErr(msg){const e=document.getElementById('err-msg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4000);}
@@ -1370,17 +1373,66 @@ async function onDesignerChange() {
   }
 }
 
+// ===== UPLOAD LOCK =====
+// Suriti's rule (2026-06-01): "no upload without task and clear client name -
+// every task to have a client name." Studio's submit buttons are DISABLED by
+// default and only enabled when:
+//   Creative: designer + task picked + task has a client + file(s) selected
+//   Brief:    uploader + task picked + file(s) selected
+// Defends against the old "& Creatives" orphan pattern (uploads with no task
+// that landed in random folders). Called from every form-changing event below.
+function updateUploadButtonState() {
+  // ---- Creative tab ----
+  const cBtn = document.getElementById('submit-btn');
+  if (cBtn) {
+    const designer = (document.getElementById('q-designer') || {}).value || '';
+    const taskVal  = (document.getElementById('q-task')     || {}).value || '';
+    const client   = (document.getElementById('q-client')   || {}).value || '';
+    const fileEl   = document.getElementById('q-file');
+    const hasFile  = !!(fileEl && fileEl.files && fileEl.files.length);
+    if (designer && taskVal && client && hasFile) {
+      cBtn.disabled = false;
+      cBtn.textContent = '⚡ Upload to Portal';
+    } else {
+      cBtn.disabled = true;
+      cBtn.textContent = !designer ? 'Pick your name to continue'
+        : !taskVal  ? 'Pick a task to continue'
+        : !client   ? 'This task has no client — ask Suriti to tag it'
+        : !hasFile  ? 'Pick a file to upload'
+        : 'Pick a task first to enable upload';
+    }
+  }
+  // ---- Brief / Doc tab ----
+  const bBtn = document.getElementById('brief-submit-btn');
+  if (bBtn) {
+    const bUploader = (document.getElementById('brief-uploader') || {}).value || '';
+    const bTask     = (document.getElementById('brief-task')     || {}).value || '';
+    const bHasFile  = Array.isArray(briefSelectedFiles) && briefSelectedFiles.length > 0;
+    if (bUploader && bTask && bHasFile) {
+      bBtn.disabled = false;
+      bBtn.textContent = '📋 Upload Brief / Doc';
+    } else {
+      bBtn.disabled = true;
+      bBtn.textContent = !bUploader ? 'Pick your name to continue'
+        : !bTask    ? 'Pick a task to continue'
+        : !bHasFile ? 'Pick a file to upload'
+        : 'Pick a task first to enable upload';
+    }
+  }
+}
+
 function onTaskChange() {
   const val = document.getElementById('q-task').value;
   const clientSel = document.getElementById('q-client');
   const clientInfo = document.getElementById('client-info');
   const clientDisplay = document.getElementById('q-client-display');
-  document.getElementById('creative-name-field').style.display = val === 'adhoc' ? 'block' : 'none';
+  document.getElementById('creative-name-field').style.display = 'none';
 
   // Hide client info if nothing's picked yet
-  if (val === '' || val === 'adhoc') {
+  if (val === '') {
     clientSel.value = '';
     if (clientInfo) clientInfo.style.display = 'none';
+    updateUploadButtonState();
     return;
   }
 
@@ -1389,6 +1441,7 @@ function onTaskChange() {
   if (!task) {
     clientSel.value = '';
     if (clientInfo) clientInfo.style.display = 'none';
+    updateUploadButtonState();
     return;
   }
 
@@ -1409,6 +1462,7 @@ function onTaskChange() {
     if (clientInfo) clientInfo.style.display = 'block';
     if (clientDisplay) clientDisplay.innerHTML = `<span style="color:#b91c1c;font-size:13px">⚠️ This task has no client tagged.<br><span style="font-weight:400;font-size:12px;color:#666">Ask Suriti to tag it on Founder OS first — uploads need a client to route to the right folder.</span></span>`;
   }
+  updateUploadButtonState();
 }
 
 async function submitUpload(){
@@ -1700,18 +1754,13 @@ async function submitUpload(){
           console.error('First-time submission save failed:', e);
         }
       } else {
-        // Adhoc / standalone creative (no originating task)
-        try {
-          const insRes = await sb.from('creatives').insert({
-            name: baseCreativeName, designer, client,
-            status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
-          });
-          if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
-          recordSaved = true;
-        } catch(e) {
-          saveError = e.message || String(e);
-          console.error('Adhoc creative insert failed:', e);
-        }
+        // Defence in depth — by policy (locked 2026-06-01) every upload must be
+        // tied to a task with a client. The Upload button is now disabled until
+        // both are picked, the dropdown has no 'adhoc' option, and submitUpload
+        // validates both upstream. If we still ended up here it means someone
+        // bypassed the form (DOM tamper). Refuse to create the orphan row.
+        saveError = 'Refusing to save an upload with no task — Studio is locked to task-bound uploads.';
+        console.error(saveError);
       }
 
       // Only ping reviewers when the row actually landed — otherwise Suriti gets
@@ -1880,6 +1929,7 @@ function briefHandleFile(input) {
     out.style.display = 'none';
     out.innerHTML = '';
   }
+  if (typeof updateUploadButtonState === 'function') updateUploadButtonState();
 }
 
 async function submitBriefUpload() {
