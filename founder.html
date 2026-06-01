@@ -2298,6 +2298,8 @@ function enterFounder() {
   loadHR();
   renderAgentChat();
   renderRecents();
+  // Pull any sessions saved on other devices/browsers into the Recents pane.
+  syncSessionsFromDB();
   startISTClockFounder();
   startChatPollingFounder();
   setupMobileMenuFounder();
@@ -2485,6 +2487,61 @@ function saveSessions() {
   try { if (currentSessionId) localStorage.setItem('yos-current-session', currentSessionId); } catch(e) {}
 }
 
+// ====== DB-backed Recents (so chats survive browser / device switches) ======
+// Yellow Agent chats lived ONLY in this device's localStorage — open the portal
+// on another browser and the Recents pane was empty. Now we mirror sessions to
+// `agent_chat_sessions` in Supabase so Recents follows the user everywhere.
+async function syncSessionsFromDB() {
+  try {
+    if (typeof sb === 'undefined' || !sb || !currentUser) return;
+    const { data, error } = await sb.from('agent_chat_sessions')
+      .select('*').eq('user_name', currentUser)
+      .order('updated_at', { ascending: false });
+    if (error || !Array.isArray(data) || !data.length) return;
+    const byId = new Map(chatSessions.map(s => [s.id, s]));
+    for (const r of data) {
+      const dbUpdated = r.updated_at ? new Date(r.updated_at).getTime() : 0;
+      const local = byId.get(r.id);
+      if (!local || (local.updatedAt || 0) < dbUpdated) {
+        byId.set(r.id, {
+          id: r.id, agent: r.agent, title: r.title,
+          history: r.history || [], display: r.display || [],
+          updatedAt: dbUpdated
+        });
+      }
+    }
+    chatSessions = Array.from(byId.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    try { localStorage.setItem('yos-chat-sessions', JSON.stringify(chatSessions)); } catch(e) {}
+    renderRecents();
+  } catch(e) { console.warn('Sessions DB sync failed:', e); }
+}
+
+async function pushSessionToDB(s) {
+  if (!s || !s.id || typeof sb === 'undefined' || !sb || !currentUser) return;
+  try {
+    // Try update first (the common path once a session exists). If nothing
+    // updated, insert. PostgREST returns the updated rows so we can tell.
+    const updRes = await sb.from('agent_chat_sessions').update({
+      agent: s.agent, title: s.title,
+      history: s.history, display: s.display,
+      updated_at: new Date(s.updatedAt || Date.now()).toISOString()
+    }).eq('id', s.id);
+    if (!updRes || !Array.isArray(updRes.data) || updRes.data.length === 0) {
+      await sb.from('agent_chat_sessions').insert({
+        id: s.id, user_name: currentUser, agent: s.agent, title: s.title,
+        history: s.history, display: s.display,
+        updated_at: new Date(s.updatedAt || Date.now()).toISOString()
+      });
+    }
+  } catch(e) { console.warn('Session DB push failed:', e); }
+}
+
+async function deleteSessionFromDB(sessionId) {
+  if (!sessionId || typeof sb === 'undefined' || !sb) return;
+  try { await sb.from('agent_chat_sessions').delete().eq('id', sessionId); }
+  catch(e) { console.warn('Session DB delete failed:', e); }
+}
+
 function currentSession() {
   return chatSessions.find(s => s.id === currentSessionId);
 }
@@ -2515,6 +2572,8 @@ function deleteSession(sessionId, ev) {
   chatSessions = chatSessions.filter(s => s.id !== sessionId);
   if (currentSessionId === sessionId) currentSessionId = chatSessions[0]?.id || null;
   saveSessions();
+  // Remove from DB too so it doesn't reappear on the next syncSessionsFromDB.
+  deleteSessionFromDB(sessionId);
   renderAgentChat();
   renderRecents();
 }
@@ -2707,6 +2766,8 @@ async function sendChat() {
 
   document.getElementById('loading').style.display = 'none';
   saveSessions();
+  // Mirror the session to Supabase so it shows up on other devices/browsers.
+  pushSessionToDB(s);
 }
 
 // ====== REMINDERS ======
@@ -5339,49 +5400,74 @@ async function renderReview() {
       }).join('');
     }
 
-    // ===== HISTORY (read-only) =====
+    // ===== HISTORY (read-only) — split into APPROVED vs OTHER so reviewers can
+    // see at a glance what's been client-approved vs what's still in motion
+    // (rework / rejected / mid-client-review). Suriti's ask: "once a few tasks
+    // are approved, they should be in second line so we all know whats approved
+    // and what rework." Approved gets its own green-tinted strip above the rest.
     if (history.length) {
       window._reviewHistoryAll = history; // stash for "Show all" toggle
-      const showAll = window._reviewShowAll === true;
-      const PAGE_SIZE = 25;
-      const visible = showAll ? history : history.slice(0, PAGE_SIZE);
-      const hiddenCount = history.length - visible.length;
 
-      html += `<div style="margin-top:24px"><div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Recent History · ${history.length}</div>
-        <div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
+      const isApproved = c => /^(approved|client approved|open files|closed)$/i.test(c.Status || '');
+      const approvedItems = history.filter(isApproved);
+      const otherItems    = history.filter(c => !isApproved(c));
+
+      // Shared row renderer for both strips — same columns, same styling.
+      const renderRow = (c) => {
+        const parts = c.Task.split('|');
+        const fallbackName = (parts[0] || '').trim();
+        const designer = (parts[1] || '').trim();
+        const name = c.Title || fallbackName;
+        const clientLabel = CLIENT_LABELS[c.Assignee] || c.Assignee || '—';
+        const pill = pillFor(c.Status, c.Notes);
+        const notes = (c.Notes || '').trim();
+        const linkBtn = c['Preview Link']
+          ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
+          : '<span style="color:var(--muted);font-size:11px">—</span>';
+        const safeTask = encodeURIComponent(c.Task);
+        return `<div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <div>
+            <div style="font-weight:600">${name}</div>
+            ${notes ? `<div style="font-size:11px;color:#666;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
+          </div>
+          <span style="color:var(--muted);font-size:12px">${designer}</span>
+          <span style="font-size:12px">${clientLabel}</span>
+          <span style="background:${pill.bg};color:${pill.color};border:1px solid ${pill.border};padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-align:center">${pill.label}</span>
+          <span style="color:var(--muted);font-size:11px">${c.Date || '—'}</span>
+          ${linkBtn}
+          <button onclick="deleteReview('${safeTask}', '${(name || '').replace(/'/g, "\\'")}')" title="Delete from sheet" style="background:transparent;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:4px" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">🗑️</button>
+        </div>`;
+      };
+      const headerRow = `<div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
           <span>Creative</span><span>Designer</span><span>Client</span><span>Status</span><span>Date</span><span></span><span></span>
-        </div>
-        ${visible.map(c => {
-          const parts = c.Task.split('|');
-          const fallbackName = (parts[0] || '').trim();
-          const designer = (parts[1] || '').trim();
-          const name = c.Title || fallbackName;
-          const clientLabel = CLIENT_LABELS[c.Assignee] || c.Assignee || '—';
-          const pill = pillFor(c.Status, c.Notes);
-          const notes = (c.Notes || '').trim();
-          const linkBtn = c['Preview Link']
-            ? `<a href="${c['Preview Link']}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none;text-align:center">View ↗</a>`
-            : '<span style="color:var(--muted);font-size:11px">—</span>';
-          const safeTask = encodeURIComponent(c.Task);
-          return `<div style="display:grid;grid-template-columns:1.6fr 110px 1.2fr 140px 80px 60px 30px;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px">
-            <div>
-              <div style="font-weight:600">${name}</div>
-              ${notes ? `<div style="font-size:11px;color:#666;margin-top:4px;line-height:1.4">💬 ${notes}</div>` : ''}
-            </div>
-            <span style="color:var(--muted);font-size:12px">${designer}</span>
-            <span style="font-size:12px">${clientLabel}</span>
-            <span style="background:${pill.bg};color:${pill.color};border:1px solid ${pill.border};padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-align:center">${pill.label}</span>
-            <span style="color:var(--muted);font-size:11px">${c.Date || '—'}</span>
-            ${linkBtn}
-            <button onclick="deleteReview('${safeTask}', '${(name || '').replace(/'/g, "\\'")}')" title="Delete from sheet" style="background:transparent;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px 6px;border-radius:4px" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">🗑️</button>
-          </div>`;
-        }).join('')}
-        ${hiddenCount > 0 ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
-          <button onclick="window._reviewShowAll=true;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↓ Show all ${history.length} items (${hiddenCount} more)</button>
-        </div>` : (showAll && history.length > PAGE_SIZE ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
-          <button onclick="window._reviewShowAll=false;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↑ Show less</button>
-        </div>` : '')}
-      </div>`;
+        </div>`;
+
+      // ---- ✅ APPROVED strip (green-tinted section header) ----
+      if (approvedItems.length) {
+        html += `<div style="margin-top:24px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px">
+          <div style="font-size:11px;color:#15803d;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">✅ Approved · ${approvedItems.length}</div>
+          ${headerRow}
+          ${approvedItems.map(renderRow).join('')}
+        </div>`;
+      }
+
+      // ---- OTHER history (Rejected, Client Review, Scrapped, etc.) ----
+      if (otherItems.length) {
+        const showAll = window._reviewShowAll === true;
+        const PAGE_SIZE = 25;
+        const visible = showAll ? otherItems : otherItems.slice(0, PAGE_SIZE);
+        const hiddenCount = otherItems.length - visible.length;
+
+        html += `<div style="margin-top:24px"><div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Recent History · ${otherItems.length}</div>
+          ${headerRow}
+          ${visible.map(renderRow).join('')}
+          ${hiddenCount > 0 ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
+            <button onclick="window._reviewShowAll=true;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↓ Show all ${otherItems.length} items (${hiddenCount} more)</button>
+          </div>` : (showAll && otherItems.length > PAGE_SIZE ? `<div style="padding:14px 0;text-align:center;border-top:1px dashed var(--border)">
+            <button onclick="window._reviewShowAll=false;renderReview()" style="background:transparent;border:1px solid var(--border);color:#666;font-size:12px;padding:6px 18px;border-radius:16px;cursor:pointer;font-family:'Poppins',sans-serif;font-weight:600">↑ Show less</button>
+          </div>` : '')}
+        </div>`;
+      }
     }
 
     el.innerHTML = html;

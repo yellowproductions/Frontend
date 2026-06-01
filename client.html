@@ -2168,9 +2168,97 @@ async function submitAction(uid, folder, idx, action) {
       if (spoc && spoc !== designerName) notifyInApp(spoc, notifType, baseMsg, { actor: clientName, taskId: taskIdForNotif });
     } catch(e) { console.warn('client action notif writes failed:', e); }
 
-    // NOTE: removed the on-approval Dropbox move. In the new folder model,
-    // the file already lives in the client's project folder (team.html
-    // moved it there on approve). No further move needed on client approval.
+    // ==== Client-approve → move files /REVIEW/ → /[Client]/Creatives/[Project]/ ====
+    // The deferred Day-9 move step. Until now, neither team.html nor client.html
+    // actually moved files — both files' comments pointed at the other. So files
+    // stayed in /REVIEW/ forever and the project_folder_link kept pointing at the
+    // review staging folder (Suriti's policy makes that OK as a placeholder, but
+    // the real project folder should hold the final approved files).
+    //
+    // Fire-and-forget — the UI already showed the approval, the move can settle
+    // in the background. On success: update the creative + task to point at the
+    // new permanent /[Client]/Creatives/[Project]/ location.
+    if (action === 'Approved' && item._sb_id) {
+      (async () => {
+        try {
+          // Load creative + linked task so we know what to move and where.
+          const { data: cRow } = await sb.from('creatives')
+            .select('id, task_id, name, client, file_urls')
+            .eq('id', item._sb_id).single();
+          if (!cRow || !cRow.task_id) return;            // ad-hoc creatives skip
+          const { data: tRow } = await sb.from('tasks')
+            .select('id, title, client').eq('id', cRow.task_id).single();
+          if (!tRow) return;
+
+          const clientName  = (tRow.client || cRow.client || '').trim();
+          const projectName = (tRow.title || cRow.name || 'Untitled')
+            .replace(/[\\/:*?"<>|]/g, '-').trim();
+          if (!clientName || !projectName) return;
+          const destFolder = `/${clientName}/Creatives/${projectName}`;
+
+          const sources = Array.isArray(cRow.file_urls) ? cRow.file_urls : [];
+          if (!sources.length) return;
+
+          // Move every file. Each call resolves the share URL → internal path
+          // on the backend, ensures the destination folder, then moves.
+          let moved = 0;
+          for (const src of sources) {
+            const origName = (String(src).split('/').pop() || 'file').split('?')[0];
+            try {
+              const r = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ fromPath: src, toFolder: destFolder, toFilename: origName })
+              });
+              const d = await r.json().catch(() => ({}));
+              if (r.ok && d.success) moved++;
+              else console.warn('Approve-move: file move failed', origName, d);
+            } catch(e) { console.warn('Approve-move: file move error', origName, e.message); }
+          }
+          // If not a single file moved, don't relink — review link stays as the
+          // placeholder, which still works for the client + team.
+          if (moved === 0) return;
+
+          // Resolve the destination FOLDER share URL — the new permanent project link.
+          let folderUrl = '';
+          try {
+            const fres = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ folderPath: destFolder })
+            });
+            const fdata = await fres.json().catch(() => ({}));
+            if (fdata.success) folderUrl = fdata.url || '';
+          } catch(e) { console.warn('Approve-move: dest folder share failed', e); }
+          if (!folderUrl) return;
+
+          // Refresh per-file share URLs for the moved files (so thumbnails still work).
+          const newFileUrls = [];
+          for (const src of sources) {
+            const origName = (String(src).split('/').pop() || 'file').split('?')[0];
+            try {
+              const r = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ folderPath: `${destFolder}/${origName}` })
+              });
+              const d = await r.json().catch(() => ({}));
+              if (d.success && d.url) newFileUrls.push(d.url);
+            } catch(e) { /* per-file share is nice-to-have */ }
+          }
+
+          // Stamp the new permanent home on both creative + task.
+          await sb.from('creatives').update({
+            preview_link: folderUrl,
+            dropbox_path: destFolder,
+            ...(newFileUrls.length ? { file_urls: newFileUrls } : {})
+          }).eq('id', cRow.id);
+          await sb.from('tasks').update({
+            project_folder_link: folderUrl,
+            creative_link: folderUrl
+          }).eq('id', cRow.task_id);
+        } catch(e) {
+          console.warn('Approve-move flow failed (review link stays as placeholder):', e);
+        }
+      })();
+    }
 
     // Email designer for Comment and Rejected
     if (designerEmail && (action === 'Comment' || action === 'Rejected')) {
