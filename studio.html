@@ -1123,18 +1123,24 @@ function sanitizeProjectName(raw) {
     .trim() || 'Untitled';
 }
 
-// Build all 4 folder paths for a given task.
-// Returns { parent, doc, creative, open, review } — review is the staging folder.
+// Build folder paths for a given task.
+// New model (locked 2026-06-01): ONE folder per task, no Doc/Creative/Open
+// subfolders. Parent bucket renamed from /Creatives/ to /Projects/.
+//   project = /[Client]/Projects/[Task]/   ← final home, everything together
+//   review  = /REVIEW/[Task]/              ← staging during review
+// Legacy field names (parent/doc/creative/open) are aliased to `project` so
+// any old caller naturally writes into the single project folder.
 function projectPaths(clientName, projectName) {
   const safe = sanitizeProjectName(projectName);
   const base = clientFolder(clientName);  // e.g. "/Marico"
+  const project = `${base}/Projects/${safe}`;
   return {
-    // Project work nests under the client's Creatives/ folder, so it never mixes
-    // with reference folders (Brand Guidelines, Image Bank) at the client root.
-    parent:   `${base}/Creatives/${safe}`,
-    doc:      `${base}/Creatives/${safe}/Doc`,
-    creative: `${base}/Creatives/${safe}/Creative`,
-    open:     `${base}/Creatives/${safe}/Open`,
+    project,
+    // Legacy aliases — all collapse to the single per-task folder
+    parent:   project,
+    doc:      project,
+    creative: project,
+    open:     project,
     review:   `/REVIEW/${safe}`
   };
 }
@@ -1560,7 +1566,18 @@ async function submitUpload(){
     sessionFolder = `/REVIEW/${adhocSafe}`;
   } else {
     const paths = projectPaths(client, projectName);
-    sessionFolder = isOpenFile ? paths.open : paths.review;
+    // Open files: status-conditional routing per the locked flow (2026-06-01).
+    //   PRE client-approval  → /REVIEW/[Task]/  (will ride with creative on approval)
+    //   POST client-approval → /[Client]/Projects/[Task]/  (direct handoff, no review)
+    // Everything else (creatives, briefs handled in their own flow) stages in /REVIEW/.
+    if (isOpenFile) {
+      const taskItem = myTasks[parseInt(taskVal)];
+      const st = String((taskItem && taskItem.Status) || '').toLowerCase();
+      const postApproval = ['open files','open file','closed','approved'].includes(st);
+      sessionFolder = postApproval ? paths.project : paths.review;
+    } else {
+      sessionFolder = paths.review;
+    }
   }
   // Final defensive sanitization — strip anything Dropbox might choke on
   sessionFolder = sessionFolder.replace(/[\u007f-\uffff]/g, '');
@@ -1626,31 +1643,32 @@ async function submitUpload(){
     // overwritten to /Project/Creative/ on client approval (team.html).
     if (folderUrl && originatingTaskId && !isAdhoc) {
       const which = isOpenFile ? 'open' : 'creative';
-      // Creative uploads: DON'T touch /[Client]/Creatives/[Project] now — calling
-      // shareFolderUrl on it would create an empty twin of the review folder
-      // (the dup bug). But DO stamp project_folder_link = the /REVIEW/ url so
-      // the task immediately shows a working folder link to the uploaded files
-      // (Suriti's policy: a review link is an OK placeholder; gets upgraded to
-      // /Project/Creative/ when files move there on client approval).
-      // OPEN files truly live in the project folder — resolve it (creates it
-      // via ensureFolder) and stamp that real URL.
-      let parentUrl = folderUrl;  // default = /REVIEW/ url (creative case)
-      if (isOpenFile) {
-        try {
-          const paths = projectPaths(client, baseCreativeName);
-          parentUrl = await shareFolderUrl(paths.parent);
-        } catch(e) { console.warn('parent path resolution failed:', e.message); }
-      }
-      await stampTaskLinks(originatingTaskId, which, folderUrl, parentUrl);
+      // New model: stamp project_folder_link with WHERE THE FILES JUST LANDED.
+      //   Creative + brief + pre-approval open file → /REVIEW/[Task]/ URL
+      //   Post-approval open file → /[Client]/Projects/[Task]/ URL
+      // The designer (and client) clicking "Project" on the task immediately
+      // see a working folder link. On client approval the link upgrades when
+      // the move flow runs in client.html.
+      await stampTaskLinks(originatingTaskId, which, folderUrl, folderUrl);
     }
 
     if (isOpenFile) {
-      // OPEN FILE flow — patch the task's Open File Link, and move it to Closed
-      // (Batch 2B): uploading the source files is the final step of the task.
-      if (originalTaskText) {
+      // POST-approval open file = handoff complete → close the task.
+      // PRE-approval open file = waiting in /REVIEW/ → don't touch task status
+      // (creative is still in the review chain; status will progress with it).
+      const taskItemForStatus = (typeof taskVal !== 'undefined') ? myTasks[parseInt(taskVal)] : null;
+      const stNow = String((taskItemForStatus && taskItemForStatus.Status) || '').toLowerCase();
+      const postApprovalForClose = ['open files','open file','closed','approved'].includes(stNow);
+      if (postApprovalForClose && originalTaskText) {
         fetch(SHEETDB, {
           method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
           body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink, Status: 'Closed' } })
+        });
+      } else if (originalTaskText) {
+        // pre-approval — just stamp the Open File Link; status stays as-is.
+        fetch(SHEETDB, {
+          method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+          body: JSON.stringify({ action:'patch', sheet:'Type:tasks', matchColumn:'Task', matchValue: originalTaskText, data: { 'Open File Link': previewLink } })
         });
       } else {
         const row = { Date: new Date().toISOString().split('T')[0], Task: `${baseCreativeName} | ${designer}`, Assignee: client, Status:'Open File', 'Open File Link': previewLink, Type:'open' };
@@ -1956,11 +1974,14 @@ async function submitBriefUpload() {
 
     const client = tRow.client;
     const titleRaw = tRow.title || 'Untitled';
-    // Day 9: briefs land in /Project/Doc/, not the project root.
+    // New model: briefs land in /REVIEW/[Task]/ (silent — no review card created).
+    // They wait there alongside any creatives, and ride along when the creative
+    // for this task gets client-approved (move flow in client.html picks up
+    // everything in /REVIEW/[Task]/).
     const paths = projectPaths(client, titleRaw);
-    const sessionFolder = paths.doc;
+    const sessionFolder = paths.review;
 
-    // Upload each file into the Doc sub-folder
+    // Upload each brief file into the REVIEW folder.
     let done = 0;
     for (const f of briefSelectedFiles) {
       const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1975,13 +1996,13 @@ async function submitBriefUpload() {
       fill.style.width = `${Math.floor((done / briefSelectedFiles.length) * 85)}%`;
     }
 
-    // Get share URLs for the Doc sub-folder + the parent project folder.
-    // Both are idempotent (same path always returns same URL).
-    const docUrl    = await shareFolderUrl(paths.doc);
-    const parentUrl = await shareFolderUrl(paths.parent);
-
-    // Stamp doc_link + project_folder_link on task (non-destructive).
-    await stampTaskLinks(taskId, 'doc', docUrl, parentUrl);
+    // Stamp project_folder_link with the /REVIEW/[Task]/ URL so the designer
+    // clicking "Project" on the task immediately sees the brief. On client
+    // approval the link upgrades to the /Projects/[Task]/ URL.
+    const reviewUrl = await shareFolderUrl(paths.review);
+    if (reviewUrl) {
+      await stampTaskLinks(taskId, 'doc', reviewUrl, reviewUrl);
+    }
 
     fill.style.width = '100%';
     // Hide the form fields + button, show inline success state
