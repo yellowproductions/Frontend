@@ -1569,14 +1569,15 @@ async function submitUpload(){
     // overwritten to /Project/Creative/ on client approval (team.html).
     if (folderUrl && originatingTaskId && !isAdhoc) {
       const which = isOpenFile ? 'open' : 'creative';
-      // Only OPEN files actually live in the project folder at upload time, so
-      // only then do we touch /[Client]/Creatives/[Project]. Creative files stage
-      // in /REVIEW/ until client approval — asking for that folder's share link
-      // here would CREATE it empty (ensureFolder), spawning a duplicate twin of
-      // the review folder (the bug Suriti saw). The project folder gets created
-      // when files MOVE there on approval; until then project_folder_link is left
-      // alone (set by the move step / her manual curation).
-      let parentUrl = '';
+      // Creative uploads: DON'T touch /[Client]/Creatives/[Project] now — calling
+      // shareFolderUrl on it would create an empty twin of the review folder
+      // (the dup bug). But DO stamp project_folder_link = the /REVIEW/ url so
+      // the task immediately shows a working folder link to the uploaded files
+      // (Suriti's policy: a review link is an OK placeholder; gets upgraded to
+      // /Project/Creative/ when files move there on client approval).
+      // OPEN files truly live in the project folder — resolve it (creates it
+      // via ensureFolder) and stamp that real URL.
+      let parentUrl = folderUrl;  // default = /REVIEW/ url (creative case)
       if (isOpenFile) {
         try {
           const paths = projectPaths(client, baseCreativeName);
@@ -1602,10 +1603,17 @@ async function submitUpload(){
         });
       }
     } else {
-      // FINAL FILE flow — one creative row per session with folder URL + thumbnail URLs
+      // FINAL FILE flow — one creative row per session with folder URL + thumbnail URLs.
+      // We track whether the DB record actually landed, because the gateway shim
+      // returns {error:{...}} on failure WITHOUT throwing — so a naive try/catch
+      // would let us silently flip the task to SPOC Review + ping reviewers about
+      // a "new review" that doesn't exist in the queue. That's exactly what
+      // happened to Macroons Visiting Card (files in Dropbox, no creative row).
+      let recordSaved = false;
+      let saveError = '';
+
       if (isRework) {
         // Rework: patch existing creative, append new file URLs to whatever's there.
-        // Direct Supabase update via name/designer match — handles the append cleanly.
         try {
           const { data: existing } = await sb.from('creatives')
             .select('id, file_urls, task_id, rejected_files')
@@ -1624,13 +1632,15 @@ async function submitUpload(){
                 body: JSON.stringify({ urls: rejectedUrls })
               }).catch(e => console.warn('Rejected-file cleanup failed:', e.message));
             }
-            await sb.from('creatives').update({
+            const updRes = await sb.from('creatives').update({
               status: 'Pending Review',
               preview_link: previewLink,
               file_urls: [...prev, ...fileUrls],
               review_note: null,
               rejected_files: []
             }).eq('id', existing[0].id);
+            if (updRes && updRes.error) throw new Error(updRes.error.message || 'creative update failed');
+            recordSaved = true;
             // Cascade: move the linked task to SPOC Review so Suriti and team
             // see the re-submitted task in review state, mirroring the creative.
             if (existing[0].task_id) {
@@ -1646,25 +1656,31 @@ async function submitUpload(){
             }
           } else {
             // Edge case — creative not found, fall back to insert
-            await sb.from('creatives').insert({
+            const insRes = await sb.from('creatives').insert({
               name: baseCreativeName, designer, client,
               status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
             });
+            if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
+            recordSaved = true;
           }
         } catch(e) {
-          console.error('Rework update failed:', e);
+          saveError = e.message || String(e);
+          console.error('Rework save failed:', e);
         }
       } else if (originalTaskText) {
         // First-time submission against a task. Create the creative directly in
         // Supabase WITH task_id — that link is what lets the review→approve
-        // cascade move the task later. Also move the originating task to
-        // 'SPOC Review' so it leaves 'Pending' the moment the designer submits.
+        // cascade move the task later. The task only flips to 'SPOC Review' AFTER
+        // we confirm the creative row landed (so we don't end up with a task in
+        // review state but nothing in the review queue).
         try {
-          await sb.from('creatives').insert({
+          const insRes = await sb.from('creatives').insert({
             name: baseCreativeName, designer, client,
             status: 'Pending Review', preview_link: previewLink,
             file_urls: fileUrls, task_id: originatingTaskId || null
           });
+          if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
+          recordSaved = true;
           if (originatingTaskId) {
             await sb.from('tasks').update({ status: 'SPOC Review' }).eq('id', originatingTaskId);
             // Ping the SPOC in their bell — Telegram broadcast below covers leads too.
@@ -1676,24 +1692,39 @@ async function submitUpload(){
               }
             } catch(e) { console.warn('SPOC notif lookup failed:', e); }
           }
-        } catch(e) { console.error('First-time submission failed:', e); }
+        } catch(e) {
+          saveError = e.message || String(e);
+          console.error('First-time submission save failed:', e);
+        }
       } else {
         // Adhoc / standalone creative (no originating task)
         try {
-          await sb.from('creatives').insert({
+          const insRes = await sb.from('creatives').insert({
             name: baseCreativeName, designer, client,
             status: 'Pending Review', preview_link: previewLink, file_urls: fileUrls
           });
-        } catch(e) { console.error('Creative insert failed:', e); }
+          if (insRes && insRes.error) throw new Error(insRes.error.message || 'creative insert failed');
+          recordSaved = true;
+        } catch(e) {
+          saveError = e.message || String(e);
+          console.error('Adhoc creative insert failed:', e);
+        }
       }
 
-      // ONE Telegram per reviewer — summarizing the whole session
-      const reviewMsg = isRework
-        ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`
-        : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`;
-      ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
-        notifyTelegram(reviewer, reviewMsg);
-      });
+      // Only ping reviewers when the row actually landed — otherwise Suriti gets
+      // a Telegram about a "new review" with nothing in her queue (Macroons bug).
+      if (recordSaved) {
+        const reviewMsg = isRework
+          ? `🔁 <b>Rework uploaded</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`
+          : `🎨 <b>New for review</b>\n\n<b>${baseCreativeName}</b>\n👤 ${designer} · ${client}\n📁 ${successCount} file${successCount>1?'s':''}\n\n<i>Any reviewer can pick this up:</i>\n<a href="https://madebyyellow.com/team.html">Open review queue →</a>`;
+        ['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].forEach(reviewer => {
+          notifyTelegram(reviewer, reviewMsg);
+        });
+      } else {
+        // Save failed — surface it so the designer knows files are in Dropbox
+        // but the review record didn't land. Picked up by the end-of-flow UI.
+        errors.push('Files uploaded but the review record could not be saved: ' + (saveError || 'unknown error'));
+      }
     }
   }
 
