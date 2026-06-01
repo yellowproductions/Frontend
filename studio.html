@@ -1983,17 +1983,34 @@ async function submitBriefUpload() {
 
     // Upload each brief file into the REVIEW folder.
     let done = 0;
+    let uploadedCount = 0;
+    const failures = [];
     for (const f of briefSelectedFiles) {
       const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const dropboxPath = `${sessionFolder}/${safeName}`;
       const fd = new FormData();
       fd.append('file', f);
-      fd.append('path', dropboxPath);
-      const ures = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body: fd });
-      const udata = await ures.json().catch(() => ({}));
-      if (!udata.success) console.warn('Brief file upload failed:', f.name, udata);
+      // Backend expects 'dropboxPath' (not 'path') — this was a silent failure
+      // for briefs since the rename; the user never saw the error.
+      fd.append('dropboxPath', dropboxPath);
+      try {
+        const ures = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body: fd });
+        const udata = await ures.json().catch(() => ({}));
+        if (udata && udata.success) uploadedCount++;
+        else failures.push(f.name + (udata && udata.error ? `: ${udata.error}` : ''));
+      } catch(e) {
+        failures.push(`${f.name}: ${e.message || 'network error'}`);
+      }
       done++;
       fill.style.width = `${Math.floor((done / briefSelectedFiles.length) * 85)}%`;
+    }
+
+    // Surface partial / total failure to the user (was silent before).
+    if (uploadedCount === 0) {
+      throw new Error('No files uploaded. ' + (failures[0] || 'Unknown error'));
+    }
+    if (failures.length) {
+      err.textContent = `Uploaded ${uploadedCount}/${briefSelectedFiles.length}. Failed: ${failures.join('; ')}`;
     }
 
     // Stamp project_folder_link with the /REVIEW/[Task]/ URL so the designer
