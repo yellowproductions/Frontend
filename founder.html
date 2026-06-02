@@ -5362,7 +5362,7 @@ async function renderReview() {
               const direct = u.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
               const isImg = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(u);
               const thumbEl = isImg
-                ? `<img src="${direct}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" onerror="this.style.display='none'" title="File ${ui+1}">`
+                ? `<img src="${direct}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" onerror="markThumbMissing(this, ${idx}, ${ui})" title="File ${ui+1}">`
                 : `<a href="${u}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1/1;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:11px;color:#666;text-decoration:none">📄 File ${ui+1}</a>`;
               return `<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
                 ${thumbEl}
@@ -5489,6 +5489,32 @@ function updateRejectCount(idx) {
 // Batch per-file reject — tick the bad files, give one shared reason (or a
 // per-file note), reject them all in a single DB write. Replaces the old
 // one-file-at-a-time flow.
+// When a review thumbnail fails to load — usually because the file was either
+// moved to /REJECTED/ via the UI but the DB row didn't catch up, OR someone
+// deleted the file directly in Dropbox — replace the broken img with a clear
+// "Missing in Dropbox" placeholder and disable the reject checkbox + per-file
+// comment for that slot. Prevents the ghost-file confusion Suriti caught
+// (5 empty boxes on the & Creatives card, file 4 on the Shoelace card).
+function markThumbMissing(imgEl, idx, ui) {
+  if (!imgEl || imgEl.dataset.marked === '1') return;
+  imgEl.dataset.marked = '1';
+  const ph = document.createElement('div');
+  ph.style.cssText = 'width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px dashed #fca5a5;background:#fef2f2;border-radius:6px;color:#991b1b;font-size:10px;text-align:center;padding:8px;cursor:default;line-height:1.3';
+  ph.innerHTML = '<div style="font-size:22px;margin-bottom:4px">⚠️</div><b>Missing</b><br>in Dropbox';
+  ph.title = "File deleted from Dropbox or already in /REJECTED/ — won't be sent to the client.";
+  imgEl.replaceWith(ph);
+  // Disable + grey the reject checkbox; the file's already gone, nothing to mark.
+  const cb = document.getElementById(`file-check-${idx}-${ui}`);
+  if (cb) {
+    cb.checked = false;
+    cb.disabled = true;
+    if (cb.parentElement) cb.parentElement.style.opacity = '0.4';
+  }
+  const ci = document.getElementById(`file-comment-${idx}-${ui}`);
+  if (ci) { ci.disabled = true; ci.placeholder = '(no file)'; ci.style.opacity = '0.5'; }
+  if (typeof updateRejectCount === 'function') updateRejectCount(idx);
+}
+
 async function rejectCheckedFiles(idx) {
   const item = window._reviewItems && window._reviewItems[idx];
   if (!item) return;
