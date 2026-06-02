@@ -3064,10 +3064,9 @@ async function toggleUpdateTick(encodedTask, lineIdx) {
     console.warn('toggleUpdateTick: task not found', taskKey);
     return;
   }
-  const updates = (task.Update || '').trim();
-  if (!updates) return;
-  const lines = updates.split('\n').filter(l => l.trim());
-  if (lineIdx < 0 || lineIdx >= lines.length) return;
+  const oldUpdate = task.Update || '';
+  const lines = oldUpdate.trim().split('\n').filter(l => l.trim());
+  if (!lines.length || lineIdx < 0 || lineIdx >= lines.length) return;
 
   // Flip tick state on this line only
   if (/^✓\s/.test(lines[lineIdx])) {
@@ -3077,21 +3076,45 @@ async function toggleUpdateTick(encodedTask, lineIdx) {
   }
   const newUpdate = lines.join('\n');
 
-  // Optimistic local update + trigger a fresh render with the new state
+  // Optimistic local update — render immediately so the tick feels instant.
   task.Update = newUpdate;
   loadTasks();
 
-  // Persist to the sheet — fire and forget
+  // AWAIT the patch (was fire-and-forget — the optimistic change got clobbered
+  // by the parallel loadTasks() fetching the pre-patch state from DB). The
+  // interceptor returns a synthetic 200 on a successful Supabase mirror, 500
+  // if the gateway rejects. On 401-ish responses, kick the user to re-login —
+  // the silent stale-token failure was why ticks "did nothing."
   try {
-    fetch(SHEETDB, {
-      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+    const resp = await fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({
         action:'patch', sheet:'Type:tasks', matchColumn:'Task',
         matchValue: taskKey, data: { Update: newUpdate }
       })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not save tick';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        // Revert the optimistic change so the UI matches reality.
+        task.Update = oldUpdate;
+        loadTasks();
+        _forceTeamLogin('Your session expired — please log in again, then re-tick.');
+        return;
+      }
+      // Other failure — revert and show a brief toast.
+      task.Update = oldUpdate;
+      loadTasks();
+      alert('Could not save: ' + errMsg);
+    } else {
+      // Refresh once more so any cascading server-side state lands cleanly.
+      loadTasks();
+    }
   } catch(e) {
-    console.warn('toggleUpdateTick patch failed', e);
+    task.Update = oldUpdate;
+    loadTasks();
+    alert('Could not save tick: ' + (e.message || 'network error'));
   }
 }
 
@@ -3174,7 +3197,7 @@ function renderTaskRows(tasks, startIdx) {
               ? `<span class="fos-spoc-text">🎯 ${esc(t.SPOC)}</span>`
               : `<span class="fos-spoc-text" style="color:#c4c1b8">🎯 —</span>`}</div>
             <div class="fos-cell" onclick="event.stopPropagation()">
-              <select id="status-dropdown-${idx}" class="fos-status-select" style="${selectStyle}" onchange="updateStatusFromDropdown(${idx}, '${taskKey}')">
+              <select id="status-dropdown-${idx}" class="fos-status-select" style="${selectStyle}" data-prev-status="${status}" onchange="updateStatusFromDropdown(${idx}, '${taskKey}')">
                 <option ${status==='Pending'?'selected':''}>Pending</option>
                 <option ${status==='In Progress'?'selected':''}>In Progress</option>
                 <option ${status==='SPOC Review'?'selected':''}>SPOC Review</option>
@@ -3755,28 +3778,52 @@ async function updateStatusFromDropdown(idx, encodedTask) {
   const dd = document.getElementById(`status-dropdown-${idx}`);
   const newStatus = dd.value;
   if (!newStatus) return;
-  // Repaint dropdown colour immediately so the user sees the change without refresh
+  // Remember the previous value to roll back on failure.
+  const prevStatus = dd.getAttribute('data-prev-status') || dd.dataset.prevStatus || '';
+  dd.setAttribute('data-prev-status', newStatus);
+  // Repaint dropdown colour immediately so the user sees the change without refresh.
   const newStyle = STATUS_SELECT[newStatus] || STATUS_SELECT['Pending'];
   dd.style.cssText = `font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${newStyle}`;
   try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    // AWAIT the patch — was fire-and-forget, so a stale-token 401 silently
+    // failed; the dropdown looked changed but the DB stayed the same.
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: newStatus } })
     });
-  } catch(e) { alert('Error updating status.'); }
+    if (!resp.ok) {
+      let errMsg = 'Could not update status';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        // Revert the dropdown so the UI matches what's in the DB.
+        if (prevStatus) {
+          dd.value = prevStatus;
+          const ps = STATUS_SELECT[prevStatus] || STATUS_SELECT['Pending'];
+          dd.style.cssText = `font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${ps}`;
+        }
+        _forceTeamLogin('Your session expired — please log in again, then change the status.');
+        return;
+      }
+      if (prevStatus) {
+        dd.value = prevStatus;
+        const ps = STATUS_SELECT[prevStatus] || STATUS_SELECT['Pending'];
+        dd.style.cssText = `font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${ps}`;
+      }
+      alert('Could not update status: ' + errMsg);
+    }
+  } catch(e) {
+    if (prevStatus) {
+      dd.value = prevStatus;
+      const ps = STATUS_SELECT[prevStatus] || STATUS_SELECT['Pending'];
+      dd.style.cssText = `font-size:12px;padding:5px 10px;border-radius:20px;width:100%;${ps}`;
+    }
+    alert('Could not update status: ' + (e.message || 'network error'));
+  }
 }
 
 async function updateStatus(idx, encodedTask) {
-  const task = decodeURIComponent(encodedTask);
-  const el = document.getElementById(`status-dropdown-${idx}`);
-  if (!el) return;
-  const status = el.value;
-  try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { Status: status } })
-    });
-  } catch(e) {}
+  // Legacy alias — route through the awaited version so the same fix applies.
+  return updateStatusFromDropdown(idx, encodedTask);
 }
 
 // ============================================================
