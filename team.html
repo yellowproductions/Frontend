@@ -1097,16 +1097,24 @@ async function _supaInsertRow(row) {
 // Map a PATCH-by-Task payload → Supabase update.
 // Used when code edits a task by matching its description (the existing sheet workflow).
 async function _supaPatchByTask(taskDesc, data) {
-  // Try tasks first — but skip Closed tasks. Once a task has been converted to a
-  // creative (e.g., team uploaded a final file via Studio), the original task is
-  // marked Closed. Subsequent rework patches use the original task's description
-  // as match key — we want those to fall through to the creatives table here, not
-  // re-corrupt the closed task.
-  const { data: tasks } = await sb.from('tasks')
+  // Match strategy depends on what kind of patch this is:
+  //   - Studio's "convert task to creative" patch (data.Type === 'creative')
+  //     must NEVER hit a Closed task — otherwise a stale resubmission against
+  //     a closed name would flip the closed task back to SPOC Review and
+  //     insert a duplicate creative on it. So for THAT case we exclude Closed
+  //     and let the matcher fall through to the creatives table.
+  //   - Every other patch (status changes, notes, updates, link stamps, etc.)
+  //     is allowed to land on a Closed task. Otherwise nobody can reopen a
+  //     closed task by changing its status — the patch silently does nothing
+  //     and the 60s poll refetches the unchanged 'Closed' state, making it
+  //     look like the dropdown 'reverts.' (Suriti's report 2026-06-02 — Gauri
+  //     couldn't move task #110 off Closed because of this filter.)
+  const isCreativeConversion = data && data.Type === 'creative';
+  let taskQuery = sb.from('tasks')
     .select('id, assignee, client, status')
-    .eq('description', taskDesc)
-    .neq('status', 'Closed')
-    .limit(1);
+    .eq('description', taskDesc);
+  if (isCreativeConversion) taskQuery = taskQuery.neq('status', 'Closed');
+  const { data: tasks } = await taskQuery.limit(1);
   if (tasks && tasks.length) {
     const task = tasks[0];
     const id = task.id;
