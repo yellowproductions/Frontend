@@ -1831,10 +1831,21 @@ async function createReminder(target, message) {
     Notes: currentUser,
     Type: 'reminder'
   };
-  await fetch(SHEETDB, {
-    method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+  // Awaited + status-checked. Was 'no-cors' so the response was opaque and
+  // silent failures (stale-token 401) went unnoticed; the agent would say
+  // "reminder sent" and nothing landed.
+  const resp = await fetch(SHEETDB, {
+    method: 'POST', headers: {'Content-Type':'text/plain'},
     body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
   });
+  if (!resp.ok) {
+    let errMsg = 'Could not save reminder';
+    try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+    if (/not authenticated|unauthor|401/i.test(errMsg)) {
+      _forceTeamLogin('Your session expired — please log in again, then re-send the reminder.');
+    }
+    throw new Error(errMsg);
+  }
 }
 
 async function sendAgentMessage() {
@@ -4526,13 +4537,23 @@ async function saveFileLink(idx, encodedTask) {
   const link = document.getElementById(`paste-link-${idx}`)?.value.trim();
   if(!link) { alert('Please paste a Dropbox link.'); return; }
   try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: task, data: { 'Preview Link': link } })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not save link';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then re-save the link.');
+        return;
+      }
+      alert('Could not save link: ' + errMsg);
+      return;
+    }
     alert('✅ Link saved! Refreshing...');
     loadReviews();
-  } catch(e) { alert('Error saving link.'); }
+  } catch(e) { alert('Could not save link: ' + (e.message || 'network error')); }
 }
 
 async function submitReview(idx, action) {
@@ -4565,22 +4586,50 @@ async function submitReview(idx, action) {
     : `sent back by ${currentUser}: ${note}`;
   if (!confirm(action === 'approve' ? `Approve "${cName}" and send to client?` : `Send "${cName}" back to ${designer}?`)) return;
 
-  // Optimistic UI — remove the card immediately so it feels instant
+  // Optimistic UI — remove the card immediately so it feels instant. Keep a
+  // copy of what we removed so we can put it back if the save fails.
+  const removedItem = item;
+  const removedAt   = idx;
   reviewItems.splice(idx, 1);
   renderReviews();
-  const badge = document.getElementById('review-badge');
-  badge.textContent = reviewItems.length || '';
-  badge.style.display = reviewItems.length ? 'inline' : 'none';
-  const bell = document.getElementById('review-bell-count');
-  if (bell) { bell.textContent = reviewItems.length || ''; bell.style.display = reviewItems.length ? 'flex' : 'none'; }
+  const repaintBadges = () => {
+    const badge = document.getElementById('review-badge');
+    if (badge) { badge.textContent = reviewItems.length || ''; badge.style.display = reviewItems.length ? 'inline' : 'none'; }
+    const bell = document.getElementById('review-bell-count');
+    if (bell) { bell.textContent = reviewItems.length || ''; bell.style.display = reviewItems.length ? 'flex' : 'none'; }
+  };
+  repaintBadges();
 
-  // Fire all network calls in parallel — no awaits, no blocking
-  // Status patch + Notes record who reviewed (audit trail).
+  // AWAIT the status patch — was fire-and-forget (no-cors), so a stale-token
+  // 401 silently failed; the card disappeared from review but the DB stayed
+  // at the old status. Card now restores cleanly on any save failure.
   const patchData = { Status: newStatus, Notes: reviewerStamp };
-  fetch(SHEETDB, {
-    method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
-    body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: patchData })
-  });
+  try {
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: patchData })
+    });
+    if (!resp.ok) {
+      let errMsg = 'Could not save the review action';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // Put the card back at its old position.
+      reviewItems.splice(removedAt, 0, removedItem);
+      renderReviews();
+      repaintBadges();
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then re-action the review.');
+        return;
+      }
+      alert('Could not save review action: ' + errMsg);
+      return;
+    }
+  } catch(e) {
+    reviewItems.splice(removedAt, 0, removedItem);
+    renderReviews();
+    repaintBadges();
+    alert('Could not save review action: ' + (e.message || 'network error'));
+    return;
+  }
 
   // Notify designer on send-back (their work needs rework)
   if (action === 'sendback' && designer) {
