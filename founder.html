@@ -5376,9 +5376,14 @@ async function renderReview() {
               </div>`;
             }).join('');
             const folderBtn = folderUrl
-              ? `<a href="${folderUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">📁 Open Folder (${urls.length} file${urls.length>1?'s':''})</a>`
+              ? `<a href="${folderUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px;margin-right:8px">📁 Open Folder (${urls.length} file${urls.length>1?'s':''})</a>`
               : '';
-            return `${folderBtn}
+            // Hidden until at least one thumb fails to load (markThumbMissing reveals it).
+            // Click → drops dead URLs from file_urls + stamps them into rejected_files.
+            const cleanBtn = `<button id="clean-missing-btn-${idx}" onclick="cleanMissingFromCard(${idx})"
+              style="display:none;margin-bottom:10px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"
+              title="Some files in this card don't exist in Dropbox anymore. Click to sync the database to reality."></button>`;
+            return `${folderBtn}${cleanBtn}
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:8px">${thumbs}</div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
                 <input type="text" id="batch-reason-${idx}" placeholder="Shared reason for the ticked files (a per-file note overrides this)..."
@@ -5513,6 +5518,62 @@ function markThumbMissing(imgEl, idx, ui) {
   const ci = document.getElementById(`file-comment-${idx}-${ui}`);
   if (ci) { ci.disabled = true; ci.placeholder = '(no file)'; ci.style.opacity = '0.5'; }
   if (typeof updateRejectCount === 'function') updateRejectCount(idx);
+
+  // Track this card's dead indices and reveal the 'Clean up missing' button.
+  // One click on it syncs the DB to reality (drops dead URLs from file_urls,
+  // stamps them into rejected_files). Closes the Dropbox-deleted-but-DB-still-
+  // shows-it gap Suriti reported.
+  if (!window._deadThumbsByCard) window._deadThumbsByCard = {};
+  if (!window._deadThumbsByCard[idx]) window._deadThumbsByCard[idx] = new Set();
+  window._deadThumbsByCard[idx].add(ui);
+  const btn = document.getElementById(`clean-missing-btn-${idx}`);
+  if (btn) {
+    const n = window._deadThumbsByCard[idx].size;
+    btn.style.display = 'inline-block';
+    btn.textContent = `🧹 Remove ${n} missing file${n>1?'s':''}`;
+  }
+}
+
+// Manually sync the card's DB row to Dropbox reality — drop the dead URLs from
+// file_urls, stamp them into rejected_files with an auto-detected note.
+async function cleanMissingFromCard(idx) {
+  const deadSet = window._deadThumbsByCard && window._deadThumbsByCard[idx];
+  if (!deadSet || !deadSet.size) { alert('Nothing to clean — all files are still in Dropbox.'); return; }
+  const item = window._reviewItems && window._reviewItems[idx];
+  if (!item || !item._sb_id) { alert('Card not found.'); return; }
+  const n = deadSet.size;
+  if (!confirm(`Remove ${n} missing file${n>1?'s':''} from this card? They'll be marked as deleted in the database. The card will refresh.`)) return;
+
+  const btn = document.getElementById(`clean-missing-btn-${idx}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  const urls = (item._sb_file_urls || []).slice();
+  const deadUis = Array.from(deadSet).sort((a, b) => a - b);
+  const newFileUrls = urls.filter((_, i) => !deadSet.has(i));
+  const stamp = new Date().toISOString();
+  const existingRejected = Array.isArray(item._sb_rejected_files) ? item._sb_rejected_files.slice() : [];
+  const newRejected = existingRejected.concat(deadUis.map(ui => ({
+    url:         urls[ui],
+    file_label:  `File ${ui+1}`,
+    feedback:    'Auto-detected as missing from Dropbox (deleted or moved out of /REVIEW/).',
+    rejected_at: stamp
+  })));
+
+  try {
+    const { error } = await sb.from('creatives').update({
+      file_urls:      newFileUrls,
+      rejected_files: newRejected
+    }).eq('id', item._sb_id);
+    if (error) throw new Error(error.message || 'update failed');
+    // Update in-memory state + clear the dead-set + repaint the review queue.
+    item._sb_file_urls      = newFileUrls;
+    item._sb_rejected_files = newRejected;
+    delete window._deadThumbsByCard[idx];
+    if (typeof renderReview === 'function') renderReview();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = `🧹 Remove ${n} missing file${n>1?'s':''}`; }
+    alert('Could not clean missing files: ' + (e.message || 'unknown error'));
+  }
 }
 
 async function rejectCheckedFiles(idx) {
