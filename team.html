@@ -885,6 +885,7 @@ async function fetchSheetRows() {
   for (const t of (tasksR.data || [])) {
     rows.push({
       Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
+      Created: t.created_at || '',  // exposed for aging chips (days since created)
       Update: _supaJoinUpdates(t.task_updates),
       Assignee: t.assignee || '', SPOC: t.spoc || '', Status: t.status || '', Notes: t.notes || '',
       'Preview Link': t.preview_link || '', 'Open File Link': t.open_file_link || '',
@@ -2921,22 +2922,39 @@ function renderFocusToday(items, overdueCount, todayCount) {
   if (todayCount > 0) bits.push(`<span style="color:#854f0b;font-weight:700">${todayCount} due today</span>`);
   summary.innerHTML = bits.join(' · ') || 'next up';
 
+  // Inline check — whether this task is in Focus Today because of an un-ticked
+  // update line (rather than because of date). Used to add a 📬 reason chip so
+  // it's obvious WHY the card is on the list.
+  const hasPendingUpdate = t => (t.Update || '').split('\n').some(l => l.trim() && !/^✓\s/.test(l));
+
   list.innerHTML = items.map((t, i) => {
     const isOverdue = t.Date && t.Date < today;
     const isToday = t.Date === today;
     const daysOverdue = isOverdue ? Math.floor((new Date(today) - new Date(t.Date)) / (1000*60*60*24)) : 0;
     const daysAhead = (t.Date && t.Date > today) ? Math.floor((new Date(t.Date) - new Date(today)) / (1000*60*60*24)) : 0;
-    const tag = isOverdue
-      ? `<span style="color:#dc2626;font-size:11px;font-weight:600;flex-shrink:0">${daysOverdue}d overdue</span>`
-      : isToday
-      ? `<span style="color:#854f0b;font-size:11px;font-weight:600;flex-shrink:0">today</span>`
-      : `<span style="color:#a07419;font-size:11px;font-weight:600;flex-shrink:0">in ${daysAhead}d</span>`;
+    // Primary reason tag (date or "update pending" if no date context applies)
+    let tag;
+    if (isOverdue) {
+      tag = `<span title="Overdue" style="color:#dc2626;font-size:11px;font-weight:600;flex-shrink:0">${daysOverdue}d overdue</span>`;
+    } else if (isToday) {
+      tag = `<span title="Due today" style="color:#854f0b;font-size:11px;font-weight:600;flex-shrink:0">today</span>`;
+    } else if (t.Date && t.Date > today) {
+      tag = `<span title="Upcoming" style="color:#a07419;font-size:11px;font-weight:600;flex-shrink:0">in ${daysAhead}d</span>`;
+    } else {
+      // No date context — it's on Focus Today because of a pending update line
+      tag = `<span title="Pending update from Suriti" style="color:#5b21b6;font-size:11px;font-weight:600;flex-shrink:0">📬 update</span>`;
+    }
+    // Secondary chip — flag pending updates even when a date reason already applies
+    const updateChip = (tag.indexOf('📬') === -1 && hasPendingUpdate(t))
+      ? `<span title="Also has un-ticked update line" style="background:#ede9fe;color:#5b21b6;font-size:10px;padding:1px 7px;border-radius:9px;flex-shrink:0">📬 update</span>`
+      : '';
     const status = t.Status || 'Pending';
     const statusStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
     const title = t.Title || t.Task || '—';
     const isLast = i === items.length - 1;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};font-size:13px">
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};font-size:13px">
       ${tag}
+      ${updateChip}
       <span style="flex:1;color:#1a1a1a;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span>
       <span style="${statusStyle};font-size:10px;padding:2px 9px;border-radius:20px;flex-shrink:0">${status}</span>
     </div>`;
@@ -3217,6 +3235,23 @@ function renderTaskRows(tasks, startIdx) {
         const filePendingChip = isDoneNoFile
           ? `<span style="color:#a07419;font-size:11px;font-weight:600;white-space:nowrap">· file pending</span>`
           : '';
+        // Aging chip — days since the task was created. Only for non-terminal
+        // tasks so closed/rejected don't clutter. Amber 5-9 days, red 10+.
+        let ageChip = '';
+        if (!DONE_STATUSES.includes(status) && t.Created) {
+          const createdDt = new Date(t.Created);
+          if (!isNaN(createdDt.getTime())) {
+            const ageDays = Math.floor((Date.now() - createdDt.getTime()) / (1000*60*60*24));
+            if (ageDays >= 5) {
+              const ac = ageDays >= 10 ? '#c0392b' : '#a07419';
+              const ab = ageDays >= 10 ? '#fee2e2' : '#fef3c7';
+              ageChip = `<span title="Open for ${ageDays} days" style="background:${ab};color:${ac};font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:4px;white-space:nowrap">⏰ ${ageDays}d</span>`;
+            }
+          }
+        }
+        // Untagged-client highlight — row gets a subtle yellow tint + chip cue
+        const isUntagged = !((t.Client || '').trim());
+        const untaggedStyle = isUntagged ? 'background:#fffbeb;' : '';
         const titleText = t.Title || t.Task || '—';
         const descText  = (t.Title && t.Task && t.Task !== t.Title) ? t.Task : '';
         const taskKey   = encodeURIComponent(t.Task || '');
@@ -3229,12 +3264,12 @@ function renderTaskRows(tasks, startIdx) {
         const completedUpdates = updateLinesIndexed.filter(({line}) =>  /^✓\s/.test(line));
 
         return `
-        <div class="task-row" data-task-key="${(t.Task || '').replace(/"/g, '&quot;')}" id="task-anchor-${idx}">
-          <div class="fos-task-row${isOpen?' open':''}${isOverdue?' overdue':''}" onclick="toggleTeamRow(this,'${taskKey}')">
+        <div class="task-row" data-task-key="${(t.Task || '').replace(/"/g, '&quot;')}" id="task-anchor-${idx}" data-untagged="${isUntagged ? '1' : '0'}">
+          <div class="fos-task-row${isOpen?' open':''}${isOverdue?' overdue':''}" style="${untaggedStyle}" onclick="toggleTeamRow(this,'${taskKey}')">
             <div class="fos-cell-task">
               <span class="fos-chev">▶</span>
               <span class="fos-tname">${esc(titleText)}</span>
-              ${dateText}${filePendingChip}
+              ${dateText}${filePendingChip}${ageChip}
             </div>
             <div class="fos-cell" onclick="event.stopPropagation()">${renderClientEditor(t)}</div>
             <div class="fos-cell">${t.SPOC
@@ -3594,6 +3629,14 @@ async function loadTasks() {
     const archivedMonths = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
 
     let html = '';
+    // Untagged-client banner — surface tasks Studio can't upload against. Anyone
+    // can tag from the row dropdown (renderClientEditor has no role gate).
+    const untaggedOpen = currentOpen.filter(t => !((t.Client || '').trim()));
+    if (untaggedOpen.length) {
+      html += `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#854f0b">
+        ⚠️ <b>${untaggedOpen.length} task${untaggedOpen.length !== 1 ? 's' : ''} have no client tagged</b> — Studio can't upload against them. Tag the client from each row's 🏷 dropdown.
+      </div>`;
+    }
     // Current month open tasks
     if (currentOpen.length) {
       html += renderTaskRows(currentOpen, 0);
@@ -4425,7 +4468,28 @@ async function loadWorkload() {
       </div>`;
     };
 
+    // Totals banner — when every bar is red, colour stops being a signal.
+    // Surface the totals so leads see the system-wide hot spots at a glance.
+    const totalOpen     = rows.reduce((s,r) => s + r.open, 0);
+    const totalOverdue  = rows.reduce((s,r) => s + r.overdue, 0);
+    const totalInReview = rows.reduce((s,r) => s + r.inReview, 0);
+    const totalDueToday = rows.reduce((s,r) => s + r.dueToday, 0);
+    const totalRework   = rows.reduce((s,r) => s + r.sentBack, 0);
+    const peopleWithOverdue = rows.filter(r => r.overdue > 0).length;
+    const overdueBanner = totalOverdue > 0
+      ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#991b1b">
+          ⚠️ <b>${totalOverdue} overdue task${totalOverdue !== 1 ? 's' : ''}</b> across ${peopleWithOverdue} ${peopleWithOverdue === 1 ? 'person' : 'people'}
+         </div>`
+      : '';
+    const summaryBanner = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-size:11px">
+        <span style="background:#f5f1ea;color:#444;padding:5px 10px;border-radius:12px"><b>${totalOpen}</b> open total</span>
+        ${totalDueToday > 0 ? `<span style="background:#fff3cd;color:#854f0b;padding:5px 10px;border-radius:12px"><b>${totalDueToday}</b> due today</span>` : ''}
+        ${totalInReview > 0 ? `<span style="background:#ede9fe;color:#5b21b6;padding:5px 10px;border-radius:12px"><b>${totalInReview}</b> in review</span>` : ''}
+        ${totalRework > 0 ? `<span style="background:#ffedd5;color:#9a3412;padding:5px 10px;border-radius:12px"><b>${totalRework}</b> in rework</span>` : ''}
+      </div>`;
+
     el.innerHTML =
+      overdueBanner + summaryBanner +
       (busy.length ? busy.map(renderRow).join('') : '<div class="empty-state">Everyone clear — no active tasks anywhere.</div>') +
       (idle.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;font-weight:700">Idle · ${idle.length}</div>
