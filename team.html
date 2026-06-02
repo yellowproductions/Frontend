@@ -3035,21 +3035,39 @@ async function addUpdate(encodedTask, inputEl) {
   const appended = (existing ? existing + '\n' : '') + `[${dd}-${mm}] ${text}`;
 
   // Optimistic UI — show the new update immediately
+  const prevText = inputEl.value;
   task.Update = appended;
   inputEl.value = '';
   loadTasks();
 
-  // Persist — fire and forget, sheet write usually settles within a second
+  // AWAIT the patch — was fire-and-forget (silent on stale-token 401, and the
+  // parallel loadTasks would refetch the pre-patch state and wipe the line).
   try {
-    fetch(SHEETDB, {
-      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
+    const resp = await fetch(SHEETDB, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({
         action:'patch', sheet:'Type:tasks', matchColumn:'Task',
         matchValue: taskKey, data: { Update: appended }
       })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not save update';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // Revert and put the typed text back so they don't lose what they wrote.
+      task.Update = (task.Update || '').replace(`[${String(new Date().getDate()).padStart(2,'0')}-${String(new Date().getMonth()+1).padStart(2,'0')}] ${text}`, '').replace(/\n$/, '');
+      inputEl.value = prevText;
+      loadTasks();
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then re-add the update.');
+      } else {
+        alert('Could not save update: ' + errMsg);
+      }
+    }
   } catch(e) {
-    console.warn('addUpdate patch failed', e);
+    task.Update = (task.Update || '').split('\n').slice(0, -1).join('\n');
+    inputEl.value = prevText;
+    loadTasks();
+    alert('Could not save update: ' + (e.message || 'network error'));
   }
 }
 
@@ -4267,8 +4285,8 @@ async function markAttendance() {
   const ist = getISTNow();
   const status = computeAttendanceStatus(currentUser, ist.totalMin);
   try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
       body: JSON.stringify({
         sheet: 'Type:tasks',
         data: [{
@@ -4281,8 +4299,18 @@ async function markAttendance() {
         }]
       })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not mark attendance';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then mark attendance.');
+        return;
+      }
+      alert('Could not mark attendance: ' + errMsg);
+      return;
+    }
     setTimeout(loadAttendance, 1500);
-  } catch(e) { alert('Error marking attendance.'); }
+  } catch(e) { alert('Could not mark attendance: ' + (e.message || 'network error')); }
 }
 
 // ====== LEAVE ======
@@ -4364,15 +4392,25 @@ async function applyLeave() {
   if (!from) { alert('Please select dates.'); return; }
 
   try {
-    fetch(SHEETDB, {
-      method: 'POST', headers: {'Content-Type':'text/plain'}, mode: 'no-cors',
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
       body: JSON.stringify({ sheet: 'Type:tasks', data: [{ Date: from, Task: to || from, Assignee: currentUser, Status: 'Pending', 'Preview Link': '', Type: 'leave' }] })
     });
+    if (!resp.ok) {
+      let errMsg = 'Could not submit leave';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again, then re-submit the leave.');
+        return;
+      }
+      alert('Could not submit leave: ' + errMsg);
+      return;
+    }
     alert('✅ Leave request submitted!');
     document.getElementById('leave-from').value = '';
     document.getElementById('leave-to').value = '';
     setTimeout(loadLeave, 1500);
-  } catch(e) { alert('Error submitting leave.'); }
+  } catch(e) { alert('Could not submit leave: ' + (e.message || 'network error')); }
 }
 
 // ====== VIPLAV REVIEW ======
