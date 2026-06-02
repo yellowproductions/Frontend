@@ -417,6 +417,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="nav-item" onclick="showPanel('leave')"><span>🗓️</span> Leave</div>
   <div class="nav-item" onclick="showPanel('calendar')"><span>📅</span> Calendar</div>
   <div class="nav-item" id="review-nav" style="display:none" onclick="showPanel('review')"><span>🎨</span> Review <span style="background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px" id="review-badge"></span></div>
+  <div class="nav-item" id="workload-nav" style="display:none" onclick="showPanel('workload')"><span>👥</span> Workload</div>
   <div class="nav-item" id="pitches-nav" style="display:none" onclick="openPitchesPortal()"><span>💡</span> Pitches & Ideas</div>
 
   <!-- Standalone Chat dock — sits above Logout, separate from nav -->
@@ -738,6 +739,15 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <div class="panel-title">🎨 Creative Review</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Review creatives before they go to the client. AI checks brand guidelines automatically.</p>
     <div id="review-list"><div class="empty-state">Loading creatives...</div></div>
+  </div>
+
+  <!-- WORKLOAD (leads only — Viplav / Kritya / Siddhesh) -->
+  <div class="panel" id="panel-workload">
+    <div class="panel-title">👥 Team Workload</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Who's busy, who's free. Active tasks only — Closed and Rejected drop off.</p>
+    <div class="card">
+      <div id="workload-list"><div class="empty-state">Loading…</div></div>
+    </div>
   </div>
 
   <!-- FEEDBACK (designers — see your sent-back creatives + per-file feedback from Suriti) -->
@@ -1627,6 +1637,10 @@ function proceedToApp(name) {
   if (REVIEWERS.includes(name)) {
     document.getElementById('review-nav').style.display = 'flex';
     loadReviews();
+    // Leads also see the Workload view — same allowlist.
+    const wn = document.getElementById('workload-nav');
+    if (wn) wn.style.display = 'flex';
+    loadWorkload();
   }
 }
 
@@ -2232,8 +2246,8 @@ function startAutoRefresh() {
     loadChat?.();
     loadAttendance?.();
     loadLeave?.();
-    // Viplav-only review feed
-    if (REVIEWERS.includes(currentUser)) loadReviews?.();
+    // Viplav-only review feed + workload (same lead group)
+    if (REVIEWERS.includes(currentUser)) { loadReviews?.(); loadWorkload?.(); }
   }, 60 * 1000);
 }
 
@@ -2642,6 +2656,7 @@ function showPanel(name) {
   if (name === 'agent' && agentHistory.length === 0) restoreAgentHistory();
   if (name === 'leave') loadLeave?.();        // refresh on every open — otherwise users wait up to 60s for the poll
   if (name === 'hr')    loadAttendance?.();   // same for the attendance panel
+  if (name === 'workload') loadWorkload?.();  // same — leads expect fresh counts on open
 }
 
 // Open the Pitches & Ideas portal in a new tab — auto-logs in based on URL params
@@ -4322,6 +4337,105 @@ async function markAttendance() {
     }
     setTimeout(loadAttendance, 1500);
   } catch(e) { alert('Could not mark attendance: ' + (e.message || 'network error')); }
+}
+
+// ====== TEAM WORKLOAD ======
+// Leads-only view of who's busy and who's free. Counts ACTIVE tasks per
+// person (Closed + Rejected drop off), with overdue / due-today / in-review
+// breakdowns and a coloured bar. Helps Viplav/Kritya/Siddhesh assign well.
+const TEAM_ROSTER = [
+  { name:'Viplav',     role:'Copywriter' },
+  { name:'Kritya',     role:'CS & Strategy' },
+  { name:'Siddhesh',   role:'CS & Strategy' },
+  { name:'Faizan',     role:'Designer' },
+  { name:'Sandesh',    role:'Designer' },
+  { name:'Gayatri',    role:'Designer' },
+  { name:'Prathamesh', role:'Designer' },
+  { name:'Archana',    role:'Designer' },
+  { name:'Gauri',      role:'Designer' },
+  { name:'Sonal',      role:'Designer' },
+  { name:'Vishvanath', role:'Designer' },
+  { name:'Ajay',       role:'Video Editor' }
+];
+async function loadWorkload() {
+  const el = document.getElementById('workload-list');
+  if (!el) return;
+  try {
+    const data = await fetchSheetRows();
+    const today = new Date().toISOString().split('T')[0];
+    const REVIEW_STATUSES = ['SPOC Review', 'Client Review'];
+    const TERMINAL = ['Closed', 'Rejected'];
+
+    // All ACTIVE task rows (Type 'task' or legacy empty Type).
+    const tasks = (Array.isArray(data) ? data : []).filter(r =>
+      (r.Type === 'task' || !r.Type || r.Type === '') &&
+      !TERMINAL.includes(r.Status || '')
+    );
+
+    // Bucket by assignee. Seed with the canonical roster so idle people appear too.
+    const bucket = {};
+    TEAM_ROSTER.forEach(p => bucket[p.name] = { open:0, overdue:0, dueToday:0, inReview:0, sentBack:0 });
+    tasks.forEach(t => {
+      const a = t.Assignee || 'unassigned';
+      if (!bucket[a]) bucket[a] = { open:0, overdue:0, dueToday:0, inReview:0, sentBack:0 };
+      bucket[a].open++;
+      const due = (t.Date || '').substring(0, 10);
+      if (due && due < today) bucket[a].overdue++;
+      if (due === today) bucket[a].dueToday++;
+      if (REVIEW_STATUSES.includes(t.Status)) bucket[a].inReview++;
+      if ((t.Status || '') === 'Rework') bucket[a].sentBack++;
+    });
+
+    // Merge roster (so order is stable for known people) + any unknown assignees.
+    const rosterNames = new Set(TEAM_ROSTER.map(p => p.name));
+    const rows = TEAM_ROSTER.map(p => ({ ...p, ...bucket[p.name] }));
+    Object.keys(bucket).forEach(name => {
+      if (!rosterNames.has(name) && bucket[name].open > 0) {
+        rows.push({ name, role:'(unknown)', ...bucket[name] });
+      }
+    });
+
+    // Sort by busiest first; people with zero open tasks drop into an Idle group.
+    rows.sort((a,b) => b.open - a.open);
+    const busy = rows.filter(r => r.open > 0);
+    const idle = rows.filter(r => r.open === 0);
+    const maxOpen = Math.max(1, ...busy.map(r => r.open));
+
+    const renderRow = (p) => {
+      const pct = Math.max(8, Math.round((p.open / maxOpen) * 100));
+      // Bar colour: red if anything overdue, amber if heavy load (>=6), green otherwise.
+      const barColor = p.overdue > 0 ? '#c0392b' : (p.open >= 6 ? '#f59e0b' : '#22c55e');
+      const counts = [];
+      counts.push(`<b>${p.open}</b> open`);
+      if (p.overdue)  counts.push(`<span style="color:#c0392b"><b>${p.overdue}</b> overdue</span>`);
+      if (p.dueToday) counts.push(`<span style="color:#854f0b"><b>${p.dueToday}</b> due today</span>`);
+      if (p.inReview) counts.push(`<span style="color:#5b21b6"><b>${p.inReview}</b> in review</span>`);
+      if (p.sentBack) counts.push(`<span style="color:#9a3412"><b>${p.sentBack}</b> rework</span>`);
+      return `<div style="padding:11px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px">
+          <div style="min-width:0">
+            <span style="font-weight:600;font-size:13px">${p.name}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:6px">${p.role}</span>
+          </div>
+          <div style="font-size:11px;color:#444;text-align:right">${counts.join(' · ')}</div>
+        </div>
+        <div style="background:#f1eee5;border-radius:8px;height:6px;overflow:hidden">
+          <div style="background:${barColor};width:${pct}%;height:100%;border-radius:8px"></div>
+        </div>
+      </div>`;
+    };
+
+    el.innerHTML =
+      (busy.length ? busy.map(renderRow).join('') : '<div class="empty-state">Everyone clear — no active tasks anywhere.</div>') +
+      (idle.length ? `<div style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;font-weight:700">Idle · ${idle.length}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${idle.map(p => `<span style="font-size:12px;color:var(--muted);background:#f5f1ea;padding:3px 9px;border-radius:11px">${p.name}</span>`).join('')}
+        </div>
+      </div>` : '');
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state" style="color:#c0392b">Could not load workload (${(e.message || 'unknown').substring(0,60)}).</div>`;
+  }
 }
 
 // ====== LEAVE ======
