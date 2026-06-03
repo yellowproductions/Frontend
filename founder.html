@@ -4203,9 +4203,18 @@ function renderTasks(tasks) {
     const totalTasks = monthDates.reduce((s,d) => s + grouped[d].length, 0);
     const totalDone  = monthDates.reduce((s,d) => s + grouped[d].filter(t => t.Status === 'Closed' || t.Status === 'Rejected').length, 0);
     let monthLabel;
-    try {
-      monthLabel = new Date(m + '-01').toLocaleDateString('en-IN', {month: 'long', year: 'numeric'});
-    } catch(e) { monthLabel = m; }
+    const isUndated = (m === 'No date');
+    if (isUndated) {
+      // Undated tasks deserve a clear flag instead of the literal 'Invalid Date'
+      // that came from new Date('No date-01').toLocaleDateString. Suriti's call
+      // 2026-06-02 — task #162 'June Social' had no due_date and showed under
+      // an 'Invalid Date' folder which read like a bug.
+      monthLabel = '⚠️ No due date — set one to schedule';
+    } else {
+      try {
+        monthLabel = new Date(m + '-01').toLocaleDateString('en-IN', {month: 'long', year: 'numeric'});
+      } catch(e) { monthLabel = m; }
+    }
 
     if (isCurrent) {
       html += `<div style="font-size:13px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:0.05em;margin:18px 0 10px;padding:8px 0;border-bottom:2px solid #FEBC06;display:flex;justify-content:space-between;align-items:center">
@@ -4214,9 +4223,15 @@ function renderTasks(tasks) {
       </div>`;
       monthDates.forEach(d => { html += renderDateGroup(d); });
     } else {
-      html += `<div onclick="toggleMonth('${m}')" style="cursor:pointer;background:#fef9ef;border:1px solid #f0d080;border-radius:10px;padding:14px 18px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fef9ef'">
+      // Undated tasks: render as an amber warning bar (not the muted-yellow archive),
+      // so it's obvious these need a due date — not that they're old archive folders.
+      const bg = isUndated ? '#fff7ed' : '#fef9ef';
+      const bgHover = isUndated ? '#ffedd5' : '#fef3c7';
+      const border = isUndated ? '#fb923c' : '#f0d080';
+      const icon = isUndated ? '' : '📁';
+      html += `<div onclick="toggleMonth('${m}')" style="cursor:pointer;background:${bg};border:1px solid ${border};border-radius:10px;padding:14px 18px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s" onmouseover="this.style.background='${bgHover}'" onmouseout="this.style.background='${bg}'">
         <div>
-          <span style="font-size:18px;margin-right:8px">📁</span>
+          ${icon ? `<span style="font-size:18px;margin-right:8px">${icon}</span>` : ''}
           <strong style="font-size:14px">${monthLabel}</strong>
           <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:'DM Mono',monospace">${totalTasks} task${totalTasks!==1?'s':''} · ${totalDone} done</span>
         </div>
