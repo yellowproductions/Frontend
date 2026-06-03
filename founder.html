@@ -1892,10 +1892,15 @@ async function _supaUpdateByMatch(match, update) {
 // Delete by Task description (the matchColumn/matchValue form used by deleteTask).
 // Tries tasks first, then creatives, then leaves.
 async function _supaDeleteByTask(taskDesc) {
-  // Tasks table
+  // Tasks table — delete the task's creatives FIRST, then the task.
+  // Without the cascade, FK ON DELETE SET NULL leaves orphan creatives floating
+  // in review/feedback queues (June Social case 2026-06-02 — Suriti deleted
+  // the task, the 2 linked creatives stayed alive at task_id=null).
   const { data: tasks } = await sb.from('tasks').select('id').eq('description', taskDesc).limit(1);
   if (tasks && tasks.length) {
-    await sb.from('tasks').delete().eq('id', tasks[0].id);
+    const tid = tasks[0].id;
+    try { await sb.from('creatives').delete().eq('task_id', tid); } catch(e) { console.warn('creative cascade failed:', e); }
+    await sb.from('tasks').delete().eq('id', tid);
     return;
   }
   // Creatives table (matched by "name | designer")
