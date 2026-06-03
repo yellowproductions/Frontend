@@ -3603,9 +3603,18 @@ async function loadTasks() {
     const todayTasks   = openSorted.filter(t => t.Date === today);
     const upcomingTasks = openSorted.filter(t => t.Date && t.Date > today).slice(0, 3);
     const dateFocus = [...overdueTasks, ...todayTasks, ...upcomingTasks].slice(0, 5);
-    // Keep any task with an un-ticked update line in Focus Today until it's ticked —
-    // regardless of date/status — so nothing drops off before it's marked done.
-    const pendingUpdateTasks = sorted.filter(t => hasPendingUpdate(t) && !dateFocus.includes(t));
+    // Keep any task with an un-ticked update line in Focus Today UNLESS it's
+    // already Closed/Rejected. Once a task is closed, the un-ticked update
+    // lines are just history — they shouldn't keep the card pinned to the
+    // focus list (Suriti's report 2026-06-02 — Blogs, Rebar in coil Brochure,
+    // and 3 other Closed cards were polluting Focus Today via their old
+    // update lines).
+    const TERMINAL_FOR_FOCUS = ['Closed', 'Rejected'];
+    const pendingUpdateTasks = sorted.filter(t =>
+      hasPendingUpdate(t)
+      && !TERMINAL_FOR_FOCUS.includes(t.Status || '')
+      && !dateFocus.includes(t)
+    );
     const focusItems = [...dateFocus, ...pendingUpdateTasks];
     renderFocusToday(focusItems, overdueTasks.length, todayTasks.length);
     renderUpdatesToday(sorted);
