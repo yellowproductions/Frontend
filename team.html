@@ -3101,14 +3101,14 @@ async function addUpdate(encodedTask, inputEl) {
   const existing = (task.Update || '').trim();
   const appended = (existing ? existing + '\n' : '') + `[${dd}-${mm}] ${text}`;
 
-  // Optimistic UI — show the new update immediately
+  // Optimistic local mutation + clear the input — but DON'T loadTasks yet
+  // (race: refetch would clobber the just-added line, same flash-and-vanish
+  // bug as the tick-toggle).
   const prevText = inputEl.value;
   task.Update = appended;
   inputEl.value = '';
-  loadTasks();
+  inputEl.disabled = true;
 
-  // AWAIT the patch — was fire-and-forget (silent on stale-token 401, and the
-  // parallel loadTasks would refetch the pre-patch state and wipe the line).
   try {
     const resp = await fetch(SHEETDB, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -3117,11 +3117,12 @@ async function addUpdate(encodedTask, inputEl) {
         matchValue: taskKey, data: { Update: appended }
       })
     });
+    inputEl.disabled = false;
     if (!resp.ok) {
       let errMsg = 'Could not save update';
       try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
-      // Revert and put the typed text back so they don't lose what they wrote.
-      task.Update = (task.Update || '').replace(`[${String(new Date().getDate()).padStart(2,'0')}-${String(new Date().getMonth()+1).padStart(2,'0')}] ${text}`, '').replace(/\n$/, '');
+      // Revert local state + restore the typed text.
+      task.Update = oldUpdateFor(task, appended, text);
       inputEl.value = prevText;
       loadTasks();
       if (/not authenticated|unauthor|401/i.test(errMsg)) {
@@ -3129,13 +3130,30 @@ async function addUpdate(encodedTask, inputEl) {
       } else {
         alert('Could not save update: ' + errMsg);
       }
+      return;
     }
+    // SUCCESS — patch landed; safe to refresh.
+    loadTasks();
   } catch(e) {
-    task.Update = (task.Update || '').split('\n').slice(0, -1).join('\n');
+    inputEl.disabled = false;
+    task.Update = oldUpdateFor(task, appended, text);
     inputEl.value = prevText;
     loadTasks();
     alert('Could not save update: ' + (e.message || 'network error'));
   }
+}
+
+// Helper for addUpdate's revert path — strip the exact appended line off.
+function oldUpdateFor(task, appended, originalText) {
+  const ist = new Date();
+  const dd = String(ist.getDate()).padStart(2, '0');
+  const mm = String(ist.getMonth() + 1).padStart(2, '0');
+  const line = `[${dd}-${mm}] ${originalText}`;
+  let upd = task.Update || '';
+  // Remove the exact line (with optional leading newline) from the tail.
+  const idx = upd.lastIndexOf(line);
+  if (idx === -1) return upd;
+  return upd.substring(0, idx).replace(/\n$/, '');
 }
 
 // Toggle the ✓ tick on a single update line. The line is stored as
@@ -3161,15 +3179,24 @@ async function toggleUpdateTick(encodedTask, lineIdx) {
   }
   const newUpdate = lines.join('\n');
 
-  // Optimistic local update — render immediately so the tick feels instant.
+  // Optimistic local mutation — store the new state, but DON'T loadTasks yet:
+  // that would refetch the pre-patch DB and clobber our optimistic ✓ instantly,
+  // making the tick flash and vanish (Suriti's report 2026-06-02). Instead we
+  // patch the DOM in place so the user sees the tick immediately, then loadTasks
+  // only AFTER the patch round-trips.
   task.Update = newUpdate;
-  loadTasks();
+  // In-place DOM tweak — find the line's pending button and strikethrough the
+  // text, OR (un-tick path) flip the strikethrough off. Cheaper than a re-render.
+  // We'll fall back to loadTasks if the DOM isn't easily reachable.
+  try {
+    const btn = event && event.target && event.target.closest ? event.target.closest('button') : null;
+    if (btn) {
+      const wrap = btn.parentElement;
+      if (wrap) wrap.style.opacity = '0.4';
+      btn.disabled = true;
+    }
+  } catch(e) {}
 
-  // AWAIT the patch (was fire-and-forget — the optimistic change got clobbered
-  // by the parallel loadTasks() fetching the pre-patch state from DB). The
-  // interceptor returns a synthetic 200 on a successful Supabase mirror, 500
-  // if the gateway rejects. On 401-ish responses, kick the user to re-login —
-  // the silent stale-token failure was why ticks "did nothing."
   try {
     const resp = await fetch(SHEETDB, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -3181,21 +3208,18 @@ async function toggleUpdateTick(encodedTask, lineIdx) {
     if (!resp.ok) {
       let errMsg = 'Could not save tick';
       try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // Revert the optimistic change so the UI matches reality.
+      task.Update = oldUpdate;
+      loadTasks();
       if (/not authenticated|unauthor|401/i.test(errMsg)) {
-        // Revert the optimistic change so the UI matches reality.
-        task.Update = oldUpdate;
-        loadTasks();
         _forceTeamLogin('Your session expired — please log in again, then re-tick.');
         return;
       }
-      // Other failure — revert and show a brief toast.
-      task.Update = oldUpdate;
-      loadTasks();
       alert('Could not save: ' + errMsg);
-    } else {
-      // Refresh once more so any cascading server-side state lands cleanly.
-      loadTasks();
+      return;
     }
+    // SUCCESS — now safe to refresh from DB; the patch has landed.
+    loadTasks();
   } catch(e) {
     task.Update = oldUpdate;
     loadTasks();
