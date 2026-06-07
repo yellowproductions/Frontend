@@ -5529,26 +5529,28 @@ function updateRejectCount(idx) {
 function markThumbMissing(imgEl, idx, ui) {
   if (!imgEl || imgEl.dataset.marked === '1') return;
   imgEl.dataset.marked = '1';
-  const ph = document.createElement('div');
-  ph.style.cssText = 'width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px dashed #fca5a5;background:#fef2f2;border-radius:6px;color:#991b1b;font-size:10px;text-align:center;padding:8px;cursor:default;line-height:1.3';
-  ph.innerHTML = '<div style="font-size:22px;margin-bottom:4px">⚠️</div><b>Missing</b><br>in Dropbox';
-  ph.title = "File deleted from Dropbox or already in /REJECTED/ — won't be sent to the client.";
-  imgEl.replaceWith(ph);
-  // Disable + grey the reject checkbox; the file's already gone, nothing to mark.
-  const cb = document.getElementById(`file-check-${idx}-${ui}`);
-  if (cb) {
-    cb.checked = false;
-    cb.disabled = true;
-    if (cb.parentElement) cb.parentElement.style.opacity = '0.4';
+  // HIDE the whole file tile (img + label + comment + reject checkbox) so dead
+  // files don't clutter the review (Suriti 2026-06-02 — rejected/missing files
+  // shouldn't appear at all). The 'Remove N missing' button at the top still
+  // surfaces the mismatch and lets her commit the cleanup in one click.
+  // We walk up to the file-tile wrapper — the grandparent div of the img.
+  let tile = imgEl;
+  for (let i = 0; i < 4 && tile && tile.parentElement; i++) {
+    tile = tile.parentElement;
+    if (tile.querySelector && tile.querySelector(`#file-check-${idx}-${ui}`)) break;
   }
+  if (tile) tile.style.display = 'none';
+  // Safety: also un-tick + disable the reject checkbox in case the tile-hide
+  // didn't find the right wrapper (older render variants).
+  const cb = document.getElementById(`file-check-${idx}-${ui}`);
+  if (cb) { cb.checked = false; cb.disabled = true; }
   const ci = document.getElementById(`file-comment-${idx}-${ui}`);
-  if (ci) { ci.disabled = true; ci.placeholder = '(no file)'; ci.style.opacity = '0.5'; }
+  if (ci) { ci.disabled = true; }
   if (typeof updateRejectCount === 'function') updateRejectCount(idx);
 
   // Track this card's dead indices and reveal the 'Clean up missing' button.
-  // One click on it syncs the DB to reality (drops dead URLs from file_urls,
-  // stamps them into rejected_files). Closes the Dropbox-deleted-but-DB-still-
-  // shows-it gap Suriti reported.
+  // One click on it permanently syncs the DB (drops dead URLs from file_urls,
+  // stamps them into rejected_files). User-controlled — no Dropbox-blip risk.
   if (!window._deadThumbsByCard) window._deadThumbsByCard = {};
   if (!window._deadThumbsByCard[idx]) window._deadThumbsByCard[idx] = new Set();
   window._deadThumbsByCard[idx].add(ui);
@@ -5556,7 +5558,7 @@ function markThumbMissing(imgEl, idx, ui) {
   if (btn) {
     const n = window._deadThumbsByCard[idx].size;
     btn.style.display = 'inline-block';
-    btn.textContent = `🧹 Remove ${n} missing file${n>1?'s':''}`;
+    btn.textContent = `🧹 Remove ${n} missing file${n>1?'s':''} from card`;
   }
 }
 
