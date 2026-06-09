@@ -646,8 +646,19 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <div style="font-size:18px;font-weight:700;margin-bottom:4px">Live Tasks</div>
           <div style="font-size:13px;color:var(--muted)">All tasks currently being worked on for you.</div>
         </div>
-        <button class="btn btn-yellow btn-sm" onclick="loadClientTasks()">↻ Refresh</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <!-- Search — live-filters across title / brief / status as you type. -->
+          <div style="position:relative">
+            <input type="text" id="client-task-search" placeholder="🔍 Search tasks..." oninput="filterClientTasks(this.value)"
+              style="font-size:13px;padding:8px 32px 8px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;min-width:220px;outline:none">
+            <button id="client-search-clear" onclick="clearClientSearch()" title="Clear"
+              style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:14px;color:#999;padding:2px 6px;line-height:1">✕</button>
+          </div>
+          <button class="btn btn-yellow btn-sm" onclick="loadClientTasks()">↻ Refresh</button>
+        </div>
       </div>
+      <!-- Match count hint — only shown while a search is active -->
+      <div id="client-search-summary" style="display:none;font-size:12px;color:var(--muted);margin-bottom:12px;padding:0 4px"></div>
       <div id="client-tasks-wrap">
         <div class="empty-state">Loading tasks...</div>
       </div>
@@ -1626,7 +1637,12 @@ async function loadClientTasks() {
         const tagHtml = showTagPill ? renderTagClientPill(t) : '';
         const hasActions = !!(linksHtml || tagHtml);
 
-        return `<div style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
+        // Searchable haystack — lowercased title + brief + status label + client tag
+        // so the search input matches across the same fields a client would scan.
+        const haystack = [
+          t.Title, t.Task, status, STATUS_LABEL[status] || '', t.Client
+        ].filter(Boolean).join(' ').toLowerCase().replace(/"/g, '');
+        return `<div data-client-task="1" data-search="${haystack}" style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fff">
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
             <div style="font-weight:600;font-size:14px;color:#1a1a1a;line-height:1.3;flex:1;min-width:0">${t.Title || t.Task || '—'}</div>
             <div style="font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0">${dueDate}</div>
@@ -1635,16 +1651,75 @@ async function loadClientTasks() {
         </div>`;
       }).join('');
 
-      return `<div style="margin-bottom:18px">
-        <div style="font-size:11px;color:${style.fg};font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;padding-left:4px">${STATUS_LABEL[status] || status} · ${items.length}</div>
+      return `<div data-client-section="1" data-section-label="${STATUS_LABEL[status] || status}" style="margin-bottom:18px">
+        <div data-section-head="1" data-section-base-label="${STATUS_LABEL[status] || status}" data-section-base-count="${items.length}" style="font-size:11px;color:${style.fg};font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;padding-left:4px">${STATUS_LABEL[status] || status} · ${items.length}</div>
         <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">${rows}</div>
       </div>`;
     }).join('');
 
     wrap.innerHTML = sections || '<div class="empty-state">No tasks yet.</div>';
+    // Re-apply any active search filter — keeps the query "sticky" across a Refresh.
+    const searchInput = document.getElementById('client-task-search');
+    if (searchInput && searchInput.value.trim()) filterClientTasks(searchInput.value);
   } catch(e) {
     wrap.innerHTML = '<div class="empty-state">Could not load tasks.</div>';
   }
+}
+
+// ===== LIVE TASKS SEARCH =====
+// Client-side filter over the already-rendered Live Tasks list. Matches against
+// title + brief + status label + client tag (the `data-search` haystack stamped
+// at render time). Walks rows, hides non-matches, then hides any section that
+// now has zero visible rows. Counters in the section headers update to reflect
+// what's actually visible. Re-applied after every loadClientTasks() so the
+// query stays sticky across refreshes.
+function filterClientTasks(rawQuery) {
+  const q = (rawQuery || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('client-search-clear');
+  const summary  = document.getElementById('client-search-summary');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+
+  const rows = document.querySelectorAll('[data-client-task="1"]');
+  let totalVisible = 0;
+  const total = rows.length;
+  rows.forEach(row => {
+    const hay = row.getAttribute('data-search') || '';
+    const show = !q || hay.includes(q);
+    row.style.display = show ? '' : 'none';
+    if (show) totalVisible++;
+  });
+
+  // Walk sections — hide any with no visible rows; update header count.
+  document.querySelectorAll('[data-client-section="1"]').forEach(section => {
+    const visibleHere = section.querySelectorAll('[data-client-task="1"]:not([style*="display: none"])').length;
+    section.style.display = visibleHere ? '' : 'none';
+    const head = section.querySelector('[data-section-head="1"]');
+    if (head) {
+      const baseLabel = head.getAttribute('data-section-base-label') || '';
+      const baseCount = head.getAttribute('data-section-base-count') || '0';
+      // When filtering, show "N of M". When clear, show original "M".
+      head.innerHTML = q ? `${baseLabel} · ${visibleHere} of ${baseCount}` : `${baseLabel} · ${baseCount}`;
+    }
+  });
+
+  // Summary line — only shown while filtering.
+  if (summary) {
+    if (!q) {
+      summary.style.display = 'none';
+      summary.textContent = '';
+    } else {
+      summary.style.display = 'block';
+      summary.textContent = totalVisible
+        ? `Showing ${totalVisible} of ${total} task${total !== 1 ? 's' : ''} matching "${rawQuery}"`
+        : `No tasks match "${rawQuery}" — try a different word, or clear the search.`;
+    }
+  }
+}
+
+function clearClientSearch() {
+  const input = document.getElementById('client-task-search');
+  if (input) { input.value = ''; input.focus(); }
+  filterClientTasks('');
 }
 
 // ===== TAG CLIENT PILL (inline editor on each task row) =====
