@@ -882,11 +882,13 @@
           </select>
         </div>
         <div>
-          <label>SPOC</label>
-          <select id="task-spoc">
-            <option value="">— Select —</option>
-            <option>Suriti</option><option>Viplav</option>
-            <option>Kritya</option><option>Siddhesh</option>
+          <label>SPOC <span style="color:#c00">*</span></label>
+          <select id="task-spoc" required>
+            <option value="">— Select SPOC —</option>
+            <option>Siddhesh</option>
+            <option>Kritya</option>
+            <option>Viplav</option>
+            <option>Suriti</option>
           </select>
         </div>
         <div>
@@ -1552,6 +1554,10 @@ async function fetchSheetRows() {
     if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
   }
   const rows = [];
+  // Build a task_id → SPOC map so creative rows can carry the parent task's
+  // SPOC for the founder review queue (parity with team.html).
+  const _spocByTaskId = {};
+  for (const t of (tasksR.data || [])) { if (t.id != null) _spocByTaskId[t.id] = t.spoc || ''; }
   for (const t of (tasksR.data || [])) {
     rows.push({
       Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
@@ -1603,7 +1609,15 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
-      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
+      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : [],
+      // SPOC mandate (2026-06-07): expose the two new stamps + the parent task's SPOC
+      // so the founder review panel + team panel can render gate state in parity.
+      _sb_task_id:          c.task_id          || null,
+      _sb_spoc:             (c.task_id != null ? _spocByTaskId[c.task_id] : '') || '',
+      _sb_spoc_approved_at: c.spoc_approved_at || null,
+      _sb_spoc_approved_by: c.spoc_approved_by || '',
+      _sb_proofread_at:     c.proofread_at     || null,
+      _sb_proofread_by:     c.proofread_by     || ''
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -4138,7 +4152,7 @@ function renderTasks(tasks) {
           <select class="fos-mini-select" title="SPOC — client-servicing lead"
             onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)">
             <option value="" ${!t.SPOC?'selected':''}>🎯 ${t.SPOC || 'SPOC —'}</option>
-            ${['Suriti','Viplav','Kritya','Siddhesh'].filter(n => n !== t.SPOC).map(n => `<option value="${n}">🎯 ${n}</option>`).join('')}
+            ${['Siddhesh','Kritya','Viplav','Suriti'].filter(n => n !== t.SPOC).map(n => `<option value="${n}">🎯 ${n}</option>`).join('')}
             ${t.SPOC ? '<option value="">🎯 — clear —</option>' : ''}
           </select>
         </div>
@@ -4801,6 +4815,9 @@ async function addTask() {
   const spoc = document.getElementById('task-spoc').value;
   const client = resolveClient('task-client', 'task-client-custom');
   if(!title || !assignee) { alert('Please fill title and assignee.'); return; }
+  // SPOC mandate (2026-06-07): review queue routes by SPOC. Without one,
+  // Siddhesh/Kritya never see the creative — only Suriti does (orphan fallback).
+  if(!spoc) { alert('Pick a SPOC (Siddhesh or Kritya). Required so the right lead reviews the creative.'); return; }
 
   // Title is the short label (shown in dropdowns, lists). Task is the full description (optional).
   // Notes marker lets the "added by team" pinned card filter out Suriti's own additions.
@@ -5373,10 +5390,15 @@ async function renderReview() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:10px;padding-right:36px">
             <div>
               <div style="font-size:15px;font-weight:700">${cName}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'} · SPOC: <strong>${item._sb_spoc || '—'}</strong></div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">Pending Review</span>
+              ${item._sb_spoc_approved_at
+                ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_spoc_approved_by || ''}">✓ SPOC · ${item._sb_spoc_approved_by || ''}</span>`
+                : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ SPOC pending</span>`}
+              ${item._sb_proofread_at
+                ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_proofread_by || ''}">✓ Proofread · ${item._sb_proofread_by || ''}</span>`
+                : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ Proofread pending</span>`}
               <span style="font-size:10px;color:#666">Reviewing as <strong>Suriti</strong></span>
             </div>
           </div>
@@ -5422,10 +5444,16 @@ async function renderReview() {
             <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:block;margin-bottom:6px">Notes / Feedback (optional)</label>
             <textarea id="founder-note-${idx}" placeholder="Add feedback for designer or client..." style="width:100%;min-height:60px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'Poppins',sans-serif;font-size:13px"></textarea>
           </div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn btn-green btn-sm" onclick="founderSubmitReview(${idx}, 'approve')">✅ Approve → Send to Client</button>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-green btn-sm" onclick="founderApproveSpoc(${idx})"
+              ${item._sb_spoc_approved_at ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}
+              title="${item._sb_spoc_approved_at ? 'Already SPOC-approved by ' + (item._sb_spoc_approved_by || '') : 'Mark SPOC sign-off (rescue path — Suriti can stamp any task)'}">✅ SPOC Approve${item._sb_spoc_approved_at ? 'd' : ''}</button>
+            <button class="btn btn-green btn-sm" onclick="founderApproveProofread(${idx})"
+              ${item._sb_proofread_at ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}
+              title="${item._sb_proofread_at ? 'Already proofread by ' + (item._sb_proofread_by || '') : 'Mark proofread sign-off'}">✓ Proofread</button>
             <button class="btn btn-orange btn-sm" onclick="founderSubmitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
             <button class="btn btn-red btn-sm" onclick="founderSubmitReview(${idx}, 'reject')">❌ Reject — Scrap Concept</button>
+            <span style="font-size:11px;color:#666;margin-left:4px">Both stamps required → auto-sends to Client Review</span>
           </div>
         </div>`;
       }).join('');
@@ -5635,25 +5663,16 @@ async function rejectCheckedFiles(idx) {
   if (btn) { btn.disabled = true; btn.textContent = 'Rejecting…'; }
 
   try {
-    // Move each rejected file to Dropbox /REJECTED — parallel, best-effort.
-    const datePrefix = new Date().toISOString().split('T')[0];
-    // Move each ticked file out of /REVIEW/ into /REJECTED/. Verify each move so a
-    // failure surfaces in the console instead of silently leaving files in /REVIEW/.
-    let moveFails = 0;
-    await Promise.all(checked.map(async (ui) => {
-      const fileUrl = urls[ui];
-      const origName = (fileUrl.split('/').pop() || `file${ui+1}`).split('?')[0];
-      const safeName = `${datePrefix}_${cName.replace(/[^a-zA-Z0-9]/g,'-')}_File${ui+1}_${origName}`;
-      try {
-        const resp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok || !data.success) { moveFails++; console.warn('Dropbox move failed:', data.error || resp.status, fileUrl); }
-      } catch(e) { moveFails++; console.warn('Dropbox move error:', e.message, fileUrl); }
-    }));
-    if (moveFails) console.warn(`${moveFails}/${checked.length} rejected file(s) did NOT move out of /REVIEW/ — check backend logs.`);
+    // 2026-06-09 — DO NOT move sent-back files to /REJECTED/ anymore.
+    // The old flow moved files + stamped the (now-orphaned) /REVIEW/ share URL
+    // into rejected_files. Combined with the 30-day /REJECTED/ cleanup cron,
+    // the designer's Feedback tab ended up showing dead thumbnails — no way to
+    // act on the comment. Suriti's call (2026-06-09): keep files in /REVIEW/
+    // so the share URL stays live and the designer always sees the file +
+    // feedback together. Only TERMINAL reject ('Scrap Concept') still moves
+    // files to /REJECTED/. Studio rework re-upload adds new files alongside;
+    // file_urls (the active review set) is rewritten to drop the rejected ones
+    // so the reviewer's next pass sees only the rework files.
 
     // One DB write: remove ticked files from file_urls, add to rejected_files.
     const checkedSet = new Set(checked);
@@ -5733,24 +5752,14 @@ async function sendBackFile(idx, fileIdx) {
     const fileUrl = urls[fileIdx];
     if (!fileUrl) { alert('That file is no longer in the list — try refreshing.'); return; }
 
-    // 1. Move the rejected file to Dropbox /REJECTED so the designer's next
-    //    upload doesn't pile up next to the old version. Date-prefixed
-    //    filename lets the 30-day cleanup job find it later.
-    const datePrefix = new Date().toISOString().split('T')[0];
-    const origName = (fileUrl.split('/').pop() || `file${fileIdx+1}`).split('?')[0];
-    const safeName = `${datePrefix}_${cName.replace(/[^a-zA-Z0-9]/g, '-')}_File${fileIdx+1}_${origName}`;
-    try {
-      const moveResp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromPath: fileUrl, toFolder: '/REJECTED', toFilename: safeName })
-      });
-      const moveJson = await moveResp.json().catch(() => ({}));
-      if (!moveJson.success) console.warn('Dropbox move did not confirm:', moveJson.error || 'unknown');
-    } catch(e) {
-      // Non-fatal — the DB-level removal still happens so the review stays clean.
-      console.warn('Dropbox move call failed:', e.message);
-    }
+    // 2026-06-09 — Keep the file in /REVIEW/ (no /REJECTED/ move). Moving
+    // orphans the share URL, which breaks the designer's Feedback thumbnails
+    // (the 30-day /REJECTED/ cleanup eventually deletes the file outright,
+    // killing the URL). Live URL + visible feedback is the only way the
+    // designer can actually fix what's wrong. Pile-up in /REVIEW/[task]/ is
+    // accepted as a tradeoff — a periodic /REVIEW/ housekeeping pass can
+    // sweep it later. Only TERMINAL 'Scrap Concept' reject still moves
+    // files out (handled in quickScrap / founderSubmitReview('reject')).
 
     // 2. Remove the file from the active list, record it in rejected_files
     const newFileUrls = urls.filter((_, i) => i !== fileIdx);
@@ -5871,7 +5880,70 @@ async function cascadeTaskFromCreative(creativeRow, newCreativeStatus, previewLi
   }
 }
 
-async function founderSubmitReview(idx, action) {
+// ====== SPOC MANDATE — two-gate stamp helpers for the founder panel (2026-06-07) ======
+// Suriti can stamp either gate (rescue path); when BOTH gates are stamped, we
+// auto-call founderSubmitReview(idx, 'approve') which runs the existing cascade
+// to flip the task to 'Client Review' + notify the designer.
+async function founderApproveSpoc(idx) {
+  const item = (window._reviewItems || [])[idx];
+  if (!item) return;
+  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
+  if (item._sb_spoc_approved_at) { alert('Already SPOC-approved by ' + (item._sb_spoc_approved_by || '—')); return; }
+  const cName = item.Task.split('|')[0].trim();
+  if (!confirm(`Stamp SPOC approval on "${cName}" (as Suriti)?`)) return;
+  const prevAt = item._sb_spoc_approved_at, prevBy = item._sb_spoc_approved_by;
+  const nowIso = new Date().toISOString();
+  item._sb_spoc_approved_at = nowIso;
+  item._sb_spoc_approved_by = 'Suriti';
+  renderReview();
+  try {
+    const { error } = await sb.from('creatives')
+      .update({ spoc_approved_at: nowIso, spoc_approved_by: 'Suriti' })
+      .eq('id', item._sb_id);
+    if (error) throw new Error(error.message || 'update failed');
+  } catch(e) {
+    item._sb_spoc_approved_at = prevAt;
+    item._sb_spoc_approved_by = prevBy;
+    renderReview();
+    alert('Could not save SPOC approval: ' + (e.message || 'network error'));
+    return;
+  }
+  // If proofread is already done, auto-flip to Client Review via the existing cascade.
+  if (item._sb_proofread_at) {
+    await founderSubmitReview(idx, 'approve', { skipConfirm: true });
+  }
+}
+
+async function founderApproveProofread(idx) {
+  const item = (window._reviewItems || [])[idx];
+  if (!item) return;
+  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
+  if (item._sb_proofread_at) { alert('Already proofread by ' + (item._sb_proofread_by || '—')); return; }
+  const cName = item.Task.split('|')[0].trim();
+  if (!confirm(`Stamp proofread approval on "${cName}" (as Suriti)?`)) return;
+  const prevAt = item._sb_proofread_at, prevBy = item._sb_proofread_by;
+  const nowIso = new Date().toISOString();
+  item._sb_proofread_at = nowIso;
+  item._sb_proofread_by = 'Suriti';
+  renderReview();
+  try {
+    const { error } = await sb.from('creatives')
+      .update({ proofread_at: nowIso, proofread_by: 'Suriti' })
+      .eq('id', item._sb_id);
+    if (error) throw new Error(error.message || 'update failed');
+  } catch(e) {
+    item._sb_proofread_at = prevAt;
+    item._sb_proofread_by = prevBy;
+    renderReview();
+    alert('Could not save proofread sign-off: ' + (e.message || 'network error'));
+    return;
+  }
+  if (item._sb_spoc_approved_at) {
+    await founderSubmitReview(idx, 'approve', { skipConfirm: true });
+  }
+}
+
+async function founderSubmitReview(idx, action, opts) {
   const item = (window._reviewItems || [])[idx];
   if (!item) return;
   const parts = item.Task.split('|');
@@ -5885,7 +5957,10 @@ async function founderSubmitReview(idx, action) {
     action === 'approve' ? `Approve "${cName}" and send to client?` :
     action === 'reject'  ? `Reject "${cName}"? The designer will be told to scrap this concept.` :
                            `Send "${cName}" back to ${designer}?`;
-  if (!confirm(confirmMsg)) return;
+  // skipConfirm: set when founderApproveSpoc/Proofread auto-triggers the final
+  // 'approve' cascade because BOTH gates just landed — the user already
+  // confirmed each stamp, no need for a third yes/no.
+  if (!(opts && opts.skipConfirm) && !confirm(confirmMsg)) return;
 
   const newStatus =
     action === 'approve' ? 'Client Review' :

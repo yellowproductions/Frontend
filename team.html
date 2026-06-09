@@ -588,11 +588,13 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           </select>
         </div>
         <div style="flex:1;min-width:180px">
-          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">SPOC</label>
-          <select id="quick-task-spoc" style="font-size:12px;padding:7px 8px;width:100%">
-            <option value="">— Select —</option>
-            <option>Suriti</option><option>Viplav</option>
-            <option>Kritya</option><option>Siddhesh</option>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:4px;font-weight:600">SPOC <span style="color:#c00">*</span></label>
+          <select id="quick-task-spoc" required style="font-size:12px;padding:7px 8px;width:100%">
+            <option value="">— Select SPOC —</option>
+            <option>Siddhesh</option>
+            <option>Kritya</option>
+            <option>Viplav</option>
+            <option>Suriti</option>
           </select>
         </div>
         <div style="flex:1;min-width:180px">
@@ -888,6 +890,10 @@ async function fetchSheetRows() {
     if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
   }
   const rows = [];
+  // Build a task_id → SPOC map so creative rows can carry the parent task's
+  // SPOC for the Review queue scoping filter (Siddhesh/Kritya see their own only).
+  const _spocByTaskId = {};
+  for (const t of (tasksR.data || [])) { if (t.id != null) _spocByTaskId[t.id] = t.spoc || ''; }
   for (const t of (tasksR.data || [])) {
     rows.push({
       Date: t.due_date || '', Title: t.title || '', Task: t.description || '',
@@ -939,7 +945,16 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
-      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
+      _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : [],
+      // SPOC mandate (2026-06-07): each creative now needs TWO approvals
+      // before it can go to client — SPOC sign-off + proofread sign-off.
+      // Fields exposed for the team Review queue render + scoping filter.
+      _sb_task_id:          c.task_id          || null,
+      _sb_spoc:             (c.task_id != null ? _spocByTaskId[c.task_id] : '') || '',  // derived from parent task.spoc
+      _sb_spoc_approved_at: c.spoc_approved_at || null,
+      _sb_spoc_approved_by: c.spoc_approved_by || '',
+      _sb_proofread_at:     c.proofread_at     || null,
+      _sb_proofread_by:     c.proofread_by     || ''
     });
   }
   for (const m of (chatsR.data || [])) {
@@ -2839,6 +2854,9 @@ async function addQuickTask() {
 
   if (!date) { alert('Pick a date.'); return; }
   if (!title) { alert('Add a title.'); return; }
+  // SPOC is mandatory — review queue routes by SPOC (Siddhesh/Kritya).
+  // Without one, the creative would orphan and only Suriti would see it.
+  if (!spocEl || !spocEl.value) { alert('Pick a SPOC (Siddhesh or Kritya). Required so the right reviewer gets the job.'); spocEl?.focus(); return; }
 
   btn.textContent = '...'; btn.disabled = true;
   try {
@@ -4710,10 +4728,23 @@ let reviewItems = [];
 async function loadReviews() {
   try {
     const data = await fetchSheetRows();
-    reviewItems = Array.isArray(data) ? data.filter(r => 
+    // Base set: every creative still awaiting review (SPOC + proofread gates).
+    const base = Array.isArray(data) ? data.filter(r =>
       (r.Status === 'Pending Review' || r.Status === 'Pending Viplav') &&
       r.Task && r.Task.includes('|')
     ) : [];
+    // SPOC mandate scoping (2026-06-07):
+    //  • Siddhesh / Kritya — see ONLY creatives whose parent task lists them as SPOC.
+    //  • Viplav — sees ALL (he's the proofreader, not a SPOC).
+    //  • Suriti — sees ALL (founder).
+    //  • Orphans (creatives with no SPOC on parent) — fall through to Suriti only.
+    const isSPOC = (currentUser === 'Siddhesh' || currentUser === 'Kritya');
+    const seesAll = (currentUser === 'Viplav' || currentUser === 'Suriti');
+    reviewItems = base.filter(r => {
+      if (seesAll) return true;
+      if (isSPOC)  return (r._sb_spoc || '') === currentUser;
+      return false;  // anyone else (designers etc.) shouldn't be on this panel anyway
+    });
 
     const badge = document.getElementById('review-badge');
     badge.textContent = reviewItems.length || '';
@@ -4740,18 +4771,38 @@ function renderReviews() {
     const cName    = parts[0].trim();
     const designer = parts[1] ? parts[1].trim() : 'Unknown';
     const fileUrl  = item['Preview Link'] || '';
-  const filePath = item['Open File Link'] || '';
+    const filePath = item['Open File Link'] || '';
     const isImage  = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) || fileUrl.includes('dropbox');
     const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
+
+    // SPOC mandate (2026-06-07): two gates — SPOC sign-off + proofread sign-off.
+    // Card shows BOTH stamps and BOTH buttons; user can click whichever applies to them.
+    const spocName       = item._sb_spoc || '—';
+    const spocApprovedAt = item._sb_spoc_approved_at;
+    const spocApprovedBy = item._sb_spoc_approved_by || '';
+    const proofreadAt    = item._sb_proofread_at;
+    const proofreadBy    = item._sb_proofread_by || '';
+    const spocDone       = !!spocApprovedAt;
+    const proofDone      = !!proofreadAt;
+
+    // Who can click what — Siddhesh/Kritya can SPOC-approve only their own
+    // (already filtered). Viplav owns proofread. Suriti can do either (rescue role).
+    const canSpoc  = (currentUser === spocName) || (currentUser === 'Suriti');
+    const canProof = (currentUser === 'Viplav') || (currentUser === 'Suriti');
+
+    const chip = (label, done, who) => done
+      ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="${who ? 'by ' + who : ''}">✓ ${label}${who ? ' · ' + who : ''}</span>`
+      : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ ${label} pending</span>`;
 
     return `<div class="creative-review-card" id="rcard-${idx}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div>
           <div style="font-size:15px;font-weight:700">${cName}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · Uploaded ${item.Date}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · Uploaded ${item.Date} · SPOC: <strong>${spocName}</strong></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">Pending Review</span>
+          ${chip('SPOC', spocDone, spocApprovedBy)}
+          ${chip('Proofread', proofDone, proofreadBy)}
           <span style="font-size:10px;color:#666">Reviewing as <strong>${currentUser}</strong></span>
         </div>
       </div>
@@ -4765,13 +4816,15 @@ function renderReviews() {
       </div>`}
 
       <div style="margin-top:12px">
-        <label>Notes / Feedback (optional)</label>
+        <label>Notes / Feedback (optional — required if sending back)</label>
         <textarea id="viplav-note-${idx}" placeholder="Add feedback for designer or client..."></textarea>
       </div>
 
-      <div class="review-actions">
-        <button class="btn btn-green btn-sm" onclick="submitReview(${idx}, 'approve')">✅ Approve → Send to Client</button>
+      <div class="review-actions" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <button class="btn btn-green btn-sm" onclick="approveSpoc(${idx})" ${(!canSpoc || spocDone) ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} title="${spocDone ? 'Already SPOC-approved by ' + spocApprovedBy : (canSpoc ? 'Mark your SPOC sign-off' : 'Only SPOC ' + spocName + ' (or Suriti) can do this')}">✅ SPOC Approve${spocDone ? 'd' : ''}</button>
+        <button class="btn btn-green btn-sm" onclick="approveProofread(${idx})" ${(!canProof || proofDone) ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} title="${proofDone ? 'Already proofread by ' + proofreadBy : (canProof ? 'Mark proofread sign-off' : 'Only Viplav (or Suriti) can proofread')}">✓ Proofread${proofDone ? '' : ''}</button>
         <button class="btn btn-orange btn-sm" onclick="submitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
+        ${(spocDone && proofDone) ? '<span style="font-size:11px;color:#0a5e2a;font-weight:700;margin-left:4px">→ ready, sending to client...</span>' : '<span style="font-size:11px;color:#666;margin-left:4px">Both stamps required → Client Review</span>'}
       </div>
     </div>`;
   }).join('');
@@ -4836,7 +4889,184 @@ async function saveFileLink(idx, encodedTask) {
   } catch(e) { alert('Could not save link: ' + (e.message || 'network error')); }
 }
 
+// ====== SPOC MANDATE — two-gate review (2026-06-07) ======
+// Every creative now needs BOTH stamps before it can leave for the client:
+//   1. SPOC sign-off (Siddhesh or Kritya — whoever is the named SPOC on the task)
+//   2. Proofread sign-off (Viplav — copy/grammar pass)
+// Suriti can play either role as a rescue path. Stamps live on creatives.
+// Only when both are stamped do we flip the parent task to 'Client Review'
+// and run the existing creative_link side-effect.
+async function approveSpoc(idx) {
+  const item = reviewItems[idx];
+  if (!item) return;
+  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
+  if (item._sb_spoc_approved_at) { alert('Already SPOC-approved.'); return; }
+  const spocName = item._sb_spoc || '';
+  if (currentUser !== spocName && currentUser !== 'Suriti') {
+    alert(`Only ${spocName || 'the named SPOC'} (or Suriti) can SPOC-approve this.`);
+    return;
+  }
+  const cName = item.Task.split('|')[0].trim();
+  if (!confirm(`Mark "${cName}" SPOC-approved by ${currentUser}?`)) return;
+  const prevAt = item._sb_spoc_approved_at, prevBy = item._sb_spoc_approved_by;
+  const nowIso = new Date().toISOString();
+  item._sb_spoc_approved_at = nowIso;
+  item._sb_spoc_approved_by = currentUser;
+  renderReviews();
+  try {
+    const { error } = await sb.from('creatives')
+      .update({ spoc_approved_at: nowIso, spoc_approved_by: currentUser })
+      .eq('id', item._sb_id);
+    if (error) throw new Error(error.message || 'update failed');
+  } catch(e) {
+    item._sb_spoc_approved_at = prevAt;
+    item._sb_spoc_approved_by = prevBy;
+    renderReviews();
+    if (/not authenticated|unauthor|401/i.test(e.message || '')) {
+      _forceTeamLogin('Your session expired — please log in again, then re-stamp the SPOC sign-off.');
+      return;
+    }
+    alert('Could not save SPOC approval: ' + (e.message || 'network error'));
+    return;
+  }
+  // Side-effects: ping Viplav (proofread pending) OR finalize if proofread is already done.
+  if (item._sb_proofread_at) {
+    await _finalizeApproval(idx);
+  } else {
+    try { notifyInApp('Viplav', 'feedback', `SPOC approved "${cName}" — ready for your proofread`, { actor: currentUser }); } catch(e) {}
+  }
+}
+
+async function approveProofread(idx) {
+  const item = reviewItems[idx];
+  if (!item) return;
+  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
+  if (item._sb_proofread_at) { alert('Already proofread.'); return; }
+  if (currentUser !== 'Viplav' && currentUser !== 'Suriti') {
+    alert('Only Viplav (or Suriti) can stamp the proofread sign-off.');
+    return;
+  }
+  const cName = item.Task.split('|')[0].trim();
+  if (!confirm(`Mark "${cName}" proofread by ${currentUser}?`)) return;
+  const prevAt = item._sb_proofread_at, prevBy = item._sb_proofread_by;
+  const nowIso = new Date().toISOString();
+  item._sb_proofread_at = nowIso;
+  item._sb_proofread_by = currentUser;
+  renderReviews();
+  try {
+    const { error } = await sb.from('creatives')
+      .update({ proofread_at: nowIso, proofread_by: currentUser })
+      .eq('id', item._sb_id);
+    if (error) throw new Error(error.message || 'update failed');
+  } catch(e) {
+    item._sb_proofread_at = prevAt;
+    item._sb_proofread_by = prevBy;
+    renderReviews();
+    if (/not authenticated|unauthor|401/i.test(e.message || '')) {
+      _forceTeamLogin('Your session expired — please log in again, then re-stamp the proofread sign-off.');
+      return;
+    }
+    alert('Could not save proofread sign-off: ' + (e.message || 'network error'));
+    return;
+  }
+  // Side-effects: ping the SPOC if they haven't signed off yet, OR finalize.
+  if (item._sb_spoc_approved_at) {
+    await _finalizeApproval(idx);
+  } else {
+    const spocName = item._sb_spoc || '';
+    if (spocName) {
+      try { notifyInApp(spocName, 'feedback', `Proofread done on "${cName}" — your SPOC sign-off pending`, { actor: currentUser }); } catch(e) {}
+    }
+  }
+}
+
+// Both gates cleared → flip parent task to 'Client Review' and run the
+// creative_link share-folder stamp (same logic as the old submitReview('approve')).
+async function _finalizeApproval(idx) {
+  const item = reviewItems[idx];
+  if (!item) return;
+  const parts    = item.Task.split('|');
+  const cName    = parts[0].trim();
+  const designer = parts[1] ? parts[1].trim() : '';
+
+  // Remove the card now that both gates are stamped.
+  const removedItem = item;
+  const removedAt   = idx;
+  reviewItems.splice(idx, 1);
+  renderReviews();
+  const repaintBadges = () => {
+    const badge = document.getElementById('review-badge');
+    if (badge) { badge.textContent = reviewItems.length || ''; badge.style.display = reviewItems.length ? 'inline' : 'none'; }
+    const bell = document.getElementById('review-bell-count');
+    if (bell) { bell.textContent = reviewItems.length || ''; bell.style.display = reviewItems.length ? 'flex' : 'none'; }
+  };
+  repaintBadges();
+
+  const stamp = `SPOC ${item._sb_spoc_approved_by || ''} + proof ${item._sb_proofread_by || ''}`;
+  try {
+    const resp = await fetch(SHEETDB, {
+      method: 'POST', headers: {'Content-Type':'text/plain'},
+      body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: 'Client Review', Notes: stamp } })
+    });
+    if (!resp.ok) {
+      let errMsg = 'Could not flip to Client Review';
+      try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      reviewItems.splice(removedAt, 0, removedItem);
+      renderReviews();
+      repaintBadges();
+      if (/not authenticated|unauthor|401/i.test(errMsg)) {
+        _forceTeamLogin('Your session expired — please log in again. The SPOC + proofread stamps are saved; just the status flip needs retry.');
+        return;
+      }
+      alert('Both stamps saved, but could not flip the task to Client Review: ' + errMsg);
+      return;
+    }
+  } catch(e) {
+    reviewItems.splice(removedAt, 0, removedItem);
+    renderReviews();
+    repaintBadges();
+    alert('Both stamps saved, but could not flip the task to Client Review: ' + (e.message || 'network error'));
+    return;
+  }
+
+  // Notify designer (positive ping).
+  if (designer) {
+    try {
+      const apMsg = `✅ <b>Creative cleared review</b> (SPOC + proofread)\n\n<b>${cName}</b> · sent to client`;
+      notifyTelegram(designer, apMsg);
+      notifyInApp(designer, 'accept', `${cName} cleared SPOC + proofread → sent to client`, { actor: currentUser });
+    } catch(e) {}
+  }
+
+  // Stamp creative_link with the /REVIEW/ share URL if not already set
+  // (mirrors the legacy submitReview('approve') side-effect).
+  if (item._sb_id) {
+    (async () => {
+      try {
+        const { data: cRow } = await sb.from('creatives').select('task_id, folder_path').eq('id', item._sb_id).single();
+        if (!cRow || !cRow.task_id) return;
+        const { data: tRow } = await sb.from('tasks').select('creative_link').eq('id', cRow.task_id).single();
+        if (tRow && tRow.creative_link) return;
+        const reviewPath = cRow.folder_path || '';
+        if (!reviewPath) return;
+        const fres = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ folderPath: reviewPath })
+        });
+        const fdata = await fres.json().catch(() => ({}));
+        if (fdata.success && fdata.url) {
+          await sb.from('tasks').update({ creative_link: fdata.url }).eq('id', cRow.task_id);
+        }
+      } catch(e) { console.warn('creative_link stamp on dual-approval failed:', e); }
+    })();
+  }
+}
+
 async function submitReview(idx, action) {
+  // SPOC mandate (2026-06-07): the old "approve" path went straight to Client
+  // Review. That's now gated behind SPOC + proofread stamps. If anything still
+  // calls submitReview('approve'), route it through the new SPOC sign-off.
+  if (action === 'approve') { return approveSpoc(idx); }
   const item     = reviewItems[idx];
   const parts    = item.Task.split('|');
   const cName    = parts[0].trim();
@@ -4961,36 +5191,15 @@ async function submitReview(idx, action) {
     }
   }
 
-  // Reject: email designer + move EVERY file out of /REVIEW/ into /REJECTED/.
-  // Files are stored as per-file Dropbox share URLs in file_urls; the backend
-  // resolves each share URL to its real path before moving. (The old code moved
-  // item['Preview Link'] — the /REVIEW/ FOLDER link — which can't be moved as a
-  // file, so the move silently failed and the files stayed in /REVIEW/.)
+  // Send-back: 2026-06-09 — DO NOT move files to /REJECTED/. Keep them in
+  // /REVIEW/[task]/ so the share URLs stay live and the designer's Feedback tab
+  // can render thumbnails + Suriti/Viplav's comments together. Moving used to
+  // orphan the URL (and the 30-day /REJECTED/ cleanup cron eventually deleted
+  // the file too), leaving the designer with a 📄 placeholder + no way to act
+  // on the feedback. Pile-up in /REVIEW/[task]/ is the tradeoff; sweep later.
+  // Only TERMINAL reject (concept scrapped) still moves files out — handled in
+  // the founder portal's quickScrap / founderSubmitReview('reject') paths.
   if (action === 'sendback') {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const reviewFiles = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
-      ? item._sb_file_urls
-      : (fileUrl ? [fileUrl] : []);
-    if (reviewFiles.length) {
-      (async () => {
-        const safeC = (cName || 'creative').replace(/[^a-zA-Z0-9]/g, '-');
-        let fails = 0;
-        await Promise.all(reviewFiles.map(async (src, i) => {
-          const origName = (String(src).split('/').pop() || `file${i+1}`).split('?')[0];
-          try {
-            const resp = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
-              method: 'POST', headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({ fromPath: src, toFolder: '/REJECTED', toFilename: `${today}_${safeC}_File${i+1}_${origName}` })
-            });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok || !data.success) { fails++; console.warn('Reject move failed:', data.error || resp.status, src); }
-          } catch(e) { fails++; console.warn('Reject move error:', e.message, src); }
-        }));
-        if (fails) {
-          alert(`⚠️ ${fails} of ${reviewFiles.length} file(s) couldn't be moved out of /REVIEW/.\nThe send-back went through — but tell Suriti so the leftover files can be cleared.`);
-        }
-      })();
-    }
     if (DESIGNER_EMAILS[designer]) {
       emailjs.send(EJS_SVC, EJS_TPL, {
         to_email: DESIGNER_EMAILS[designer], to_name: designer,
