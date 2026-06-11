@@ -5819,26 +5819,60 @@ async function sendBackFile(idx, fileIdx) {
 }
 
 async function quickScrap(idx) {
+  // 2026-06-11 — Reject = terminal delete (Suriti's three-state model).
+  // Files: deleted from Dropbox immediately. Creative row: DELETE.
+  // Parent task: status='Rejected' so the task history still shows the scrap.
   const item = window._reviewItems && window._reviewItems[idx];
   if (!item) return;
   const parts = (item.Task || '').split('|');
   const cName = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : '';
-  if (!confirm(`Scrap "${cName}"?\n\nThis concept won't move forward — no rework. The designer will be told it's dead.`)) return;
+  if (!confirm(`Scrap "${cName}"?\n\nThis is terminal — every file in this card is DELETED from Dropbox immediately and the creative record is removed. The task moves to 'Rejected' for history. Proceed?`)) return;
 
   try {
+    // 1. Delete files from Dropbox (best-effort — DB delete still proceeds even on failure).
+    const filesToWipe = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
+      ? item._sb_file_urls.slice()
+      : (item['Preview Link'] ? [item['Preview Link']] : []);
+    if (filesToWipe.length) {
+      try {
+        const dRes = await fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: filesToWipe })
+        });
+        const dJson = await dRes.json().catch(() => ({}));
+        if (!dJson.success) console.warn('quickScrap: dropbox-delete did not confirm full success:', dJson.error || dJson);
+      } catch(e) { console.warn('quickScrap: dropbox-delete network error:', e.message); }
+    }
+    // 2. Capture task_id BEFORE the row goes away, then delete the creative row.
+    let taskIdForCascade = null;
     if (item._sb_id) {
-      await sb.from('creatives').update({
-        status: 'Rejected',
-        review_note: 'rejected by Suriti: scrapped',
-        client_decided_at: new Date().toISOString()
-      }).eq('id', item._sb_id);
-      // Cascade — task moves to Closed since concept is dead
-      await cascadeTaskFromCreative(item, 'Rejected', null);
+      try {
+        const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+        taskIdForCascade = (cRow && cRow.task_id) || null;
+      } catch(e) { console.warn('quickScrap: could not read task_id pre-delete:', e); }
+      const del = await sb.from('creatives').delete().eq('id', item._sb_id);
+      if (del && del.error) {
+        alert('Files deleted from Dropbox, but could NOT delete the creative row:\n\n' +
+          (del.error.message || JSON.stringify(del.error)));
+        return;
+      }
     }
+    // 3. Cascade task to Rejected so history is preserved.
+    if (taskIdForCascade) {
+      try {
+        await sb.from('tasks').update({ status: 'Rejected', notes: 'creative scrapped by Suriti via quick-action' }).eq('id', taskIdForCascade);
+      } catch(e) { console.warn('quickScrap: task cascade failed:', e); }
+    }
+    // 4. Designer ping.
     if (designer) {
-      notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. No need to iterate.\n\n<a href="https://madebyyellow.com/team.html">View →</a>`);
+      try {
+        notifyTelegram(designer, `❌ <b>Scrapped</b>\n\n<b>${cName}</b>\n\nThis concept won't move forward. Files have been removed.\n\n<a href="https://madebyyellow.com/team.html">View →</a>`);
+      } catch(e) {}
+      try { notifyInApp(designer, 'reject', `Suriti scrapped ${cName}. Files deleted.`, { actor: 'Suriti', taskId: taskIdForCascade }); } catch(e) {}
     }
+    // 5. Optimistic UI.
+    if (Array.isArray(window._reviewItems)) window._reviewItems.splice(idx, 1);
     renderReview();
     updateReviewBadge();
   } catch(e) {
@@ -5955,12 +5989,83 @@ async function founderSubmitReview(idx, action, opts) {
   if (action === 'reject' && !note) { alert('Please add a reason before rejecting.'); return; }
   const confirmMsg =
     action === 'approve' ? `Approve "${cName}" and send to client?` :
-    action === 'reject'  ? `Reject "${cName}"? The designer will be told to scrap this concept.` :
+    action === 'reject'  ? `REJECT "${cName}"?\n\nThis is terminal:\n  • Every file in this card will be DELETED from Dropbox immediately (no 30-day grace).\n  • The creative record is DELETED from the database.\n  • The parent task moves to 'Rejected' so it stays in history.\n\nProceed?` :
                            `Send "${cName}" back to ${designer}?`;
   // skipConfirm: set when founderApproveSpoc/Proofread auto-triggers the final
   // 'approve' cascade because BOTH gates just landed — the user already
   // confirmed each stamp, no need for a third yes/no.
   if (!(opts && opts.skipConfirm) && !confirm(confirmMsg)) return;
+
+  // ===== REJECT (terminal scrap) — 2026-06-11 =====
+  // New model (Suriti, 2026-06-11): a creative has 3 outcomes — acceptable,
+  // rework, or rejected. Reject = the concept is dead, no rework. So we
+  // DELETE the files from Dropbox immediately AND delete the creative row.
+  // The parent task flips to 'Rejected' so the history view still shows
+  // "Suriti rejected this concept on <date>" at task level. No /REJECTED/
+  // staging folder, no 30-day grace — gone is gone.
+  if (action === 'reject') {
+    const filesToWipe = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length)
+      ? item._sb_file_urls.slice()
+      : (item['Preview Link'] ? [item['Preview Link']] : []);
+    let dropboxDeleted = 0, dropboxRequested = filesToWipe.length;
+    if (filesToWipe.length) {
+      try {
+        const dRes = await fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: filesToWipe })
+        });
+        const dJson = await dRes.json().catch(() => ({}));
+        if (dJson && typeof dJson.deleted === 'number') dropboxDeleted = dJson.deleted;
+        if (!dJson.success) console.warn('dropbox-delete did not confirm full success:', dJson.error || dJson);
+      } catch(e) {
+        console.warn('dropbox-delete network error:', e.message);
+      }
+    }
+    // Delete the creative row. Capture task_id BEFORE deleting so we can
+    // still cascade the parent task status afterwards.
+    let taskIdForCascade = null;
+    if (item._sb_id) {
+      try {
+        const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+        taskIdForCascade = (cRow && cRow.task_id) || null;
+      } catch(e) { console.warn('Could not read task_id pre-delete:', e); }
+      const del = await sb.from('creatives').delete().eq('id', item._sb_id);
+      if (del && del.error) {
+        alert('Files deleted from Dropbox, but could NOT delete the creative row:\n\n' +
+          (del.error.message || JSON.stringify(del.error)) +
+          '\n\nThe row is still in the DB but the files are gone. Try the reject again, or clean up manually.');
+        return;
+      }
+    }
+    // Cascade the parent task to 'Rejected' so it stays in history.
+    if (taskIdForCascade) {
+      try {
+        await sb.from('tasks').update({ status: 'Rejected', notes: `creative rejected by Suriti: ${note}` }).eq('id', taskIdForCascade);
+      } catch(e) { console.warn('Task cascade on reject failed:', e); }
+    }
+    // Notifications — designer + @mentions.
+    if (designer) {
+      try {
+        notifyTelegram(designer, `❌ <b>Concept rejected</b>\n\n<b>${cName}</b>\nReviewer: Suriti\nReason: ${note}\n\nThis concept won't move forward. Files have been removed.`);
+      } catch(e) {}
+      try { notifyInApp(designer, 'reject', `Suriti rejected ${cName} — "${note}". Files deleted.`, { actor: 'Suriti', taskId: taskIdForCascade }); } catch(e) {}
+    }
+    try {
+      const mentioned = extractMentions(note || '').filter(n => n && n !== designer && n !== 'Suriti');
+      mentioned.forEach(name => notifyInApp(name, 'tag', `Suriti tagged you on rejection of ${cName}: "${note}"`, { actor: 'Suriti', taskId: taskIdForCascade }));
+    } catch(e) {}
+
+    // Optimistic UI — drop from local cache + re-render.
+    if (Array.isArray(window._reviewItems)) {
+      window._reviewItems.splice(idx, 1);
+    }
+    renderReview();
+    updateReviewBadge();
+
+    // Brief confirmation banner with the wipe tally.
+    console.log(`Reject: deleted ${dropboxDeleted}/${dropboxRequested} files from Dropbox, removed creative row, task ${taskIdForCascade || '(unlinked)'} → Rejected.`);
+    return;
+  }
 
   const newStatus =
     action === 'approve' ? 'Client Review' :
