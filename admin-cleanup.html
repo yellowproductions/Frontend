@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!--
+  One-shot admin cleanup tool (2026-06-09).
+  Strips "Auto-detected as missing from Dropbox..." ghost entries from every
+  creative's rejected_files JSONB array. Built because Supabase MCP token
+  expired mid-session and Suriti couldn't run the SQL herself.
+
+  How it works:
+    1. Reads the founder/team auth token from localStorage (same key as
+       founder.html / team.html). If missing → tells Suriti to log in first.
+    2. Pulls every creatives row via the /api/db gateway (service-role
+       bypasses RLS — same path the rest of the portal uses).
+    3. In JS, filters out rejected_files entries whose feedback starts with
+       "Auto-detected as missing". Counts what would change.
+    4. After Suriti confirms, PATCHes each affected row in series so failures
+       surface clearly (a fast Promise.all would mask which row broke).
+    5. Logs progress + final tally. Idempotent — safe to run twice.
+
+  Safe to leave in the repo but unlisted. URL won't appear anywhere else.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Made By Yellow — Admin Cleanup</title>
+<style>
+  body { font-family: 'Poppins', -apple-system, system-ui, sans-serif; background:#faf9f5; color:#1a1a1a; margin:0; padding:30px 20px; }
+  .wrap { max-width: 760px; margin: 0 auto; background:#fff; border:1px solid #e6e3dc; border-radius:14px; padding: 30px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p.muted { color:#666; font-size:13px; margin: 0 0 18px; line-height:1.5; }
+  button { font-family: inherit; cursor: pointer; font-weight: 700; border-radius: 8px; padding: 10px 18px; font-size: 14px; border: none; }
+  .btn-primary { background:#FEBC06; color:#000; }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-secondary { background:transparent; color:#666; border:1px solid #d4cfc4; }
+  pre { background:#f5f4f0; border:1px solid #e6e3dc; border-radius:8px; padding:14px; font-size:12px; line-height:1.6; overflow:auto; max-height: 380px; white-space: pre-wrap; word-break: break-word; }
+  .row { display:flex; gap:10px; align-items:center; margin: 14px 0; flex-wrap: wrap; }
+  .pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:0.05em; }
+  .pill.warn { background:#fff3cd; color:#92640a; border:1px solid #f0d080; }
+  .pill.ok   { background:#dcf6e4; color:#0a5e2a; border:1px solid #9adcb1; }
+  .pill.err  { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+  .row.actions { margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧹 Cleanup: dead "Auto-detected as missing" feedback entries</h1>
+  <p class="muted">
+    Strips ghost <code>rejected_files</code> entries (the ones where the feedback text is
+    <code>"Auto-detected as missing from Dropbox..."</code>) from every creative. Genuine per-file
+    feedback you added stays intact. Safe to run more than once.
+  </p>
+
+  <div id="auth-status" class="row"></div>
+
+  <div class="row actions">
+    <button id="scan-btn" class="btn-primary">🔍 Step 1 — Scan (read only)</button>
+    <button id="run-btn" class="btn-primary" disabled>🧹 Step 2 — Clean up</button>
+    <button id="run-status-fix" class="btn-secondary" disabled>🪦 Optional — Close fully-empty 'Sent Back' rows</button>
+  </div>
+
+  <pre id="log">Ready. Click "Step 1 — Scan" to see what would change.</pre>
+</div>
+
+<script>
+const DB_API = 'https://yellowbackend.onrender.com/api/db';
+const AUTH_KEY = 'yos-auth'; // same key founder.html / team.html use
+
+const $log = document.getElementById('log');
+const $auth = document.getElementById('auth-status');
+const $scan = document.getElementById('scan-btn');
+const $run  = document.getElementById('run-btn');
+const $statusFix = document.getElementById('run-status-fix');
+
+let scanCache = null; // { affected: [...], totalGhosts }
+
+function token() {
+  try { return (JSON.parse(localStorage.getItem(AUTH_KEY) || '{}').token) || ''; } catch(e) { return ''; }
+}
+function log(msg) { $log.textContent += '\n' + msg; $log.scrollTop = $log.scrollHeight; }
+function clearLog() { $log.textContent = ''; }
+
+function pill(cls, text) {
+  const span = document.createElement('span');
+  span.className = 'pill ' + cls;
+  span.textContent = text;
+  return span;
+}
+
+function setAuthBanner() {
+  $auth.innerHTML = '';
+  if (token()) {
+    $auth.appendChild(pill('ok', '✓ Logged in — token detected'));
+  } else {
+    $auth.appendChild(pill('err', '✕ Not logged in — open founder.html or team.html and log in first, then come back to this page.'));
+    $scan.disabled = true;
+  }
+}
+
+async function dbRun(spec) {
+  const r = await fetch(DB_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+    body: JSON.stringify(spec)
+  });
+  let j;
+  try { j = await r.json(); } catch(e) { j = { data: null, error: { message: 'Bad gateway response' } }; }
+  return j;
+}
+
+const isGhost = (entry) =>
+  entry && typeof entry.feedback === 'string' && /^auto-detected as missing/i.test(entry.feedback.trim());
+
+$scan.addEventListener('click', async () => {
+  $scan.disabled = true;
+  clearLog();
+  log('Scanning creatives table...');
+  try {
+    const r = await dbRun({
+      table: 'creatives',
+      action: 'select',
+      columns: 'id, name, designer, client, status, rejected_files, file_urls',
+      filters: [],
+      order: []
+    });
+    if (r.error) {
+      log('✕ Scan failed: ' + (r.error.message || JSON.stringify(r.error)));
+      $scan.disabled = false;
+      return;
+    }
+    const rows = Array.isArray(r.data) ? r.data : [];
+    log(`✓ Pulled ${rows.length} creative rows.`);
+    const affected = [];
+    let totalGhosts = 0;
+    for (const c of rows) {
+      if (!Array.isArray(c.rejected_files) || !c.rejected_files.length) continue;
+      const ghosts = c.rejected_files.filter(isGhost).length;
+      if (!ghosts) continue;
+      const keep = c.rejected_files.filter(e => !isGhost(e));
+      affected.push({ id: c.id, name: c.name, designer: c.designer, client: c.client, status: c.status, before: c.rejected_files.length, ghosts, after: keep.length, newRejectedFiles: keep, file_urls: c.file_urls });
+      totalGhosts += ghosts;
+    }
+    if (!affected.length) {
+      log('\n🪷 Nothing to do — no ghost entries found. Already clean.');
+      $scan.disabled = false;
+      return;
+    }
+    log(`\nFound ${affected.length} creative(s) with ${totalGhosts} ghost entr${totalGhosts === 1 ? 'y' : 'ies'} to drop:\n`);
+    affected.forEach((a, i) => {
+      log(`  ${i+1}. ${a.name || '(unnamed)'} — designer: ${a.designer || '?'} · client: ${a.client || '?'} · status: ${a.status || '?'} · drop ${a.ghosts}/${a.before}, ${a.after} real entr${a.after === 1 ? 'y' : 'ies'} remain`);
+    });
+    scanCache = { affected, totalGhosts };
+    log('\nReady. Click "Step 2 — Clean up" to apply.');
+    $run.disabled = false;
+    $scan.disabled = false;
+  } catch(e) {
+    log('✕ Scan error: ' + (e.message || e));
+    $scan.disabled = false;
+  }
+});
+
+$run.addEventListener('click', async () => {
+  if (!scanCache || !scanCache.affected.length) { alert('Run the scan first.'); return; }
+  if (!confirm(`Drop ${scanCache.totalGhosts} ghost entries across ${scanCache.affected.length} creatives? This is reversible by re-running the old reject (but only if you really need to).`)) return;
+  $run.disabled = true;
+  $scan.disabled = true;
+  log('\nApplying cleanup...');
+  let ok = 0, fail = 0;
+  for (const a of scanCache.affected) {
+    const u = await dbRun({
+      table: 'creatives',
+      action: 'update',
+      payload: { rejected_files: a.newRejectedFiles },
+      filters: [{ col: 'id', op: 'eq', val: a.id }],
+      columns: 'id'
+    });
+    if (u.error) {
+      fail++;
+      log(`  ✕ ${a.name || a.id}: ${u.error.message || JSON.stringify(u.error)}`);
+    } else {
+      ok++;
+      log(`  ✓ ${a.name || a.id}: dropped ${a.ghosts} ghost${a.ghosts === 1 ? '' : 's'}, ${a.after} real entr${a.after === 1 ? 'y' : 'ies'} remain`);
+    }
+  }
+  log(`\n🪷 Done. ${ok} cleaned, ${fail} failed. ${scanCache.totalGhosts} total ghost entries removed.`);
+  if (fail === 0) {
+    log('\nTell Sonal (and anyone else with feedback cards) to hit ↻ on their Feedback tab.');
+    log('\nIf any cards still look empty, click the optional "Close fully-empty Sent Back rows" button below.');
+    $statusFix.disabled = false;
+  }
+  scanCache = null;
+  $scan.disabled = false;
+});
+
+$statusFix.addEventListener('click', async () => {
+  if (!confirm('Find every Sent Back creative with no files left at all (rejected_files empty AND file_urls empty), and flip status to "Closed" so the Feedback card stops showing? This is for ghosts that have no real content to action.')) return;
+  $statusFix.disabled = true;
+  log('\nScanning for fully-empty Sent Back creatives...');
+  try {
+    const r = await dbRun({
+      table: 'creatives',
+      action: 'select',
+      columns: 'id, name, designer, status, rejected_files, file_urls',
+      filters: [{ col: 'status', op: 'eq', val: 'Sent Back' }],
+      order: []
+    });
+    if (r.error) { log('✕ Scan failed: ' + (r.error.message || JSON.stringify(r.error))); return; }
+    const rows = Array.isArray(r.data) ? r.data : [];
+    const empties = rows.filter(c => {
+      const rfEmpty = !Array.isArray(c.rejected_files) || c.rejected_files.length === 0;
+      const fuEmpty = !Array.isArray(c.file_urls)      || c.file_urls.length === 0;
+      return rfEmpty && fuEmpty;
+    });
+    if (!empties.length) { log('🪷 No fully-empty Sent Back creatives found. Nothing to close.'); return; }
+    log(`Closing ${empties.length} fully-empty Sent Back creative(s)...`);
+    let ok = 0, fail = 0;
+    for (const c of empties) {
+      const u = await dbRun({
+        table: 'creatives',
+        action: 'update',
+        payload: { status: 'Closed' },
+        filters: [{ col: 'id', op: 'eq', val: c.id }],
+        columns: 'id'
+      });
+      if (u.error) { fail++; log(`  ✕ ${c.name || c.id}: ${u.error.message || JSON.stringify(u.error)}`); }
+      else         { ok++;   log(`  ✓ ${c.name || c.id} (${c.designer || '?'}) → Closed`); }
+    }
+    log(`\n🪷 Done. ${ok} closed, ${fail} failed.`);
+  } catch(e) {
+    log('✕ Error: ' + (e.message || e));
+  }
+});
+
+setAuthBanner();
+</script>
+</body>
+</html>
