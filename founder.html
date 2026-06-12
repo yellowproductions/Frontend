@@ -5382,78 +5382,59 @@ async function renderReview() {
         const isImage = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(fileUrl);
         const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
 
+        // 2026-06-12 — Simplified review card (Suriti's 3-state model).
+        // Each file has ONE comment input (becomes rework signal) + ONE ✕ drop
+        // button (deletes file). Card-level: ONE 🚀 Send button that processes
+        // all per-file decisions:
+        //   • untouched files       → approved → ship to client
+        //   • comment added         → rework → designer's Feedback tab
+        //   • ✕ drop clicked        → delete from Dropbox + drop from card
+        //   • drop wins over comment (locked with Suriti 2026-06-12)
+        //   • if ALL files dropped  → creative row deleted, task → Rejected
         return `<div style="position:relative;border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;background:#fff">
-          <button onclick="quickScrap(${idx})" title="Scrap — concept won't move forward"
-            style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:14px;background:#fff;border:1px solid #fecaca;color:#dc2626;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;z-index:2"
-            onmouseover="this.style.background='#fee2e2';this.style.borderColor='#dc2626'"
-            onmouseout="this.style.background='#fff';this.style.borderColor='#fecaca'">×</button>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:10px;padding-right:36px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px">
             <div>
               <div style="font-size:15px;font-weight:700">${cName}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'} · SPOC: <strong>${item._sb_spoc || '—'}</strong></div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'}${item._sb_spoc ? ` · SPOC: <strong>${item._sb_spoc}</strong>` : ''}</div>
             </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              ${item._sb_spoc_approved_at
-                ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_spoc_approved_by || ''}">✓ SPOC · ${item._sb_spoc_approved_by || ''}</span>`
-                : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ SPOC pending</span>`}
-              ${item._sb_proofread_at
-                ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_proofread_by || ''}">✓ Proofread · ${item._sb_proofread_by || ''}</span>`
-                : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ Proofread pending</span>`}
-              <span style="font-size:10px;color:#666">Reviewing as <strong>Suriti</strong></span>
-            </div>
+            ${(item._sb_spoc_approved_at || item._sb_proofread_at) ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              ${item._sb_spoc_approved_at ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_spoc_approved_by || ''}">✓ SPOC · ${item._sb_spoc_approved_by || ''}</span>` : ''}
+              ${item._sb_proofread_at ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_proofread_by || ''}">✓ Proofread · ${item._sb_proofread_by || ''}</span>` : ''}
+            </div>` : ''}
           </div>
           ${(() => {
             const urls = item._sb_file_urls && item._sb_file_urls.length ? item._sb_file_urls : (fileUrl ? [fileUrl] : []);
             const folderUrl = fileUrl;
-            if (!urls.length) return '<div style="font-size:12px;color:#999;margin-bottom:10px">No preview link saved</div>';
+            if (!urls.length) return '<div style="font-size:12px;color:#999;margin-bottom:10px">No files attached yet — designer hasn\'t uploaded.</div>';
             const thumbs = urls.map((u, ui) => {
               const direct = u.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
               const isImg = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(u);
               const thumbEl = isImg
-                ? `<img src="${direct}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="window.open('${u}','_blank')" onerror="markThumbMissing(this, ${idx}, ${ui})" title="File ${ui+1}">`
+                ? `<img src="${direct}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:opacity 0.15s" onclick="window.open('${u}','_blank')" onerror="markThumbMissing(this, ${idx}, ${ui})" title="File ${ui+1}">`
                 : `<a href="${u}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1/1;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:11px;color:#666;text-decoration:none">📄 File ${ui+1}</a>`;
-              return `<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+              // Per-file controls: comment (rework signal) + ✕ drop button.
+              return `<div id="file-wrap-${idx}-${ui}" data-state="approved" style="display:flex;flex-direction:column;gap:5px;min-width:0;position:relative">
                 ${thumbEl}
-                <div style="font-size:9px;color:#999;text-align:center;font-weight:600">FILE ${ui+1}</div>
-                <input type="text" id="file-comment-${idx}-${ui}" placeholder="Feedback on this file..."
-                  style="font-size:10px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit;width:100%;box-sizing:border-box">
-                <label style="display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;color:#991b1b;cursor:pointer;padding:4px 6px;border:1px solid #fecaca;background:#fef2f2;border-radius:5px;font-weight:600">
-                  <input type="checkbox" class="file-check-cb" data-ridx="${idx}" id="file-check-${idx}-${ui}" onchange="updateRejectCount(${idx})" style="width:auto;margin:0;cursor:pointer">
-                  Reject this
-                </label>
+                <div style="font-size:9px;color:#999;text-align:center;font-weight:600">FILE ${ui+1} · <span id="file-state-${idx}-${ui}" style="color:#0a5e2a">approved</span></div>
+                <input type="text" id="file-comment-${idx}-${ui}" placeholder="Type to send for rework..." oninput="onFileCommentChange(${idx}, ${ui})"
+                  style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-family:inherit;width:100%;box-sizing:border-box">
+                <button type="button" id="file-drop-${idx}-${ui}" onclick="toggleFileDrop(${idx}, ${ui})"
+                  style="font-size:11px;padding:5px 8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:5px;cursor:pointer;font-weight:600;font-family:inherit">✕ Drop this file</button>
               </div>`;
             }).join('');
             const folderBtn = folderUrl
-              ? `<a href="${folderUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px;margin-right:8px">📁 Open Folder (${urls.length} file${urls.length>1?'s':''})</a>`
+              ? `<a href="${folderUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:14px">📁 Open Folder (${urls.length} file${urls.length>1?'s':''})</a>`
               : '';
             // Hidden until at least one thumb fails to load (markThumbMissing reveals it).
-            // Click → drops dead URLs from file_urls + stamps them into rejected_files.
             const cleanBtn = `<button id="clean-missing-btn-${idx}" onclick="cleanMissingFromCard(${idx})"
               style="display:none;margin-bottom:10px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit"
               title="Some files in this card don't exist in Dropbox anymore. Click to sync the database to reality."></button>`;
             return `${folderBtn}${cleanBtn}
-              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-bottom:8px">${thumbs}</div>
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-                <input type="text" id="batch-reason-${idx}" placeholder="Shared reason for the ticked files (a per-file note overrides this)..."
-                  style="flex:1;min-width:200px;font-size:11px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
-                <button id="batch-reject-btn-${idx}" onclick="rejectCheckedFiles(${idx})"
-                  style="font-size:11px;padding:7px 14px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:700;font-family:inherit">✕ Reject ticked files</button>
-              </div>`;
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:14px">${thumbs}</div>`;
           })()}
-          <div style="margin-top:12px">
-            <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;display:block;margin-bottom:6px">Notes / Feedback (optional)</label>
-            <textarea id="founder-note-${idx}" placeholder="Add feedback for designer or client..." style="width:100%;min-height:60px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'Poppins',sans-serif;font-size:13px"></textarea>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
-            <button class="btn btn-green btn-sm" onclick="founderApproveSpoc(${idx})"
-              ${item._sb_spoc_approved_at ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}
-              title="${item._sb_spoc_approved_at ? 'Already SPOC-approved by ' + (item._sb_spoc_approved_by || '') : 'Mark SPOC sign-off (rescue path — Suriti can stamp any task)'}">✅ SPOC Approve${item._sb_spoc_approved_at ? 'd' : ''}</button>
-            <button class="btn btn-green btn-sm" onclick="founderApproveProofread(${idx})"
-              ${item._sb_proofread_at ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}
-              title="${item._sb_proofread_at ? 'Already proofread by ' + (item._sb_proofread_by || '') : 'Mark proofread sign-off'}">✓ Proofread</button>
-            <button class="btn btn-orange btn-sm" onclick="founderSubmitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
-            <button class="btn btn-red btn-sm" onclick="founderSubmitReview(${idx}, 'reject')">❌ Reject — Scrap Concept</button>
-            <span style="font-size:11px;color:#666;margin-left:4px">Both stamps required → auto-sends to Client Review</span>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;justify-content:flex-end">
+            <span id="send-hint-${idx}" style="font-size:11px;color:#666;flex:1;min-width:0">Untouched files go to client · typed comments go for rework · dropped files vanish</span>
+            <button id="send-btn-${idx}" class="btn btn-green" onclick="processReviewCard(${idx})" style="font-size:14px;font-weight:700;padding:10px 22px">🚀 Send</button>
           </div>
         </div>`;
       }).join('');
@@ -5816,6 +5797,249 @@ async function sendBackFile(idx, fileIdx) {
   } catch(e) {
     alert('Could not send back: ' + e.message);
   }
+}
+
+// ====== Simplified review processor (2026-06-12) ======
+// Three states per file (mutually exclusive):
+//   • approved (default — untouched) → ships to client when card sends
+//   • rework   (comment typed)       → designer's Feedback tab, file stays
+//   • dropped  (✕ drop clicked)      → file deleted from Dropbox + removed
+// Drop wins over comment (locked design). Card-level Send processes the
+// mix and sets the final status. State lives in window._fileStates[idx][ui]
+// and is mirrored to data-state on the wrapper so visual hints stay accurate.
+window._fileStates = window._fileStates || {};
+
+function _ensureFileStateMap(idx) {
+  if (!window._fileStates[idx]) window._fileStates[idx] = {};
+  return window._fileStates[idx];
+}
+
+function _setFileState(idx, ui, state) {
+  const map = _ensureFileStateMap(idx);
+  map[ui] = state;
+  const wrap = document.getElementById(`file-wrap-${idx}-${ui}`);
+  const stateLabel = document.getElementById(`file-state-${idx}-${ui}`);
+  const commentInput = document.getElementById(`file-comment-${idx}-${ui}`);
+  const dropBtn = document.getElementById(`file-drop-${idx}-${ui}`);
+  if (!wrap) return;
+  wrap.setAttribute('data-state', state);
+  // Visual treatment per state
+  if (state === 'dropped') {
+    wrap.style.opacity = '0.45';
+    wrap.style.filter = 'grayscale(0.6)';
+    if (commentInput) { commentInput.disabled = true; commentInput.value = ''; commentInput.placeholder = 'File dropped — comment ignored'; }
+    if (dropBtn) { dropBtn.textContent = '↺ Undo drop'; dropBtn.style.background = '#fff'; dropBtn.style.color = '#666'; dropBtn.style.borderColor = '#d4cfc4'; }
+    if (stateLabel) { stateLabel.textContent = 'dropped'; stateLabel.style.color = '#991b1b'; }
+  } else if (state === 'rework') {
+    wrap.style.opacity = '1';
+    wrap.style.filter = 'none';
+    if (commentInput) { commentInput.disabled = false; commentInput.placeholder = 'Type to send for rework...'; }
+    if (dropBtn) { dropBtn.textContent = '✕ Drop this file'; dropBtn.style.background = '#fef2f2'; dropBtn.style.color = '#991b1b'; dropBtn.style.borderColor = '#fecaca'; }
+    if (stateLabel) { stateLabel.textContent = 'rework'; stateLabel.style.color = '#a07419'; }
+  } else { // approved
+    wrap.style.opacity = '1';
+    wrap.style.filter = 'none';
+    if (commentInput) { commentInput.disabled = false; commentInput.placeholder = 'Type to send for rework...'; }
+    if (dropBtn) { dropBtn.textContent = '✕ Drop this file'; dropBtn.style.background = '#fef2f2'; dropBtn.style.color = '#991b1b'; dropBtn.style.borderColor = '#fecaca'; }
+    if (stateLabel) { stateLabel.textContent = 'approved'; stateLabel.style.color = '#0a5e2a'; }
+  }
+  _updateSendHint(idx);
+}
+
+function onFileCommentChange(idx, ui) {
+  const map = _ensureFileStateMap(idx);
+  if (map[ui] === 'dropped') return;  // drop wins, comment input is disabled
+  const v = (document.getElementById(`file-comment-${idx}-${ui}`)?.value || '').trim();
+  _setFileState(idx, ui, v ? 'rework' : 'approved');
+}
+
+function toggleFileDrop(idx, ui) {
+  const map = _ensureFileStateMap(idx);
+  if (map[ui] === 'dropped') {
+    // Undo drop — go back to approved (or rework if comment is non-empty after re-enable)
+    _setFileState(idx, ui, 'approved');
+    // Re-enable the comment so the user can resume typing
+    const ci = document.getElementById(`file-comment-${idx}-${ui}`);
+    if (ci) { ci.disabled = false; ci.focus(); }
+  } else {
+    _setFileState(idx, ui, 'dropped');
+  }
+}
+
+function _updateSendHint(idx) {
+  const item = (window._reviewItems || [])[idx];
+  if (!item) return;
+  const urls = (item._sb_file_urls && item._sb_file_urls.length) ? item._sb_file_urls : [];
+  const map = _ensureFileStateMap(idx);
+  let approved = 0, rework = 0, dropped = 0;
+  urls.forEach((_, ui) => {
+    const s = map[ui] || 'approved';
+    if (s === 'rework') rework++;
+    else if (s === 'dropped') dropped++;
+    else approved++;
+  });
+  const hint = document.getElementById(`send-hint-${idx}`);
+  const btn = document.getElementById(`send-btn-${idx}`);
+  if (!hint || !btn) return;
+  const parts = [];
+  if (approved) parts.push(`<span style="color:#0a5e2a;font-weight:700">${approved} → client</span>`);
+  if (rework)   parts.push(`<span style="color:#a07419;font-weight:700">${rework} → rework</span>`);
+  if (dropped)  parts.push(`<span style="color:#991b1b;font-weight:700">${dropped} dropped</span>`);
+  hint.innerHTML = parts.length ? parts.join(' · ') : 'Untouched files go to client · typed comments go for rework · dropped files vanish';
+  // Send button copy adapts to the mix
+  if (rework && !approved && !dropped) btn.textContent = '↺ Send all for rework';
+  else if (dropped && !approved && !rework) btn.textContent = '🪦 Drop all files';
+  else if (approved && !rework && !dropped) btn.textContent = '🚀 Send to client';
+  else btn.textContent = '🚀 Send';
+}
+
+async function processReviewCard(idx) {
+  const item = (window._reviewItems || [])[idx];
+  if (!item) return;
+  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
+  const parts = (item.Task || '').split('|');
+  const cName = parts[0].trim();
+  const designer = parts[1] ? parts[1].trim() : '';
+
+  const urls = (Array.isArray(item._sb_file_urls) && item._sb_file_urls.length) ? item._sb_file_urls.slice() : [];
+  if (!urls.length) { alert('No files on this card to send.'); return; }
+  const map = _ensureFileStateMap(idx);
+
+  // Bucket each URL by its state.
+  const approvedUrls = [], reworkEntries = [], droppedUrls = [];
+  urls.forEach((u, ui) => {
+    const s = map[ui] || 'approved';
+    if (s === 'dropped') droppedUrls.push(u);
+    else if (s === 'rework') {
+      const comment = (document.getElementById(`file-comment-${idx}-${ui}`)?.value || '').trim();
+      reworkEntries.push({ url: u, feedback: comment || '(no comment)', file_label: `File ${ui + 1}`, rejected_at: new Date().toISOString() });
+    } else approvedUrls.push(u);
+  });
+
+  // Confirm with a tally so Suriti sees what's about to happen.
+  const tally = [];
+  if (approvedUrls.length) tally.push(`${approvedUrls.length} → client`);
+  if (reworkEntries.length) tally.push(`${reworkEntries.length} → rework (designer)`);
+  if (droppedUrls.length)   tally.push(`${droppedUrls.length} dropped (permanently deleted)`);
+  if (!confirm(`Send "${cName}"?\n\n  • ${tally.join('\n  • ')}\n\nThis cannot be undone.`)) return;
+
+  const btn = document.getElementById(`send-btn-${idx}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  // 1. Dropbox-delete the dropped files (best-effort — DB still proceeds).
+  if (droppedUrls.length) {
+    try {
+      const dRes = await fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: droppedUrls })
+      });
+      const dJson = await dRes.json().catch(() => ({}));
+      if (!dJson.success) console.warn('processReviewCard: dropbox-delete partial/failed:', dJson.error || dJson);
+    } catch(e) { console.warn('processReviewCard: dropbox-delete network error:', e.message); }
+  }
+
+  // 2. Decide the new card status + DB payload.
+  //    • All dropped (no approved, no rework) → delete creative row + cascade task to Rejected.
+  //    • Any rework             → status='Sent Back', file_urls=approved, rework comments appended to rejected_files.
+  //    • Approved only           → status='Client Review', file_urls=approved.
+  let taskIdForCascade = null;
+  try {
+    const { data: cRow } = await sb.from('creatives').select('task_id').eq('id', item._sb_id).single();
+    taskIdForCascade = (cRow && cRow.task_id) || null;
+  } catch(e) { console.warn('processReviewCard: could not read task_id:', e); }
+
+  const allDropped = !approvedUrls.length && !reworkEntries.length && droppedUrls.length;
+  if (allDropped) {
+    // Whole card scrapped — delete the creative row entirely.
+    const del = await sb.from('creatives').delete().eq('id', item._sb_id);
+    if (del && del.error) {
+      alert('Files deleted from Dropbox, but could NOT delete the creative row:\n\n' + (del.error.message || JSON.stringify(del.error)));
+      if (btn) { btn.disabled = false; }
+      return;
+    }
+    if (taskIdForCascade) {
+      try { await sb.from('tasks').update({ status: 'Rejected', notes: 'all files dropped by Suriti' }).eq('id', taskIdForCascade); }
+      catch(e) { console.warn('processReviewCard: task cascade failed:', e); }
+    }
+    if (designer) {
+      try { notifyTelegram(designer, `❌ <b>Concept scrapped</b>\n\n<b>${cName}</b>\n\nAll files have been removed. This concept won't move forward.`); } catch(e) {}
+      try { notifyInApp(designer, 'reject', `Suriti dropped every file on ${cName}. Concept scrapped.`, { actor: 'Suriti', taskId: taskIdForCascade }); } catch(e) {}
+    }
+  } else if (reworkEntries.length) {
+    // Any rework → card goes to Sent Back; approved files stay in file_urls.
+    const existingRej = Array.isArray(item._sb_rejected_files) ? item._sb_rejected_files.slice() : [];
+    const newRejected = existingRej.concat(reworkEntries);
+    const reviewNote = reworkEntries.map(e => `${e.file_label}: ${e.feedback}`).join('\n');
+    const upd = {
+      status: 'Sent Back',
+      review_note: reviewNote,
+      file_urls: approvedUrls,
+      rejected_files: newRejected,
+      client_decided_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('creatives').update(upd).eq('id', item._sb_id);
+    if (error) {
+      alert('Could not save the rework: ' + (error.message || JSON.stringify(error)));
+      if (btn) { btn.disabled = false; }
+      return;
+    }
+    // Mirror to local item
+    item._sb_file_urls = approvedUrls;
+    item._sb_rejected_files = newRejected;
+    item.Status = 'Sent Back';
+    if (taskIdForCascade) {
+      try { await sb.from('tasks').update({ status: 'Rework' }).eq('id', taskIdForCascade); }
+      catch(e) { console.warn('processReviewCard: task→Rework cascade failed:', e); }
+    }
+    if (designer) {
+      try { notifyTelegram(designer, `↺ <b>Rework on ${reworkEntries.length} file${reworkEntries.length === 1 ? '' : 's'}</b>\n\n<b>${cName}</b>\n${reworkEntries.map(e => `${e.file_label}: ${e.feedback}`).join('\n')}\n\n<a href="https://madebyyellow.com/team.html">Open Feedback tab →</a>`); } catch(e) {}
+      try { notifyInApp(designer, 'feedback', `Suriti sent back ${reworkEntries.length} file${reworkEntries.length === 1 ? '' : 's'} on ${cName} for rework`, { actor: 'Suriti', taskId: taskIdForCascade }); } catch(e) {}
+    }
+  } else {
+    // Approved only (no rework, no drops — or drops alongside approves with no rework).
+    // Card → Client Review. file_urls = approved only.
+    const upd = {
+      status: 'Client Review',
+      file_urls: approvedUrls,
+      client_decided_at: new Date().toISOString(),
+      client_decision: null
+    };
+    // Auto-stamp BOTH SPOC + Proofread on the founder approval if the columns exist.
+    // Wrapped in a separate try so missing columns don't tank the whole send.
+    try {
+      const nowIso = new Date().toISOString();
+      await sb.from('creatives').update({
+        spoc_approved_at: nowIso, spoc_approved_by: 'Suriti',
+        proofread_at:     nowIso, proofread_by:     'Suriti'
+      }).eq('id', item._sb_id);
+    } catch(e) { console.warn('processReviewCard: SPOC/Proofread stamp skipped (columns may not exist):', e.message); }
+    const { error } = await sb.from('creatives').update(upd).eq('id', item._sb_id);
+    if (error) {
+      alert('Could not save the approval: ' + (error.message || JSON.stringify(error)));
+      if (btn) { btn.disabled = false; }
+      return;
+    }
+    item._sb_file_urls = approvedUrls;
+    item.Status = 'Client Review';
+    if (taskIdForCascade) {
+      try {
+        const taskUpd = { status: 'Client Review' };
+        if (item['Preview Link']) taskUpd.preview_link = item['Preview Link'];
+        await sb.from('tasks').update(taskUpd).eq('id', taskIdForCascade);
+      } catch(e) { console.warn('processReviewCard: task→Client Review cascade failed:', e); }
+    }
+    if (designer) {
+      try { notifyTelegram(designer, `✅ <b>Approved</b>\n\n<b>${cName}</b>${droppedUrls.length ? `\n(${droppedUrls.length} file${droppedUrls.length === 1 ? '' : 's'} dropped)` : ''} · sent to client`); } catch(e) {}
+      try { notifyInApp(designer, 'accept', `Suriti approved ${cName}${droppedUrls.length ? ` (${droppedUrls.length} dropped)` : ''} → sent to client`, { actor: 'Suriti', taskId: taskIdForCascade }); } catch(e) {}
+    }
+  }
+
+  // Optimistic UI — remove the card from the queue + refresh.
+  if (Array.isArray(window._reviewItems)) window._reviewItems.splice(idx, 1);
+  // Clean the per-file state cache for this card (idx will shift on re-render).
+  delete window._fileStates[idx];
+  renderReview();
+  updateReviewBadge();
 }
 
 async function quickScrap(idx) {
