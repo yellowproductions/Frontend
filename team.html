@@ -2993,11 +2993,16 @@ function renderFocusToday(items, overdueCount, todayCount) {
     const statusStyle = STATUS_SELECT[status] || STATUS_SELECT['Pending'];
     const title = t.Title || t.Task || '—';
     const isLast = i === items.length - 1;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};font-size:13px">
+    // Each row is clickable — taps through to the matching task in the main
+    // list (expands it + scrolls + flashes). Saves the user from scanning the
+    // long open-task list to find the one they need to act on.
+    const safeKey = (t.Task || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `<div onclick="jumpToTaskRow('${safeKey}')" style="display:flex;align-items:center;gap:10px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid #f5ecd6'};font-size:13px;cursor:pointer;transition:background 0.15s;border-radius:4px" onmouseover="this.style.background='#fff8e1'" onmouseout="this.style.background=''" title="Jump to this task in your list">
       ${tag}
       ${updateChip}
       <span style="flex:1;color:#1a1a1a;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span>
       <span style="${statusStyle};font-size:10px;padding:2px 9px;border-radius:20px;flex-shrink:0">${status}</span>
+      <span style="color:#a07419;font-size:11px;flex-shrink:0">→</span>
     </div>`;
   }).join('');
 }
@@ -3051,15 +3056,28 @@ function renderUpdatesToday(allMyTasks) {
   }).join('');
 }
 
-// Scroll a task row into view + highlight it briefly so the user sees where they landed.
+// Scroll a task row into view, EXPAND it if collapsed (so the user lands on
+// the full detail including pending updates), and flash a highlight so they
+// see where they landed. Called by the Updates-Today strip + Focus Today
+// rows (2026-06-11) — each is one tap that drops the user directly into the
+// task they need to touch.
 function jumpToTaskRow(taskKey) {
-  const row = document.querySelector(`[data-task-key="${taskKey.replace(/"/g, '&quot;')}"]`);
-  if (!row) return;
-  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  const originalBg = row.style.background;
-  row.style.transition = 'background 0.4s';
-  row.style.background = '#fef3c7';
-  setTimeout(() => { row.style.background = originalBg; }, 1600);
+  const wrap = document.querySelector(`[data-task-key="${taskKey.replace(/"/g, '&quot;')}"]`);
+  if (!wrap) return;
+  // The clickable header row is the first child .fos-task-row inside the wrapper.
+  const header = wrap.querySelector('.fos-task-row');
+  const detail = wrap.querySelector('.fos-task-detail');
+  if (header && !header.classList.contains('open')) {
+    header.classList.add('open');
+    if (detail) detail.style.display = 'block';
+    try { window._teamExpanded && window._teamExpanded.add(taskKey); } catch(e) {}
+  }
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const target = header || wrap;
+  const originalBg = target.style.background;
+  target.style.transition = 'background 0.4s';
+  target.style.background = '#fef3c7';
+  setTimeout(() => { target.style.background = originalBg; }, 1600);
 }
 
 // Append a new dated update line to a task. Used by the "+ Add update for today..."
