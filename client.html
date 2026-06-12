@@ -2254,8 +2254,11 @@ async function submitAction(uid, folder, idx, action) {
       (async () => {
         try {
           // Load creative + linked task so we know what to move and where.
+          // ALSO pull rejected_files so we can filter rework leftovers out of
+          // the move (defensive against Studio's rework cleanup ever failing
+          // silently — Suriti's 2026-06-12 sync audit).
           const { data: cRow } = await sb.from('creatives')
-            .select('id, task_id, name, client').eq('id', item._sb_id).single();
+            .select('id, task_id, name, client, file_urls, rejected_files').eq('id', item._sb_id).single();
           if (!cRow || !cRow.task_id) return;
           const { data: tRow } = await sb.from('tasks')
             .select('id, title, client').eq('id', cRow.task_id).single();
@@ -2277,6 +2280,23 @@ async function submitAction(uid, folder, idx, action) {
           const reviewFolder = `/REVIEW/${safeProject}`;
           const destFolder   = `/${clientName}/Projects/${safeProject}`;
 
+          // Build a set of rework-file basenames to SKIP on the move. Sourced
+          // from rejected_files[].url — Studio normally deletes these on the
+          // designer's rework re-upload, but if that ever fails the files
+          // linger in /REVIEW/[Task]/ and would otherwise leak to the client.
+          const filenameFromUrl = (u) => {
+            try {
+              const clean = String(u || '').split('?')[0].split('#')[0];
+              const last = clean.split('/').pop() || '';
+              return decodeURIComponent(last);
+            } catch(e) { return ''; }
+          };
+          const reworkNames = new Set(
+            (Array.isArray(cRow.rejected_files) ? cRow.rejected_files : [])
+              .map(r => r && filenameFromUrl(r.url))
+              .filter(Boolean)
+          );
+
           // List EVERYTHING in /REVIEW/[Task]/ — brief + creatives + sources together.
           let files = [];
           try {
@@ -2288,8 +2308,21 @@ async function submitAction(uid, folder, idx, action) {
             files = (ld.entries || []).filter(e => e.tag === 'file');
           } catch(e) { console.warn('Approve-move: REVIEW list failed', e); return; }
 
-          // Move every file to the destination project folder.
-          for (const f of files) {
+          // Partition files: move clean ones, purge rework leftovers separately.
+          const toMove  = files.filter(f => !reworkNames.has(f.name));
+          const toPurge = files.filter(f =>  reworkNames.has(f.name));
+          if (toPurge.length) {
+            console.warn(`Approve-move: skipping ${toPurge.length} rework leftover(s):`, toPurge.map(f => f.name));
+            // Defensive cleanup so /REVIEW/[Task]/ doesn't accumulate cruft.
+            // Fire-and-forget — main move shouldn't wait on housekeeping.
+            fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ urls: toPurge.map(f => f.path || `${reviewFolder}/${f.name}`) })
+            }).catch(e => console.warn('Approve-move: leftover cleanup failed:', e.message));
+          }
+
+          // Move only the approved/brief/source files to the destination project folder.
+          for (const f of toMove) {
             try {
               const r = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
                 method: 'POST', headers: {'Content-Type':'application/json'},

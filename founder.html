@@ -6001,6 +6001,10 @@ async function processReviewCard(idx) {
     const upd = {
       status: 'Client Review',
       file_urls: approvedUrls,
+      // Clear stale rework entries on approve — by the time the card reaches
+      // Client Review, any prior rework cycle is resolved. Stops the client
+      // bulk move from filtering against ghosts on the next round.
+      rejected_files: [],
       client_decided_at: new Date().toISOString(),
       client_decision: null
     };
