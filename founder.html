@@ -5512,7 +5512,15 @@ async function renderReview() {
 
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = '<div class="empty-state">Could not load creatives.</div>';
+    // Surface the actual error so the user (Suriti) can screenshot what
+    // broke instead of staring at a generic 'could not load' wall.
+    console.error('renderReview failed:', e);
+    el.innerHTML = `<div class="empty-state" style="white-space:pre-wrap;font-size:13px;line-height:1.6;text-align:left;padding:20px;color:#991b1b">
+      <strong>Review failed to load.</strong>
+
+      <div style="font-size:12px;color:#666;margin-top:8px">Error: <code style="background:#fff;padding:2px 6px;border-radius:4px">${(e && e.message) || String(e)}</code></div>
+      <div style="font-size:11px;color:#999;margin-top:8px">Open the browser console (Cmd+Opt+J) to see the full stack trace.</div>
+    </div>`;
   }
 }
 
