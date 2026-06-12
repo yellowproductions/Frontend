@@ -5330,9 +5330,21 @@ function pillFor(status, note) {
 
 async function renderReview() {
   const el = document.getElementById('review-list');
-  el.innerHTML = '<div class="empty-state">Loading...</div>';
+  el.innerHTML = '<div class="empty-state" style="padding:18px">⏳ Loading creatives…</div>';
+  // Watchdog — if fetchSheetRows is still pending after 12s, replace the
+  // generic loading block with something diagnostic so the user knows it's
+  // not just a slow render but an actual hang.
+  const watchdog = setTimeout(() => {
+    if (el.innerHTML.includes('⏳ Loading')) {
+      el.innerHTML = `<div class="empty-state" style="padding:18px;text-align:left;color:#92640a">
+        <strong>Review is taking longer than usual to load.</strong>
+        <div style="font-size:12px;color:#666;margin-top:6px">Still waiting on the database (fetchSheetRows). This usually finishes in &lt;3s. Check connection / backend, or open the browser console (Cmd+Opt+J) for errors.</div>
+      </div>`;
+    }
+  }, 12000);
   try {
     const raw = await fetchSheetRows();
+    clearTimeout(watchdog);
     const all = raw
       .filter(r => (r.Type === 'creative' || r.Status === 'Pending Review' || r.Status === 'Pending Viplav') && r.Task && r.Task.includes('|'))
       .map(r => ({ ...r, Date: normalizeDate(r.Date) }))
@@ -5374,8 +5386,9 @@ async function renderReview() {
       html += '<div class="empty-state" style="padding:24px">🎉 Nothing pending. The team will be notified when something new lands here.</div>';
     } else {
       html += pending.map((item, idx) => {
-        const parts = item.Task.split('|');
-        const cName = parts[0].trim();
+        try {
+        const parts = (item.Task || '').split('|');
+        const cName = (parts[0] || '').trim() || '(unnamed)';
         const designer = parts[1] ? parts[1].trim() : 'Unknown';
         const fileUrl = item['Preview Link'] || '';
         const clientLabel = CLIENT_LABELS[item.Assignee] || item.Assignee || '—';
@@ -5437,6 +5450,16 @@ async function renderReview() {
             <button id="send-btn-${idx}" class="btn btn-green" onclick="processReviewCard(${idx})" style="font-size:14px;font-weight:700;padding:10px 22px">🚀 Send</button>
           </div>
         </div>`;
+        } catch(err) {
+          // Per-card defensive — a broken card doesn't kill the whole queue.
+          // Surface enough info to fix the bad row without hiding good ones.
+          console.error('Review card render failed at idx', idx, item, err);
+          return `<div style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:10px;padding:14px;margin-bottom:14px;font-size:12px">
+            <strong>Couldn't render card #${idx + 1}.</strong> Other cards should still work.
+            <div style="margin-top:4px;color:#666">${err && err.message ? err.message : String(err)}</div>
+            <div style="margin-top:4px;color:#999;font-size:10px">Item snapshot: ${(item.Title || item.Task || '').toString().slice(0, 80)}</div>
+          </div>`;
+        }
       }).join('');
     }
 
