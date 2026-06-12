@@ -43,19 +43,22 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>🧹 Cleanup: dead "Auto-detected as missing" feedback entries</h1>
+  <h1>🧹 Team Feedback cleanup — dead threads + ghost entries</h1>
   <p class="muted">
-    Strips ghost <code>rejected_files</code> entries (the ones where the feedback text is
-    <code>"Auto-detected as missing from Dropbox..."</code>) from every creative. Genuine per-file
-    feedback you added stays intact. Safe to run more than once.
+    <strong>Step A — Strip ghost entries:</strong> removes <code>rejected_files</code> entries whose feedback is
+    literally <code>"Auto-detected as missing from Dropbox..."</code>. Genuine per-file feedback stays.<br>
+    <strong>Step B — Delete dead threads:</strong> any creative still in <code>Sent Back</code> status with
+    no live files left (<code>file_urls</code> empty) gets <em>DELETED outright</em> — row gone, designer's
+    Feedback tab clears up. Parent task is left alone (still in Rework).<br>
+    Safe to run more than once. Always scan first.
   </p>
 
   <div id="auth-status" class="row"></div>
 
   <div class="row actions">
     <button id="scan-btn" class="btn-primary">🔍 Step 1 — Scan (read only)</button>
-    <button id="run-btn" class="btn-primary" disabled>🧹 Step 2 — Clean up</button>
-    <button id="run-status-fix" class="btn-secondary" disabled>🪦 Optional — Close fully-empty 'Sent Back' rows</button>
+    <button id="run-btn" class="btn-primary" disabled>🧹 Step A — Strip ghost entries</button>
+    <button id="run-status-fix" class="btn-primary" disabled style="background:#dc2626;color:#fff">🪦 Step B — Delete dead threads</button>
   </div>
 
   <pre id="log">Ready. Click "Step 1 — Scan" to see what would change.</pre>
@@ -192,41 +195,68 @@ $run.addEventListener('click', async () => {
 });
 
 $statusFix.addEventListener('click', async () => {
-  if (!confirm('Find every Sent Back creative with no files left at all (rejected_files empty AND file_urls empty), and flip status to "Closed" so the Feedback card stops showing? This is for ghosts that have no real content to action.')) return;
   $statusFix.disabled = true;
-  log('\nScanning for fully-empty Sent Back creatives...');
+  log('\nScanning for Feedback-visible threads with no live files...');
   try {
+    // Suriti's directive (2026-06-11): "whatever has no file → delete the
+    // entire thread." Match team.html#loadFeedback's filter so we ONLY touch
+    // creatives a designer would actually see (rejected_files non-empty OR
+    // status='Sent Back'); then drop any of those with file_urls empty.
+    // Why file_urls only: without a live file, the designer can't act on the
+    // feedback regardless of whether the per-file notes are real or ghost.
+    // Pull all creatives (no status filter — the Feedback pool isn't only
+    // 'Sent Back', it includes anything with rejected_files non-empty too).
     const r = await dbRun({
       table: 'creatives',
       action: 'select',
-      columns: 'id, name, designer, status, rejected_files, file_urls',
-      filters: [{ col: 'status', op: 'eq', val: 'Sent Back' }],
+      columns: 'id, name, designer, client, status, file_urls, rejected_files, task_id',
+      filters: [],
       order: []
     });
-    if (r.error) { log('✕ Scan failed: ' + (r.error.message || JSON.stringify(r.error))); return; }
+    if (r.error) { log('✕ Scan failed: ' + (r.error.message || JSON.stringify(r.error))); $statusFix.disabled = false; return; }
     const rows = Array.isArray(r.data) ? r.data : [];
-    const empties = rows.filter(c => {
-      const rfEmpty = !Array.isArray(c.rejected_files) || c.rejected_files.length === 0;
-      const fuEmpty = !Array.isArray(c.file_urls)      || c.file_urls.length === 0;
-      return rfEmpty && fuEmpty;
+    const dead = rows.filter(c => {
+      // Must be in the Feedback-visible pool — matches team.html#loadFeedback's `needsRework`.
+      const rf = Array.isArray(c.rejected_files) ? c.rejected_files : [];
+      const inFeedbackPool = rf.length > 0 || c.status === 'Sent Back';
+      if (!inFeedbackPool) return false;
+      // No live files left = dead thread (designer can't action anything).
+      const fuEmpty = !Array.isArray(c.file_urls) || c.file_urls.length === 0;
+      return fuEmpty;
     });
-    if (!empties.length) { log('🪷 No fully-empty Sent Back creatives found. Nothing to close.'); return; }
-    log(`Closing ${empties.length} fully-empty Sent Back creative(s)...`);
+    if (!dead.length) {
+      log('🪷 No dead Sent Back threads found. Nothing to delete.');
+      $statusFix.disabled = false;
+      return;
+    }
+    log(`\nFound ${dead.length} dead Sent Back thread${dead.length === 1 ? '' : 's'} to delete:\n`);
+    dead.forEach((c, i) => {
+      const rfCount = Array.isArray(c.rejected_files) ? c.rejected_files.length : 0;
+      log(`  ${i+1}. ${c.name || '(unnamed)'} — designer: ${c.designer || '?'} · client: ${c.client || '?'} · ${rfCount} stale feedback entr${rfCount === 1 ? 'y' : 'ies'} · task_id=${c.task_id || '(unlinked)'}`);
+    });
+    if (!confirm(`DELETE ${dead.length} creative row${dead.length === 1 ? '' : 's'} permanently?\n\nThe creatives table loses these rows entirely. Parent tasks are left in place (still in Rework — handle them manually if needed). Cannot be undone.`)) {
+      log('\nCancelled. Nothing changed.');
+      $statusFix.disabled = false;
+      return;
+    }
+    log(`\nDeleting ${dead.length} dead thread${dead.length === 1 ? '' : 's'}...`);
     let ok = 0, fail = 0;
-    for (const c of empties) {
-      const u = await dbRun({
+    for (const c of dead) {
+      const d = await dbRun({
         table: 'creatives',
-        action: 'update',
-        payload: { status: 'Closed' },
+        action: 'delete',
         filters: [{ col: 'id', op: 'eq', val: c.id }],
         columns: 'id'
       });
-      if (u.error) { fail++; log(`  ✕ ${c.name || c.id}: ${u.error.message || JSON.stringify(u.error)}`); }
-      else         { ok++;   log(`  ✓ ${c.name || c.id} (${c.designer || '?'}) → Closed`); }
+      if (d.error) { fail++; log(`  ✕ ${c.name || c.id}: ${d.error.message || JSON.stringify(d.error)}`); }
+      else         { ok++;   log(`  ✓ Deleted: ${c.name || c.id} (${c.designer || '?'})`); }
     }
-    log(`\n🪷 Done. ${ok} closed, ${fail} failed.`);
+    log(`\n🪷 Done. ${ok} deleted, ${fail} failed.`);
+    if (ok > 0) log('Tell designers (Sonal etc.) to hit ↻ on their Feedback tab — the dead cards should disappear.');
   } catch(e) {
     log('✕ Error: ' + (e.message || e));
+  } finally {
+    $statusFix.disabled = false;
   }
 });
 
