@@ -795,15 +795,26 @@ function _supaJoinUpdates(updates) {
 // =============== READ PATH ===============
 
 async function fetchSheetRows() {
-  const [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR] = await Promise.all([
+  // Client portal only needs tasks + creatives — and the /api/db gateway only
+  // grants the 'client' role access to those two tables (DB_POLICY in
+  // backend/server.js: client = { tasks: 'r', creatives: 'ru' }). Querying
+  // attendance/leaves/chat_messages/reminders returns a 403 with an error in
+  // the response; the strict for-loop below used to treat that as fatal and
+  // throw, which silently broke BOTH Live Tasks and Projects for any actual
+  // client login (Suriti only saw it work because the founder token grants
+  // full access — was logged in as founder before).
+  // 2026-06-12 fix: only request the two tables we need + actually use.
+  const [tasksR, creativesR] = await Promise.all([
     sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
-    sb.from('attendance').select('*').order('id', { ascending: true }),
-    sb.from('leaves').select('*').order('id', { ascending: true }),
     sb.from('creatives').select('*').order('id', { ascending: true }),
-    sb.from('chat_messages').select('*').order('created_at', { ascending: true }),
-    sb.from('reminders').select('*').order('id', { ascending: true }),
   ]);
-  for (const r of [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR]) {
+  // Stub the absent results so the rest of the function's destructuring
+  // (and the legacy for-loops below) don't need to change.
+  const attendanceR = { data: [], error: null };
+  const leavesR     = { data: [], error: null };
+  const chatsR      = { data: [], error: null };
+  const remindersR  = { data: [], error: null };
+  for (const r of [tasksR, creativesR]) {
     if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
   }
   const rows = [];
@@ -1526,7 +1537,10 @@ async function loadCreatives() {
           .filter(r => (r.Status === 'Client Review' || r.Status === 'Approved') && r.Task && r.Task.includes('|'))
           .map(r => ({ ...r, Assignee: normalizeClient(r.Assignee), Client: normalizeClient(r.Client) }))
       : [];
-  } catch(e) { allCreatives = []; }
+  } catch(e) {
+    console.error('loadCreatives failed:', e);
+    allCreatives = [];
+  }
   renderAll();
 }
 
@@ -1662,7 +1676,12 @@ async function loadClientTasks() {
     const searchInput = document.getElementById('client-task-search');
     if (searchInput && searchInput.value.trim()) filterClientTasks(searchInput.value);
   } catch(e) {
-    wrap.innerHTML = '<div class="empty-state">Could not load tasks.</div>';
+    console.error('loadClientTasks failed:', e);
+    wrap.innerHTML = `<div class="empty-state" style="text-align:left;padding:20px;color:#991b1b">
+      <strong>Could not load tasks.</strong>
+      <div style="font-size:12px;color:#666;margin-top:6px">Error: <code style="background:#fff;padding:2px 6px;border-radius:4px">${(e && e.message) || String(e)}</code></div>
+      <div style="font-size:11px;color:#999;margin-top:6px">Open the browser console (Cmd+Opt+J) for the full stack.</div>
+    </div>`;
   }
 }
 
