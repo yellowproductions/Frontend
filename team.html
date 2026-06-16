@@ -3363,7 +3363,14 @@ function renderTaskRows(tasks, startIdx) {
           <div class="fos-task-row${isOpen?' open':''}${isOverdue?' overdue':''}" style="${untaggedStyle}" onclick="toggleTeamRow(this,'${taskKey}')">
             <div class="fos-cell-task">
               <span class="fos-chev">▶</span>
-              <span class="fos-tname">${esc(titleText)}</span>
+              <span class="fos-tname" id="tname-${idx}" data-original="${esc(titleText)}">${esc(titleText)}</span>
+              <input type="text" id="tname-input-${idx}" value="${esc(titleText)}" style="display:none;font-size:13px;font-weight:600;padding:4px 8px;border:1px solid #FEBC06;border-radius:4px;font-family:inherit;min-width:200px;outline:none"
+                onclick="event.stopPropagation()"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();commitRename(${idx},${t._sb_id || 'null'})}else if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelRename(${idx})}"
+                onblur="commitRename(${idx},${t._sb_id || 'null'})">
+              <button type="button" class="fos-rename-btn" title="Rename task"
+                onclick="event.stopPropagation();startRename(${idx})"
+                style="background:transparent;border:none;cursor:pointer;color:#a07419;font-size:12px;padding:2px 6px;border-radius:4px;margin-left:2px;opacity:0.6">✎</button>
               ${dateText}${filePendingChip}${ageChip}
             </div>
             <div class="fos-cell" onclick="event.stopPropagation()">${renderClientEditor(t)}</div>
@@ -3414,6 +3421,70 @@ function renderTaskRows(tasks, startIdx) {
         </div>`;
       }).join('')}
     </div>`;
+}
+
+// ====== INLINE TASK RENAME (2026-06-16) ======
+// Lets every team member rename a task's title in place. Click the ✎ next to
+// the title → input swaps in → Enter commits, Escape cancels, blur commits.
+// Commits PATCH tasks.title via the sb gateway. Optimistic UI: the local
+// _teamTasks entry updates after a successful save; on failure we restore the
+// original from data-original on the span and surface the error.
+function startRename(idx) {
+  const span  = document.getElementById(`tname-${idx}`);
+  const input = document.getElementById(`tname-input-${idx}`);
+  if (!span || !input) return;
+  span.style.display = 'none';
+  input.style.display = 'inline-block';
+  input.value = span.getAttribute('data-original') || span.textContent;
+  // Hide all pencils + chevron-toggle interactions are unaffected (stopPropagation).
+  input.focus();
+  input.select();
+}
+
+function cancelRename(idx) {
+  const span  = document.getElementById(`tname-${idx}`);
+  const input = document.getElementById(`tname-input-${idx}`);
+  if (!span || !input) return;
+  input.style.display = 'none';
+  span.style.display = '';
+  input.value = span.getAttribute('data-original') || span.textContent;
+}
+
+async function commitRename(idx, sbId) {
+  const span  = document.getElementById(`tname-${idx}`);
+  const input = document.getElementById(`tname-input-${idx}`);
+  if (!span || !input) return;
+  // Already collapsed back (blur after commit) — no-op.
+  if (input.style.display === 'none') return;
+  const original = (span.getAttribute('data-original') || '').trim();
+  const next     = (input.value || '').trim();
+  // Swap back to display before any await so blur->Enter races don't double-fire.
+  input.style.display = 'none';
+  span.style.display = '';
+  if (!next) { cancelRename(idx); return; }
+  if (next === original) return;
+  if (!sbId) {
+    alert('Cannot rename: this task is missing its database id. Refresh and try again.');
+    cancelRename(idx);
+    return;
+  }
+  // Optimistic: paint the new title immediately.
+  span.textContent = next;
+  span.setAttribute('data-original', next);
+  try {
+    const upd = await sb.from('tasks').update({ title: next }).eq('id', sbId);
+    if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
+    // Mirror to the in-memory task list so subsequent loadTasks re-renders pick it up.
+    const list = window._teamTasks || [];
+    const t = list.find(x => x._sb_id === sbId);
+    if (t) t.Title = next;
+  } catch(e) {
+    console.error('commitRename failed:', e);
+    // Roll back the optimistic paint.
+    span.textContent = original;
+    span.setAttribute('data-original', original);
+    alert(`Could not rename:\n\n${e.message || e}\n\nThe change was NOT saved.`);
+  }
 }
 
 window._teamExpanded = window._teamExpanded || new Set();
