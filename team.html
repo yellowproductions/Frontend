@@ -4916,24 +4916,11 @@ function renderReviews() {
     const isImage  = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) || fileUrl.includes('dropbox');
     const previewUrl = fileUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
 
-    // SPOC mandate (2026-06-07): two gates — SPOC sign-off + proofread sign-off.
-    // Card shows BOTH stamps and BOTH buttons; user can click whichever applies to them.
-    const spocName       = item._sb_spoc || '—';
-    const spocApprovedAt = item._sb_spoc_approved_at;
-    const spocApprovedBy = item._sb_spoc_approved_by || '';
-    const proofreadAt    = item._sb_proofread_at;
-    const proofreadBy    = item._sb_proofread_by || '';
-    const spocDone       = !!spocApprovedAt;
-    const proofDone      = !!proofreadAt;
-
-    // Who can click what — Siddhesh/Kritya can SPOC-approve only their own
-    // (already filtered). Viplav owns proofread. Suriti can do either (rescue role).
-    const canSpoc  = (currentUser === spocName) || (currentUser === 'Suriti');
-    const canProof = (currentUser === 'Viplav') || (currentUser === 'Suriti');
-
-    const chip = (label, done, who) => done
-      ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="${who ? 'by ' + who : ''}">✓ ${label}${who ? ' · ' + who : ''}</span>`
-      : `<span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">⏳ ${label} pending</span>`;
+    // 2026-06-16 — Suriti collapsed the dual-stamp gate. One Approve button.
+    // Any reviewer in the SPOC-scoped queue can ship straight to client. The
+    // SPOC name still shows so the team knows who owns the task, but the
+    // approval is a single action (no Proofread gate, no race condition).
+    const spocName = item._sb_spoc || '—';
 
     return `<div class="creative-review-card" id="rcard-${idx}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
@@ -4942,8 +4929,7 @@ function renderReviews() {
           <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · Uploaded ${item.Date} · SPOC: <strong>${spocName}</strong></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          ${chip('SPOC', spocDone, spocApprovedBy)}
-          ${chip('Proofread', proofDone, proofreadBy)}
+          <span style="font-size:11px;color:#92640a;background:#fff3cd;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #f0d080">Pending Review</span>
           <span style="font-size:10px;color:#666">Reviewing as <strong>${currentUser}</strong></span>
         </div>
       </div>
@@ -4962,10 +4948,8 @@ function renderReviews() {
       </div>
 
       <div class="review-actions" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-        <button class="btn btn-green btn-sm" onclick="approveSpoc(${idx})" ${(!canSpoc || spocDone) ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} title="${spocDone ? 'Already SPOC-approved by ' + spocApprovedBy : (canSpoc ? 'Mark your SPOC sign-off' : 'Only SPOC ' + spocName + ' (or Suriti) can do this')}">✅ SPOC Approve${spocDone ? 'd' : ''}</button>
-        <button class="btn btn-green btn-sm" onclick="approveProofread(${idx})" ${(!canProof || proofDone) ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} title="${proofDone ? 'Already proofread by ' + proofreadBy : (canProof ? 'Mark proofread sign-off' : 'Only Viplav (or Suriti) can proofread')}">✓ Proofread${proofDone ? '' : ''}</button>
+        <button class="btn btn-green btn-sm" onclick="approveCreative(${idx})">✅ Approve → Send to Client</button>
         <button class="btn btn-orange btn-sm" onclick="submitReview(${idx}, 'sendback')">🔄 Send Back to Designer</button>
-        ${(spocDone && proofDone) ? '<span style="font-size:11px;color:#0a5e2a;font-weight:700;margin-left:4px">→ ready, sending to client...</span>' : '<span style="font-size:11px;color:#666;margin-left:4px">Both stamps required → Client Review</span>'}
       </div>
     </div>`;
   }).join('');
@@ -5037,100 +5021,23 @@ async function saveFileLink(idx, encodedTask) {
 // Suriti can play either role as a rescue path. Stamps live on creatives.
 // Only when both are stamped do we flip the parent task to 'Client Review'
 // and run the existing creative_link side-effect.
-async function approveSpoc(idx) {
+// 2026-06-16 — Suriti collapsed the dual-stamp gate (was: SPOC + Proofread,
+// raced when both fired at the same time). Now a single approveCreative()
+// flips status to 'Client Review' in one shot. The old approveSpoc /
+// approveProofread / _finalizeApproval functions are kept as shims that
+// route to approveCreative so any external callers (or the old `approve`
+// branch inside submitReview) still work without code changes.
+
+async function approveCreative(idx) {
   const item = reviewItems[idx];
   if (!item) return;
   if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
-  if (item._sb_spoc_approved_at) { alert('Already SPOC-approved.'); return; }
-  const spocName = item._sb_spoc || '';
-  if (currentUser !== spocName && currentUser !== 'Suriti') {
-    alert(`Only ${spocName || 'the named SPOC'} (or Suriti) can SPOC-approve this.`);
-    return;
-  }
-  const cName = item.Task.split('|')[0].trim();
-  if (!confirm(`Mark "${cName}" SPOC-approved by ${currentUser}?`)) return;
-  const prevAt = item._sb_spoc_approved_at, prevBy = item._sb_spoc_approved_by;
-  const nowIso = new Date().toISOString();
-  item._sb_spoc_approved_at = nowIso;
-  item._sb_spoc_approved_by = currentUser;
-  renderReviews();
-  try {
-    const { error } = await sb.from('creatives')
-      .update({ spoc_approved_at: nowIso, spoc_approved_by: currentUser })
-      .eq('id', item._sb_id);
-    if (error) throw new Error(error.message || 'update failed');
-  } catch(e) {
-    item._sb_spoc_approved_at = prevAt;
-    item._sb_spoc_approved_by = prevBy;
-    renderReviews();
-    if (/not authenticated|unauthor|401/i.test(e.message || '')) {
-      _forceTeamLogin('Your session expired — please log in again, then re-stamp the SPOC sign-off.');
-      return;
-    }
-    alert('Could not save SPOC approval: ' + (e.message || 'network error'));
-    return;
-  }
-  // Side-effects: ping Viplav (proofread pending) OR finalize if proofread is already done.
-  if (item._sb_proofread_at) {
-    await _finalizeApproval(idx);
-  } else {
-    try { notifyInApp('Viplav', 'feedback', `SPOC approved "${cName}" — ready for your proofread`, { actor: currentUser }); } catch(e) {}
-  }
-}
-
-async function approveProofread(idx) {
-  const item = reviewItems[idx];
-  if (!item) return;
-  if (!item._sb_id) { alert('Creative row not loaded — refresh and retry.'); return; }
-  if (item._sb_proofread_at) { alert('Already proofread.'); return; }
-  if (currentUser !== 'Viplav' && currentUser !== 'Suriti') {
-    alert('Only Viplav (or Suriti) can stamp the proofread sign-off.');
-    return;
-  }
-  const cName = item.Task.split('|')[0].trim();
-  if (!confirm(`Mark "${cName}" proofread by ${currentUser}?`)) return;
-  const prevAt = item._sb_proofread_at, prevBy = item._sb_proofread_by;
-  const nowIso = new Date().toISOString();
-  item._sb_proofread_at = nowIso;
-  item._sb_proofread_by = currentUser;
-  renderReviews();
-  try {
-    const { error } = await sb.from('creatives')
-      .update({ proofread_at: nowIso, proofread_by: currentUser })
-      .eq('id', item._sb_id);
-    if (error) throw new Error(error.message || 'update failed');
-  } catch(e) {
-    item._sb_proofread_at = prevAt;
-    item._sb_proofread_by = prevBy;
-    renderReviews();
-    if (/not authenticated|unauthor|401/i.test(e.message || '')) {
-      _forceTeamLogin('Your session expired — please log in again, then re-stamp the proofread sign-off.');
-      return;
-    }
-    alert('Could not save proofread sign-off: ' + (e.message || 'network error'));
-    return;
-  }
-  // Side-effects: ping the SPOC if they haven't signed off yet, OR finalize.
-  if (item._sb_spoc_approved_at) {
-    await _finalizeApproval(idx);
-  } else {
-    const spocName = item._sb_spoc || '';
-    if (spocName) {
-      try { notifyInApp(spocName, 'feedback', `Proofread done on "${cName}" — your SPOC sign-off pending`, { actor: currentUser }); } catch(e) {}
-    }
-  }
-}
-
-// Both gates cleared → flip parent task to 'Client Review' and run the
-// creative_link share-folder stamp (same logic as the old submitReview('approve')).
-async function _finalizeApproval(idx) {
-  const item = reviewItems[idx];
-  if (!item) return;
   const parts    = item.Task.split('|');
   const cName    = parts[0].trim();
   const designer = parts[1] ? parts[1].trim() : '';
+  if (!confirm(`Approve "${cName}" and send to client?`)) return;
 
-  // Remove the card now that both gates are stamped.
+  // Optimistic UI — remove the card immediately, restore if the save fails.
   const removedItem = item;
   const removedAt   = idx;
   reviewItems.splice(idx, 1);
@@ -5143,44 +5050,44 @@ async function _finalizeApproval(idx) {
   };
   repaintBadges();
 
-  const stamp = `SPOC ${item._sb_spoc_approved_by || ''} + proof ${item._sb_proofread_by || ''}`;
+  const stamp = `approved by ${currentUser}`;
   try {
     const resp = await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'text/plain'},
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: { Status: 'Client Review', Notes: stamp } })
     });
     if (!resp.ok) {
-      let errMsg = 'Could not flip to Client Review';
+      let errMsg = 'Could not save the approval';
       try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // Restore the card on failure.
       reviewItems.splice(removedAt, 0, removedItem);
       renderReviews();
       repaintBadges();
       if (/not authenticated|unauthor|401/i.test(errMsg)) {
-        _forceTeamLogin('Your session expired — please log in again. The SPOC + proofread stamps are saved; just the status flip needs retry.');
+        _forceTeamLogin('Your session expired — please log in again, then re-approve.');
         return;
       }
-      alert('Both stamps saved, but could not flip the task to Client Review: ' + errMsg);
+      alert('Could not save the approval: ' + errMsg);
       return;
     }
   } catch(e) {
     reviewItems.splice(removedAt, 0, removedItem);
     renderReviews();
     repaintBadges();
-    alert('Both stamps saved, but could not flip the task to Client Review: ' + (e.message || 'network error'));
+    alert('Could not save the approval: ' + (e.message || 'network error'));
     return;
   }
 
-  // Notify designer (positive ping).
+  // Notify designer.
   if (designer) {
     try {
-      const apMsg = `✅ <b>Creative cleared review</b> (SPOC + proofread)\n\n<b>${cName}</b> · sent to client`;
-      notifyTelegram(designer, apMsg);
-      notifyInApp(designer, 'accept', `${cName} cleared SPOC + proofread → sent to client`, { actor: currentUser });
+      notifyTelegram(designer, `✅ <b>Creative approved</b> by ${currentUser}\n\n<b>${cName}</b> · sent to client`);
+      notifyInApp(designer, 'accept', `${currentUser} approved ${cName} — sent to client`, { actor: currentUser });
     } catch(e) {}
   }
 
-  // Stamp creative_link with the /REVIEW/ share URL if not already set
-  // (mirrors the legacy submitReview('approve') side-effect).
+  // Stamp creative_link with the /REVIEW/ share URL if not already set.
+  // Background side-effect — failure is logged but doesn't block the user.
   if (item._sb_id) {
     (async () => {
       try {
@@ -5198,10 +5105,16 @@ async function _finalizeApproval(idx) {
         if (fdata.success && fdata.url) {
           await sb.from('tasks').update({ creative_link: fdata.url }).eq('id', cRow.task_id);
         }
-      } catch(e) { console.warn('creative_link stamp on dual-approval failed:', e); }
+      } catch(e) { console.warn('creative_link stamp on approval failed:', e); }
     })();
   }
 }
+
+// Legacy shims — any inline onclick or external caller still pointing at
+// the old two-gate functions just routes through the single approveCreative.
+async function approveSpoc(idx)      { return approveCreative(idx); }
+async function approveProofread(idx) { return approveCreative(idx); }
+async function _finalizeApproval(idx) { return approveCreative(idx); }
 
 async function submitReview(idx, action) {
   // SPOC mandate (2026-06-07): the old "approve" path went straight to Client

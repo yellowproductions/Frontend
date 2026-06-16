@@ -5428,10 +5428,8 @@ async function renderReview() {
               <div style="font-size:15px;font-weight:700">${cName}</div>
               <div style="font-size:12px;color:var(--muted);margin-top:2px">By ${designer} · ${clientLabel} · ${item.Date || '—'}${item._sb_spoc ? ` · SPOC: <strong>${item._sb_spoc}</strong>` : ''}</div>
             </div>
-            ${(item._sb_spoc_approved_at || item._sb_proofread_at) ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              ${item._sb_spoc_approved_at ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_spoc_approved_by || ''}">✓ SPOC · ${item._sb_spoc_approved_by || ''}</span>` : ''}
-              ${item._sb_proofread_at ? `<span style="font-size:11px;color:#0a5e2a;background:#dcf6e4;padding:3px 10px;border-radius:20px;font-weight:700;border:1px solid #9adcb1" title="by ${item._sb_proofread_by || ''}">✓ Proofread · ${item._sb_proofread_by || ''}</span>` : ''}
-            </div>` : ''}
+            <!-- 2026-06-16: SPOC + Proofread chips retired with the dual-stamp gate. -->
+
           </div>
           ${(() => {
             const urls = item._sb_file_urls && item._sb_file_urls.length ? item._sb_file_urls : (fileUrl ? [fileUrl] : []);
@@ -6062,15 +6060,8 @@ async function processReviewCard(idx) {
       client_decided_at: new Date().toISOString(),
       client_decision: null
     };
-    // Auto-stamp BOTH SPOC + Proofread on the founder approval if the columns exist.
-    // Wrapped in a separate try so missing columns don't tank the whole send.
-    try {
-      const nowIso = new Date().toISOString();
-      await sb.from('creatives').update({
-        spoc_approved_at: nowIso, spoc_approved_by: 'Suriti',
-        proofread_at:     nowIso, proofread_by:     'Suriti'
-      }).eq('id', item._sb_id);
-    } catch(e) { console.warn('processReviewCard: SPOC/Proofread stamp skipped (columns may not exist):', e.message); }
+    // 2026-06-16 — Dual-stamp (SPOC + Proofread) removed. Single approval now.
+    // No more spoc_approved_at / proofread_at writes from here.
     const { error } = await sb.from('creatives').update(upd).eq('id', item._sb_id);
     if (error) {
       alert('Could not save the approval: ' + (error.message || JSON.stringify(error)));
