@@ -3499,9 +3499,43 @@ async function loadFeedback() {
       .select('id, name, designer, client, status, review_note, preview_link, file_urls, rejected_files, client_decided_at, created_at')
       .ilike('designer', currentUser || '');
     if (r.error) throw new Error(r.error.message);
+
+    // 2026-06-16 — Suriti's directive: "if the files are not visible, remove them."
+    // Strip every "Auto-detected as missing from Dropbox..." ghost entry from
+    // each creative's rejected_files at render time. These were stamped by the
+    // older cleanMissingFromCard button when files truly went missing — they
+    // hold a dead URL + an auto-generated note, so the designer can't action
+    // them. Doing this in JS means the strip is immediate (no DB round-trip
+    // for the render); we then fire-and-forget a DB update so the cleanup
+    // persists across refreshes.
+    const isGhostEntry = (e) =>
+      e && typeof e.feedback === 'string' && /^auto-detected as missing/i.test(e.feedback.trim());
+    const dirtyIds = [];
+    (r.data || []).forEach(c => {
+      if (!Array.isArray(c.rejected_files) || !c.rejected_files.length) return;
+      const cleaned = c.rejected_files.filter(e => !isGhostEntry(e));
+      if (cleaned.length !== c.rejected_files.length) {
+        c.rejected_files = cleaned;
+        dirtyIds.push({ id: c.id, cleaned });
+      }
+    });
+    // Fire-and-forget persist — never block the render on housekeeping.
+    if (dirtyIds.length) {
+      console.log(`Feedback ghost-cleanup: stripping entries from ${dirtyIds.length} creative(s)`);
+      Promise.all(dirtyIds.map(({ id, cleaned }) =>
+        sb.from('creatives').update({ rejected_files: cleaned }).eq('id', id)
+      )).catch(e => console.warn('Feedback ghost-cleanup persist failed:', e));
+    }
+
     const needsRework = c => {
       const rf = Array.isArray(c.rejected_files) ? c.rejected_files : [];
-      return rf.length > 0 || c.status === 'Sent Back';
+      // Also skip cards where status is 'Sent Back' but EVERY file is gone —
+      // no rejected_files AND no file_urls means the card has nothing the
+      // designer can act on. Used to surface as an empty wrapper.
+      const fu = Array.isArray(c.file_urls) ? c.file_urls : [];
+      if (rf.length > 0) return true;
+      if (c.status === 'Sent Back' && fu.length > 0) return true;
+      return false;
     };
     // Prune stale dismissals — once a creative no longer needs rework, drop its
     // dismiss entry so any future rejection on the same creative shows up again.
