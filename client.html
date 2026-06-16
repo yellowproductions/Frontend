@@ -1539,6 +1539,12 @@ async function loadCreatives() {
       : [];
   } catch(e) {
     console.error('loadCreatives failed:', e);
+    // Token expired/invalid → bounce to login. Skip renderAll since the page
+    // will be overlaid by the login screen.
+    if (/not authenticated|unauthor|401/i.test((e && e.message) || '')) {
+      _clientForceLogin('Your session expired — please log in again.');
+      return;
+    }
     allCreatives = [];
   }
   renderAll();
@@ -1677,12 +1683,35 @@ async function loadClientTasks() {
     if (searchInput && searchInput.value.trim()) filterClientTasks(searchInput.value);
   } catch(e) {
     console.error('loadClientTasks failed:', e);
+    // Token expired / invalid / cleared → drop the saved session and show the
+    // login overlay so the user can re-authenticate. Same pattern team/studio use.
+    if (/not authenticated|unauthor|401/i.test((e && e.message) || '')) {
+      _clientForceLogin('Your session expired — please log in again.');
+      return;
+    }
     wrap.innerHTML = `<div class="empty-state" style="text-align:left;padding:20px;color:#991b1b">
       <strong>Could not load tasks.</strong>
       <div style="font-size:12px;color:#666;margin-top:6px">Error: <code style="background:#fff;padding:2px 6px;border-radius:4px">${(e && e.message) || String(e)}</code></div>
       <div style="font-size:11px;color:#999;margin-top:6px">Open the browser console (Cmd+Opt+J) for the full stack.</div>
     </div>`;
   }
+}
+
+// Drop the cached token + show the login overlay. Optional banner message
+// surfaces the reason ('Session expired...') above the login form so the
+// user understands why they were bounced.
+function _clientForceLogin(reason) {
+  try { localStorage.removeItem('yc-auth'); } catch(e) {}
+  const overlay = document.getElementById('login-overlay');
+  if (overlay) overlay.style.display = '';
+  const errEl = document.getElementById('login-error');
+  if (errEl && reason) {
+    errEl.textContent = reason;
+    errEl.style.display = 'block';
+  }
+  // Park the cursor in the password field for quick re-entry.
+  const pw = document.getElementById('login-input');
+  if (pw) { pw.value = ''; pw.focus(); }
 }
 
 // ===== LIVE TASKS SEARCH =====
