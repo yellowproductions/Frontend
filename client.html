@@ -1913,24 +1913,40 @@ async function submitClientRequest() {
   };
 
   try {
-    fetch(SHEETDB, {
+    // 2026-06-16 — Used to be fire-and-forget (mode:'no-cors' + no await).
+    // A backend hiccup would silently drop the request; client saw the ✓ toast
+    // and walked away. Now we await the interceptor's response (returns 200
+    // on Supabase success, 500 on Supabase failure) and only confirm to the
+    // client if it actually landed.
+    const resp = await fetch(SHEETDB, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      mode: 'no-cors',
       body: JSON.stringify({ sheet: 'Type:tasks', data: [row] })
     });
+    if (!resp.ok) {
+      let detail = '';
+      try { const j = await resp.json(); detail = j && j.error ? ' (' + j.error + ')' : ''; } catch(e) {}
+      // Token expired → bounce to login so the client can re-auth + retry.
+      if (resp.status === 401 || /unauthor|not auth/i.test(detail)) {
+        _clientForceLogin('Your session expired before your request could be sent. Please log in again and re-submit.');
+        return;
+      }
+      throw new Error('Request was not saved' + detail);
+    }
 
-    // Optimistic UX — reset the form and reload tasks to show the new row
+    // Confirmed save — reset form and refresh
     titleEl.value = '';
     descEl.value  = '';
     dateEl.value  = '';
     submitBtn.disabled = false;
     submitBtn.textContent = originalLabel;
     toast('✓ Request sent to the Yellow team.');
-    // Small delay so the sheet write lands before we re-fetch
+    // Small delay so any background mirror writes settle before we re-fetch.
     setTimeout(() => loadClientTasks(), 700);
   } catch(e) {
-    errEl.textContent = 'Could not send. Please try again.';
+    console.error('submitClientRequest failed:', e);
+    errEl.innerHTML = `<strong>Could not send your request.</strong><br>
+      <span style="font-size:11px;color:#666">${(e && e.message) || 'Please try again — your form is still here.'}</span>`;
     errEl.style.display = 'block';
     submitBtn.disabled = false;
     submitBtn.textContent = originalLabel;
@@ -2239,16 +2255,34 @@ async function submitAction(uid, folder, idx, action) {
       patchData = { Status: newStatus };
     }
 
-    fetch(SHEETDB, {
+    // 2026-06-16 — Was fire-and-forget (mode:'no-cors' + no await). A failure
+    // here meant the client saw ✓ Approved but the DB never updated — designer
+    // wouldn't know, files wouldn't move, status would stay stuck. Now we
+    // await the interceptor (200 on Supabase success, 500 on failure) and
+    // roll back the optimistic UI if it doesn't land.
+    const prevStatus = item.Status;
+    const prevNotes  = item.Notes;
+    item.Status = newStatus;                    // optimistic
+    if (patchData.Notes) item.Notes = patchData.Notes;
+    const resp = await fetch(SHEETDB, {
       method: 'POST',
       headers: {'Content-Type':'text/plain'},
-      mode: 'no-cors',
       body: JSON.stringify({ action: 'patch', sheet: 'Type:tasks', matchColumn: 'Task', matchValue: item.Task, data: patchData })
     });
-
-    // Optimistic local state update
-    item.Status = newStatus;
-    if (patchData.Notes) item.Notes = patchData.Notes;
+    if (!resp.ok) {
+      // Roll back the optimistic UI.
+      item.Status = prevStatus;
+      item.Notes  = prevNotes;
+      let detail = '';
+      try { const j = await resp.json(); detail = j && j.error ? ' (' + j.error + ')' : ''; } catch(e) {}
+      if (resp.status === 401 || /unauthor|not auth/i.test(detail)) {
+        _clientForceLogin('Your session expired. Please log in again and re-action.');
+        return;
+      }
+      alert(`Could not save your ${action.toLowerCase()}. The status was NOT changed${detail}.\n\nPlease try again.`);
+      renderAll();
+      return;
+    }
     if (action === 'Rejected') {
       allCreatives = allCreatives.filter(c => c.Task !== item.Task);
     }
@@ -2370,6 +2404,9 @@ async function submitAction(uid, folder, idx, action) {
           }
 
           // Move only the approved/brief/source files to the destination project folder.
+          // 2026-06-16 — Track per-file outcomes so we can surface partial
+          // failures to the client (previously: only console.warn, nobody knew).
+          const moveFailures = [];
           for (const f of toMove) {
             try {
               const r = await fetch('https://yellowbackend.onrender.com/api/dropbox-move', {
@@ -2377,8 +2414,24 @@ async function submitAction(uid, folder, idx, action) {
                 body: JSON.stringify({ fromPath: f.path || `${reviewFolder}/${f.name}`, toFolder: destFolder, toFilename: f.name })
               });
               const d = await r.json().catch(() => ({}));
-              if (!(r.ok && d.success)) console.warn('Approve-move: file failed', f.name, d);
-            } catch(e) { console.warn('Approve-move: file error', f.name, e.message); }
+              if (!(r.ok && d.success)) {
+                console.warn('Approve-move: file failed', f.name, d);
+                moveFailures.push({ name: f.name, reason: (d && d.error) || `status ${r.status}` });
+              }
+            } catch(e) {
+              console.warn('Approve-move: file error', f.name, e.message);
+              moveFailures.push({ name: f.name, reason: e.message || 'network error' });
+            }
+          }
+          if (moveFailures.length) {
+            // Show a banner so the client (and you on the next refresh) know
+            // some files didn't make it. Also notify Suriti via in-app bell.
+            try {
+              toast(`⚠️ Approved, but ${moveFailures.length} of ${toMove.length} file(s) didn't reach the project folder. We've flagged this for the team.`);
+              notifyInApp('Suriti', 'review',
+                `⚠️ Client approve-move FAILED on ${cName} for ${folder}: ${moveFailures.length}/${toMove.length} files stuck in /REVIEW/. Files: ${moveFailures.map(f => f.name).join(', ')}`,
+                { actor: folder, taskId: cRow.task_id });
+            } catch(e) { console.warn('Approve-move failure surface failed:', e); }
           }
 
           // Resolve destination folder URL (creates it if not yet existing — fine, it'll have content).
