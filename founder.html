@@ -5587,19 +5587,24 @@ function updateRejectCount(idx) {
 function markThumbMissing(imgEl, idx, ui) {
   if (!imgEl || imgEl.dataset.marked === '1') return;
   imgEl.dataset.marked = '1';
-  // HIDE the whole file tile (img + label + comment + reject checkbox) so dead
-  // files don't clutter the review (Suriti 2026-06-02 — rejected/missing files
-  // shouldn't appear at all). The 'Remove N missing' button at the top still
-  // surfaces the mismatch and lets her commit the cleanup in one click.
-  // We walk up to the file-tile wrapper — the grandparent div of the img.
-  let tile = imgEl;
-  for (let i = 0; i < 4 && tile && tile.parentElement; i++) {
-    tile = tile.parentElement;
-    if (tile.querySelector && tile.querySelector(`#file-check-${idx}-${ui}`)) break;
+  // HIDE the whole file tile so dead files don't clutter the review.
+  // Originally walked UP from img looking for the per-file `#file-check-...`
+  // checkbox — but that element was removed in the 2026-06-12 simplified
+  // render. The unchanged walk-up then traversed 4 levels and hid the WHOLE
+  // CARD (or, in a few cases, the whole review-list). That's the "loads and
+  // vanishes" bug Suriti reported. Fix: target the per-file wrapper directly
+  // by its stable id `#file-wrap-${idx}-${ui}` (set on the wrapper in the new
+  // render). Falls back to the old walk for any legacy callers.
+  let tile = document.getElementById(`file-wrap-${idx}-${ui}`);
+  if (!tile) {
+    tile = imgEl;
+    for (let i = 0; i < 4 && tile && tile.parentElement; i++) {
+      tile = tile.parentElement;
+      if (tile.querySelector && tile.querySelector(`#file-check-${idx}-${ui}`)) break;
+    }
   }
   if (tile) tile.style.display = 'none';
-  // Safety: also un-tick + disable the reject checkbox in case the tile-hide
-  // didn't find the right wrapper (older render variants).
+  // Safety: disable the per-file inputs in case the wrapper was already found.
   const cb = document.getElementById(`file-check-${idx}-${ui}`);
   if (cb) { cb.checked = false; cb.disabled = true; }
   const ci = document.getElementById(`file-comment-${idx}-${ui}`);
