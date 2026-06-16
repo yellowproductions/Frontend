@@ -1096,10 +1096,34 @@ async function uploadFileChunked(file, dropboxPath, onProgress) {
   // Bearer token — /api/dropbox-chunk is now authed (matches /api/db).
   // Shared with the team portal session via the yv-auth localStorage key.
   const auth = 'Bearer ' + (typeof _dbToken === 'function' ? _dbToken() : '');
+
+  // 2026-06-16 — Surface 401s instead of letting them masquerade as
+  // 'upload start failed' / 'chunk failed' / 'upload finish failed'.
+  // A stale token gave the designer no clue what went wrong; now we
+  // throw a tagged error that submitUpload catches and bounces to login.
+  const parseResp = async (res, phase) => {
+    if (res.status === 401) {
+      const e = new Error(`Your session expired during the ${phase}. Please log in again.`);
+      e.code = 'AUTH_EXPIRED';
+      throw e;
+    }
+    let j;
+    try { j = await res.json(); }
+    catch(e) {
+      throw new Error(`Backend returned a non-JSON response on ${phase} (status ${res.status}). The upload server may be down or restarting.`);
+    }
+    return j;
+  };
+
+  // === START phase ===
   const sres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'start', 'Authorization': auth } });
-  const sj = await sres.json();
-  if (!sj.success || !sj.session_id) throw new Error(sj.error || 'upload start failed');
+  const sj = await parseResp(sres, 'upload start');
+  if (!sj.success || !sj.session_id) {
+    throw new Error(sj.error || `Upload could not start (status ${sres.status}). Check your connection.`);
+  }
   const sid = sj.session_id;
+
+  // === APPEND each chunk ===
   let offset = 0;
   for (let pos = 0; pos < file.size; pos += CHUNK) {
     const blob = file.slice(pos, Math.min(pos + CHUNK, file.size));
@@ -1108,18 +1132,26 @@ async function uploadFileChunked(file, dropboxPath, onProgress) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
       try {
         const r = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'append', 'X-Session-Id': sid, 'X-Offset': String(offset), 'Authorization': auth }, body: blob });
-        const j = await r.json();
-        if (!j.success) throw new Error(j.error || 'chunk failed');
+        const j = await parseResp(r, `chunk ${Math.floor(pos/CHUNK)+1} of ${Math.ceil(file.size/CHUNK)}`);
+        if (!j.success) throw new Error(j.error || `Chunk ${Math.floor(pos/CHUNK)+1} failed (status ${r.status})`);
         ok = true;
-      } catch (e) { lastErr = e; }
+      } catch (e) {
+        // AUTH errors aren't retryable — break out immediately so the
+        // outer caller can show the re-login prompt without burning two
+        // more retry attempts on a token that won't work.
+        if (e && e.code === 'AUTH_EXPIRED') throw e;
+        lastErr = e;
+      }
     }
-    if (!ok) throw lastErr || new Error('chunk upload failed');
+    if (!ok) throw lastErr || new Error('Chunk upload failed after 3 retries.');
     offset += blob.size;
     if (onProgress) onProgress(Math.min(1, offset / Math.max(1, file.size)));
   }
+
+  // === FINISH phase ===
   const fres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'finish', 'X-Session-Id': sid, 'X-Offset': String(offset), 'X-Path': encodeURIComponent(dropboxPath), 'Authorization': auth } });
-  const fj = await fres.json();
-  if (!fj.success) throw new Error(fj.error || 'upload finish failed');
+  const fj = await parseResp(fres, 'upload finalize');
+  if (!fj.success) throw new Error(fj.error || `Upload finalize failed (status ${fres.status})`);
   return fj;
 }
 
@@ -1797,6 +1829,16 @@ async function submitUpload(){
       filePaths.push(dropPath);
       successCount++;
     } catch(e) {
+      // 2026-06-16 — Auth expiry mid-upload was the worst silent failure.
+      // Designer saw 'upload failed' on every file with no clue why. Now we
+      // detect AUTH_EXPIRED and bail out of the whole loop cleanly, bouncing
+      // them to login with a clear message.
+      if (e && e.code === 'AUTH_EXPIRED') {
+        if (typeof _studioForceLogin === 'function') {
+          _studioForceLogin('Your session expired mid-upload — please log in again, then re-upload the file.');
+        }
+        return;
+      }
       errors.push(`${file.name}: ${e.message}`);
     }
   }
@@ -1882,24 +1924,59 @@ async function submitUpload(){
             .eq('name', baseCreativeName).eq('designer', designer).limit(1);
           if (existing && existing.length) {
             const prev = existing[0].file_urls || [];
-            // Delete the old rejected files from Dropbox completely — the rework
-            // replaces them, so they shouldn't linger anywhere. Non-blocking;
-            // the 30-day /REJECTED cleanup is the backstop if this call fails.
+            // 2026-06-16 — Rework cleanup hardened.
+            // Was: fire-and-forget delete → immediately clear rejected_files in
+            // DB → if delete failed, the orphan files lived in Dropbox forever
+            // with no DB pointer + could leak to client. Now: AWAIT the delete,
+            // and only clear rejected_files if every single file came back
+            // confirmed-deleted. If even one fails, keep the entries so the
+            // NEXT rework cycle retries the cleanup. The client-approve filter
+            // (client.html) already excludes anything in rejected_files from
+            // the move, so orphans can't leak in the meantime.
             const oldRejected = Array.isArray(existing[0].rejected_files) ? existing[0].rejected_files : [];
             const rejectedUrls = oldRejected.map(rf => rf && rf.url).filter(Boolean);
+            let cleanupOK = true;     // assume happy path
             if (rejectedUrls.length) {
-              fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ urls: rejectedUrls })
-              }).catch(e => console.warn('Rejected-file cleanup failed:', e.message));
+              try {
+                const dRes = await fetch('https://yellowbackend.onrender.com/api/dropbox-delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ urls: rejectedUrls })
+                });
+                const dJson = await dRes.json().catch(() => ({}));
+                const deleted = (typeof dJson.deleted === 'number') ? dJson.deleted : 0;
+                if (!dJson.success || deleted < rejectedUrls.length) {
+                  cleanupOK = false;
+                  const lostCount = rejectedUrls.length - deleted;
+                  console.warn(`Rework cleanup partial: ${deleted}/${rejectedUrls.length} stale files deleted. Keeping ${lostCount} in rejected_files for next-cycle retry.`);
+                  // Tell Suriti so she knows there are stale files in Dropbox
+                  // she may want to clean manually — designer can't do anything.
+                  try {
+                    notifyInApp('Suriti', 'review',
+                      `⚠️ Rework cleanup partial on "${baseCreativeName}" (${designer}): ${lostCount} stale file(s) still in /REVIEW/. Will retry on next rework upload.`,
+                      { actor: designer, taskId: existing[0].task_id || null });
+                  } catch(e) {}
+                }
+              } catch(e) {
+                cleanupOK = false;
+                console.warn('Rework cleanup network error:', e.message);
+                try {
+                  notifyInApp('Suriti', 'review',
+                    `⚠️ Rework cleanup network failure on "${baseCreativeName}" (${designer}): ${rejectedUrls.length} stale file(s) still in /REVIEW/. Will retry on next rework upload.`,
+                    { actor: designer, taskId: existing[0].task_id || null });
+                } catch(e) {}
+              }
             }
             const updRes = await sb.from('creatives').update({
               status: 'Pending Review',
               preview_link: previewLink,
               file_urls: [...prev, ...fileUrls],
               review_note: null,
-              rejected_files: []
+              // Only wipe rejected_files if EVERY stale file was confirmed gone
+              // from Dropbox. Otherwise keep the entries — they'll be retried
+              // on the next rework upload, and the client-approve filter
+              // (added 2026-06-12) excludes them from the move meanwhile.
+              ...(cleanupOK ? { rejected_files: [] } : {})
             }).eq('id', existing[0].id);
             if (updRes && updRes.error) throw new Error(updRes.error.message || 'creative update failed');
             recordSaved = true;
@@ -2196,9 +2273,17 @@ async function submitBriefUpload() {
       fd.append('dropboxPath', dropboxPath);
       try {
         const ures = await fetch(`${BACKEND}/api/dropbox-upload`, { method:'POST', body: fd });
+        // 2026-06-16 — 401 detection here too so brief uploads don't silently
+        // pile up auth failures into the failures[] list.
+        if (ures.status === 401) {
+          if (typeof _studioForceLogin === 'function') {
+            _studioForceLogin('Your session expired mid-upload — please log in again, then re-upload the brief.');
+          }
+          return;
+        }
         const udata = await ures.json().catch(() => ({}));
         if (udata && udata.success) uploadedCount++;
-        else failures.push(f.name + (udata && udata.error ? `: ${udata.error}` : ''));
+        else failures.push(f.name + (udata && udata.error ? `: ${udata.error}` : ` (status ${ures.status})`));
       } catch(e) {
         failures.push(`${f.name}: ${e.message || 'network error'}`);
       }
