@@ -4655,13 +4655,25 @@ function clearTaskFilter() {
 async function addCollaborator(encodedTask, sbId, name) {
   if (!name) return;
   const task = decodeURIComponent(encodedTask);
+  // 2026-06-12 — Hardened: was silently failing in two ways. (1) The gateway
+  // returns errors in .error, NEVER throws — the old await wasn't checking
+  // .error so write failures were invisible. (2) sbId='null' template fallback
+  // turned into JS null at parse time, so legacy tasks without an _sb_id had
+  // their DB write skipped while the local UI still showed the add (vanished
+  // on refresh — which is the bug Suriti reported).
+  if (!sbId) {
+    alert(`Cannot add ${name}: this task's database id is missing. Refresh the page and try again — if it still fails, the task may need to be re-saved.`);
+    return;
+  }
   try {
-    if (sbId) {
-      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
-      const current = (row && row.collaborators) || [];
-      if (current.includes(name)) return;
-      await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
-    }
+    const sel = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+    if (sel.error) throw new Error(sel.error.message || 'could not read current collaborators');
+    const current = (sel.data && sel.data.collaborators) || [];
+    if (current.includes(name)) return;  // already there — silent no-op
+    const upd = await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
+    if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
+    // Only update local cache + re-render AFTER the DB confirms. Otherwise
+    // we paint a phantom that vanishes on the next refresh.
     const local = allTasks.find(t => t.Task === task);
     if (local) {
       local.Collaborators = [...(local.Collaborators || []), name];
@@ -4672,27 +4684,33 @@ async function addCollaborator(encodedTask, sbId, name) {
       notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     }
   } catch(e) {
-    alert('Could not add collaborator: ' + e.message);
+    console.error('addCollaborator failed:', e);
+    alert(`Could not add ${name} as collaborator:\n\n${e.message || e}\n\nThe change was NOT saved. Try again, or refresh the page.`);
   }
 }
 
 async function removeCollaborator(encodedTask, sbId, name) {
   if (!name) return;
+  if (!sbId) {
+    alert(`Cannot remove ${name}: this task's database id is missing. Refresh the page and try again.`);
+    return;
+  }
   const task = decodeURIComponent(encodedTask);
   if (!confirm(`Remove ${name} as collaborator?`)) return;
   try {
-    if (sbId) {
-      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
-      const current = (row && row.collaborators) || [];
-      await sb.from('tasks').update({ collaborators: current.filter(c => c !== name) }).eq('id', sbId);
-    }
+    const sel = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+    if (sel.error) throw new Error(sel.error.message || 'could not read current collaborators');
+    const current = (sel.data && sel.data.collaborators) || [];
+    const upd = await sb.from('tasks').update({ collaborators: current.filter(c => c !== name) }).eq('id', sbId);
+    if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
     const local = allTasks.find(t => t.Task === task);
     if (local) {
       local.Collaborators = (local.Collaborators || []).filter(c => c !== name);
       renderTasks(allTasks);
     }
   } catch(e) {
-    alert('Could not remove collaborator: ' + e.message);
+    console.error('removeCollaborator failed:', e);
+    alert(`Could not remove ${name}:\n\n${e.message || e}\n\nThe change was NOT saved. Try again, or refresh the page.`);
   }
 }
 

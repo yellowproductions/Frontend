@@ -3085,14 +3085,20 @@ function jumpToTaskRow(taskKey) {
 // log progress in the same conversational style Suriti uses on her side.
 async function addCollaborator(encodedTask, sbId, name) {
   if (!name) return;
+  // 2026-06-12 — Same silent-failure pattern as founder: gateway errors live
+  // in .error not throw, and falsy sbId silently skipped the write. Both fixed.
+  if (!sbId) {
+    alert(`Cannot add ${name}: this task's database id is missing. Refresh the page and try again.`);
+    return;
+  }
   const task = decodeURIComponent(encodedTask);
   try {
-    if (sbId) {
-      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
-      const current = (row && row.collaborators) || [];
-      if (current.includes(name)) return;
-      await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
-    }
+    const sel = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+    if (sel.error) throw new Error(sel.error.message || 'could not read current collaborators');
+    const current = (sel.data && sel.data.collaborators) || [];
+    if (current.includes(name)) return;
+    const upd = await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
+    if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
     // Telegram if the added person is a lead
     if (['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
       notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\nTagged by: ${currentUser}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
@@ -3100,22 +3106,28 @@ async function addCollaborator(encodedTask, sbId, name) {
     }
     loadTasks();
   } catch(e) {
-    alert('Could not add collaborator: ' + e.message);
+    console.error('addCollaborator failed:', e);
+    alert(`Could not add ${name} as collaborator:\n\n${e.message || e}\n\nThe change was NOT saved. Try again, or refresh the page.`);
   }
 }
 
 async function removeCollaborator(encodedTask, sbId, name) {
   if (!name) return;
+  if (!sbId) {
+    alert(`Cannot remove ${name}: this task's database id is missing. Refresh the page and try again.`);
+    return;
+  }
   if (!confirm(`Remove ${name} as collaborator?`)) return;
   try {
-    if (sbId) {
-      const { data: row } = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
-      const current = (row && row.collaborators) || [];
-      await sb.from('tasks').update({ collaborators: current.filter(c => c !== name) }).eq('id', sbId);
-    }
+    const sel = await sb.from('tasks').select('collaborators').eq('id', sbId).single();
+    if (sel.error) throw new Error(sel.error.message || 'could not read current collaborators');
+    const current = (sel.data && sel.data.collaborators) || [];
+    const upd = await sb.from('tasks').update({ collaborators: current.filter(c => c !== name) }).eq('id', sbId);
+    if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
     loadTasks();
   } catch(e) {
-    alert('Could not remove collaborator: ' + e.message);
+    console.error('removeCollaborator failed:', e);
+    alert(`Could not remove ${name}:\n\n${e.message || e}\n\nThe change was NOT saved. Try again, or refresh the page.`);
   }
 }
 
