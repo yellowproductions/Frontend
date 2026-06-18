@@ -61,6 +61,27 @@
     <button id="run-status-fix" class="btn-primary" disabled style="background:#dc2626;color:#fff">🪦 Step B — Delete dead threads</button>
   </div>
 
+  <hr style="margin: 28px 0; border: none; border-top: 1px solid #e6e3dc">
+
+  <h2 style="font-size:16px;margin:0 0 6px">🔁 Designer rename</h2>
+  <p class="muted">One-click data migration when a designer's name changes
+  (e.g. Prathamesh → Solo). Updates every <code>tasks.assignee</code>,
+  <code>creatives.designer</code>, and the collaborators arrays where the
+  old name appears. Idempotent — safe to run twice.</p>
+
+  <div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+    <div>
+      <label style="font-size:11px;color:#666;display:block;margin-bottom:4px">Old name</label>
+      <input type="text" id="rename-old" value="Prathamesh" style="font-size:13px;padding:8px 10px;border:1px solid #e0ddd8;border-radius:6px;font-family:inherit;width:160px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:#666;display:block;margin-bottom:4px">New name</label>
+      <input type="text" id="rename-new" value="Solo" style="font-size:13px;padding:8px 10px;border:1px solid #e0ddd8;border-radius:6px;font-family:inherit;width:160px">
+    </div>
+    <button id="rename-scan-btn" class="btn-secondary">🔍 Scan</button>
+    <button id="rename-run-btn" class="btn-primary" disabled>🔁 Apply rename</button>
+  </div>
+
   <pre id="log">Ready. Click "Step 1 — Scan" to see what would change.</pre>
 </div>
 
@@ -259,6 +280,142 @@ $statusFix.addEventListener('click', async () => {
     $statusFix.disabled = false;
   }
 });
+
+// ====== Designer rename (2026-06-16) ======
+// One-click migration of every tasks.assignee / creatives.designer /
+// tasks.collaborators[] that holds the old name → new name. Scan first
+// (read only), then Apply. Idempotent — re-running with zero matches is a
+// no-op. Uses the same /api/db gateway as the rest of the tool; founder
+// role has full CRUD on tasks + creatives.
+const $renameOld     = document.getElementById('rename-old');
+const $renameNew     = document.getElementById('rename-new');
+const $renameScanBtn = document.getElementById('rename-scan-btn');
+const $renameRunBtn  = document.getElementById('rename-run-btn');
+let renameCache = null; // { oldName, newName, tasks: [...], creatives: [...], collabTasks: [...] }
+
+async function scanRename() {
+  const oldName = ($renameOld.value || '').trim();
+  const newName = ($renameNew.value || '').trim();
+  if (!oldName || !newName) { alert('Both old and new name are required.'); return; }
+  if (oldName === newName)  { alert('Old and new names are identical — nothing to do.'); return; }
+
+  $renameScanBtn.disabled = true;
+  $renameRunBtn.disabled  = true;
+  clearLog();
+  log(`Scanning for "${oldName}" → "${newName}"...`);
+
+  try {
+    // tasks where assignee = oldName
+    const tasksR = await dbRun({
+      table: 'tasks', action: 'select',
+      columns: 'id, title, assignee, collaborators',
+      filters: [{ col: 'assignee', op: 'eq', val: oldName }],
+      order: []
+    });
+    if (tasksR.error) throw new Error('tasks scan: ' + (tasksR.error.message || JSON.stringify(tasksR.error)));
+    const tasks = Array.isArray(tasksR.data) ? tasksR.data : [];
+
+    // creatives where designer = oldName
+    const cR = await dbRun({
+      table: 'creatives', action: 'select',
+      columns: 'id, name, designer',
+      filters: [{ col: 'designer', op: 'eq', val: oldName }],
+      order: []
+    });
+    if (cR.error) throw new Error('creatives scan: ' + (cR.error.message || JSON.stringify(cR.error)));
+    const creatives = Array.isArray(cR.data) ? cR.data : [];
+
+    // tasks where collaborators[] contains oldName — pull all + filter in JS,
+    // since PostgREST array-contains needs a syntax the gateway may not pass
+    // through cleanly. Cheap enough for this dataset size.
+    const collabR = await dbRun({
+      table: 'tasks', action: 'select',
+      columns: 'id, title, collaborators',
+      filters: [],
+      order: []
+    });
+    if (collabR.error) throw new Error('collaborator scan: ' + (collabR.error.message || JSON.stringify(collabR.error)));
+    const collabTasks = (Array.isArray(collabR.data) ? collabR.data : [])
+      .filter(t => Array.isArray(t.collaborators) && t.collaborators.includes(oldName));
+
+    log(`✓ Scan complete.\n`);
+    log(`  • ${tasks.length} task${tasks.length===1?'':'s'} where ${oldName} is the assignee`);
+    log(`  • ${creatives.length} creative${creatives.length===1?'':'s'} where ${oldName} is the designer`);
+    log(`  • ${collabTasks.length} task${collabTasks.length===1?'':'s'} where ${oldName} is a collaborator`);
+    const total = tasks.length + creatives.length + collabTasks.length;
+    if (!total) {
+      log(`\n🪷 Nothing to migrate. Either the rename's already done, or ${oldName} has no data.`);
+      $renameScanBtn.disabled = false;
+      return;
+    }
+    log(`\nReady to migrate ${total} row${total===1?'':'s'}. Click "Apply rename" to commit.`);
+    renameCache = { oldName, newName, tasks, creatives, collabTasks };
+    $renameRunBtn.disabled = false;
+  } catch(e) {
+    log('✕ Scan failed: ' + (e && e.message || e));
+  } finally {
+    $renameScanBtn.disabled = false;
+  }
+}
+
+async function applyRename() {
+  if (!renameCache) { alert('Run the scan first.'); return; }
+  const { oldName, newName, tasks, creatives, collabTasks } = renameCache;
+  const total = tasks.length + creatives.length + collabTasks.length;
+  if (!confirm(`Rename ${oldName} → ${newName} across ${total} row${total===1?'':'s'}?\n\nThis updates the database directly. Cannot be undone (except by running it in reverse).`)) return;
+
+  $renameRunBtn.disabled = true;
+  $renameScanBtn.disabled = true;
+  log(`\nApplying rename ${oldName} → ${newName}...`);
+  let ok = 0, fail = 0;
+
+  // tasks.assignee
+  for (const t of tasks) {
+    const u = await dbRun({
+      table: 'tasks', action: 'update',
+      payload: { assignee: newName },
+      filters: [{ col: 'id', op: 'eq', val: t.id }],
+      columns: 'id'
+    });
+    if (u.error) { fail++; log(`  ✕ task #${t.id} (${t.title || 'untitled'}): ${u.error.message || JSON.stringify(u.error)}`); }
+    else         { ok++;   log(`  ✓ task: ${t.title || '#'+t.id} — assignee → ${newName}`); }
+  }
+
+  // creatives.designer
+  for (const c of creatives) {
+    const u = await dbRun({
+      table: 'creatives', action: 'update',
+      payload: { designer: newName },
+      filters: [{ col: 'id', op: 'eq', val: c.id }],
+      columns: 'id'
+    });
+    if (u.error) { fail++; log(`  ✕ creative #${c.id} (${c.name || 'unnamed'}): ${u.error.message || JSON.stringify(u.error)}`); }
+    else         { ok++;   log(`  ✓ creative: ${c.name || '#'+c.id} — designer → ${newName}`); }
+  }
+
+  // tasks.collaborators array — replace inline
+  for (const t of collabTasks) {
+    const updated = (t.collaborators || []).map(c => c === oldName ? newName : c);
+    const u = await dbRun({
+      table: 'tasks', action: 'update',
+      payload: { collaborators: updated },
+      filters: [{ col: 'id', op: 'eq', val: t.id }],
+      columns: 'id'
+    });
+    if (u.error) { fail++; log(`  ✕ task #${t.id} collaborators (${t.title || 'untitled'}): ${u.error.message || JSON.stringify(u.error)}`); }
+    else         { ok++;   log(`  ✓ task: ${t.title || '#'+t.id} — collaborators[${oldName} → ${newName}]`); }
+  }
+
+  log(`\n🪷 Done. ${ok} updated, ${fail} failed.`);
+  if (fail === 0) {
+    log(`All ${oldName} references are now ${newName}. ${newName} will see their full task history on next login.`);
+  }
+  renameCache = null;
+  $renameScanBtn.disabled = false;
+}
+
+$renameScanBtn.addEventListener('click', scanRename);
+$renameRunBtn.addEventListener('click', applyRename);
 
 setAuthBanner();
 </script>
