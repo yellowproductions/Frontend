@@ -868,6 +868,10 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      // NOTE: `rejected_files` is a misleading DB column name — it actually
+      // holds REWORK feedback (url + comment + label + stamp). Used by the
+      // client-approve move to skip rework leftovers from /REVIEW/. Rename
+      // deferred 2026-06-16 — see founder.html for the rationale.
       _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
     });
   }
@@ -1273,7 +1277,7 @@ const EJS_KEY = '_sfXlprhHHUbt55qV';
 
 const DESIGNER_EMAILS = {
   Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
-  Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
+  Faizan:'faizan@yellowproductions.co.in', Solo:'solo@yellowproductions.co.in',
   Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
   Sonal:'sonal.j@perkyowl.com', Vishvanath:'vishvanath@perkyowl.com',
   Viplav:'viplav@yellowproductions.co.in', Siddhesh:'siddhesh@yellowproductions.co.in',
@@ -1689,12 +1693,45 @@ async function loadClientTasks() {
       _clientForceLogin('Your session expired — please log in again.');
       return;
     }
-    wrap.innerHTML = `<div class="empty-state" style="text-align:left;padding:20px;color:#991b1b">
-      <strong>Could not load tasks.</strong>
-      <div style="font-size:12px;color:#666;margin-top:6px">Error: <code style="background:#fff;padding:2px 6px;border-radius:4px">${(e && e.message) || String(e)}</code></div>
-      <div style="font-size:11px;color:#999;margin-top:6px">Open the browser console (Cmd+Opt+J) for the full stack.</div>
-    </div>`;
+    // 2026-06-16 — Translate the raw technical error into something a
+    // non-tech client can act on. Real error stays in the console for us.
+    wrap.innerHTML = _friendlyClientError('We couldn\'t load your tasks right now.', e);
   }
+}
+
+// 2026-06-16 — Map raw technical errors to plain-English copy for clients.
+// The real error still goes to console.error for our debugging; the client
+// sees an explanation + a suggested next step. Used by loadClientTasks
+// catch and any other path that wants to show a non-fatal failure to the
+// non-tech user.
+function _friendlyClientError(headline, e) {
+  const raw = (e && e.message ? e.message : String(e || '')).toLowerCase();
+  let reason = '';
+  let hint = '';
+  if (/not authenticated|unauthor|401/.test(raw)) {
+    reason = 'Your session has expired.';
+    hint = 'Please log in again.';
+  } else if (/network|failed to fetch|offline|cors/i.test(raw)) {
+    reason = 'You may be offline or your internet is unstable.';
+    hint = 'Check your connection and click ↻ Refresh to try again.';
+  } else if (/timed?\s*out|timeout/.test(raw)) {
+    reason = 'The request took too long to respond.';
+    hint = 'The server might be slow right now — click ↻ Refresh in a moment.';
+  } else if (/5\d\d|server error|internal error|bad gateway/.test(raw)) {
+    reason = 'Our server is having a moment.';
+    hint = 'Click ↻ Refresh in a few seconds. If it keeps happening, please ping the Yellow team.';
+  } else if (/403|forbid|permission/.test(raw)) {
+    reason = 'Looks like you don\'t have access to this right now.';
+    hint = 'Try logging out and back in, or ping the Yellow team.';
+  } else {
+    reason = 'Something went wrong.';
+    hint = 'Click ↻ Refresh to try again. If it keeps happening, ping the Yellow team.';
+  }
+  return `<div class="empty-state" style="text-align:left;padding:20px;line-height:1.5;color:#5a3a1a;background:#fff8ed;border:1px solid #f0d080;border-radius:10px">
+    <strong style="color:#1a1a1a">${headline}</strong>
+    <div style="margin-top:6px;font-size:13px">${reason}</div>
+    <div style="margin-top:4px;font-size:13px;color:#666">${hint}</div>
+  </div>`;
 }
 
 // Drop the cached token + show the login overlay. Optional banner message
@@ -1835,6 +1872,31 @@ function renderAll() {
   loadClientTasks();
   // Populate the sub-brand picker on the Request a Task form
   populateRequestClientPicker();
+  // Kick off the auto-refresh poll (idempotent — only one interval ever runs).
+  _startClientAutoRefresh();
+}
+
+// 2026-06-16 — Auto-refresh Live Tasks every 60s so newly-arrived 'Awaiting
+// Your Approval' cards show up without a manual ↻. Same pattern as the team
+// portal's 60s poll. Guards:
+//   • only runs while #panel-live-tasks is the visible tab (don't burn cycles
+//     on Projects view)
+//   • skips when the user is mid-typing in any input/textarea (won't wipe
+//     their search query or feedback note)
+//   • skips when login overlay is showing (no point polling pre-auth)
+//   • idempotent — flag prevents multiple intervals if renderAll runs again
+let _clientPollHandle = null;
+function _startClientAutoRefresh() {
+  if (_clientPollHandle) return;
+  _clientPollHandle = setInterval(() => {
+    const overlay = document.getElementById('login-overlay');
+    if (overlay && overlay.style.display !== 'none') return;  // not logged in
+    const liveTab = document.getElementById('tab-live-tasks');
+    if (!liveTab || !liveTab.classList.contains('active')) return;  // not on Live Tasks
+    const a = document.activeElement;
+    if (a && a.matches('input, textarea, select')) return;  // user is typing
+    loadClientTasks();
+  }, 60 * 1000);
 }
 
 // ===== REQUEST A TASK (client → Suriti) =====

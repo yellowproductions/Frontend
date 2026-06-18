@@ -876,7 +876,7 @@
           <select id="task-assignee">
             <option value="">Select person</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Solo</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
           </select>
@@ -1032,7 +1032,7 @@
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 9 September</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:13px;font-weight:700">Prathamesh</div>
+            <div style="font-size:13px;font-weight:700">Solo</div>
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 27 September</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
@@ -1289,7 +1289,7 @@
           <select id="perf-person">
             <option value="">Select</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Solo</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
           </select>
@@ -1609,6 +1609,12 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      // NOTE: `rejected_files` is a misleading DB column name — it actually
+      // holds REWORK feedback entries ({url, feedback, file_label, rejected_at})
+      // for files the reviewer wants the designer to fix, not files that were
+      // terminally rejected. We considered renaming to `rework_files` but the
+      // migration cost (DB ALTER + dual-write + 4-file sweep) outweighed the
+      // dev-clarity win. Locked as-is 2026-06-16. — Suriti
       _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : [],
       // SPOC mandate (2026-06-07): expose the two new stamps + the parent task's SPOC
       // so the founder review panel + team panel can render gate state in parity.
@@ -2032,7 +2038,7 @@ const TEAM = {
   Sandesh: 'sandesh@perkyowl.com',
   Gayatri: 'gayatri.v@perkyowl.com',
   Faizan: 'faizan@yellowproductions.co.in',
-  Prathamesh: 'prathamesh@yellowproductions.co.in',
+  Solo: 'solo@yellowproductions.co.in',
   Archana: 'archana@yellowproductions.co.in',
   Gauri: 'gauri@perkyowl.com',
   Sonal: 'sonal.j@perkyowl.com',
@@ -2053,7 +2059,7 @@ function isInactive(name) { return INACTIVE_USERS.includes(name); }
 // Active team = everyone except inactive — use this list everywhere instead of TEAM_LIST
 const ACTIVE_TEAM = TEAM_LIST.filter(n => !isInactive(n));
 
-const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Prathamesh'];
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo'];
 const WORK_SCHEDULES = {
   Archana: [0, 1, 2, 3, 4],   // Sun–Thu
 };
@@ -2259,9 +2265,13 @@ async function updateReviewBadge() {
 setTimeout(updateReviewBadge, 1500);
 setInterval(updateReviewBadge, 30000);
 
-// Send a Telegram notification — fire-and-forget, silently fails if recipient not registered
+// Send a Telegram notification — only Suriti is on Telegram (locked by her
+// 2026-06-16). Designers/SPOCs get in-app bell notifications instead.
+// Any other recipient is silently no-op'd so existing callers keep compiling
+// without code-by-code surgery.
 function notifyTelegram(to, message) {
   if (!to || !message) return;
+  if (to !== 'Suriti' && to !== 'suriti' && to !== 'team') return;  // gate
   try {
     const auth = JSON.parse(localStorage.getItem('yos-auth') || 'null');
     if (!auth?.token) return;
@@ -2429,7 +2439,7 @@ Team (Mumbai unless noted):
 • Sandesh — hard working, concepts
 • Gayatri — precision, slow
 • Faizan — AI creatives, new age
-• Prathamesh — AI, depends on Faizan
+• Solo — AI, depends on Faizan
 • Archana — real estate, football league
 • Gauri — versatile
 • Sonal — moody, strong at posters/social when pushed
@@ -6626,7 +6636,7 @@ const HOLIDAYS_2026 = [
   { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
   { date: '2026-09-17', name: '🎂 Viplav', type: 'sol' },
   { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
-  { date: '2026-09-27', name: '🎂 Prathamesh', type: 'sol' },
+  { date: '2026-09-27', name: '🎂 Solo', type: 'sol' },
   { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
   { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
   { date: '2026-10-20', name: 'Diwali ✨', type: 'fixed' },
@@ -6696,7 +6706,7 @@ function renderCalendar() {
 // ====== PERFORMANCE & VARIABLE PAY ======
 const SALARIES = {
   Gauri: 140000, Sandesh: 100000, Archana: 140000,
-  Prathamesh: 40000, Siddhesh: 60000, Kritya: 100000,
+  Solo: 40000, Siddhesh: 60000, Kritya: 100000,
   Gayatri: 80000, Vishvanath: 70000, Sonal: 60000,
   Viplav: 112201, Faizan: 75000, Ajay: 80000
 };
@@ -7173,7 +7183,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Gayatri'];
 
 function onChatInput(e) {
   const input = e.target;

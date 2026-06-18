@@ -150,7 +150,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
     <select id="sl-name" style="width:100%;padding:11px;border:1px solid #e0ddd8;border-radius:10px;font-family:inherit;font-size:14px;margin-bottom:14px">
       <option value="">Select your name</option>
       <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-      <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+      <option>Solo</option><option>Archana</option><option>Gauri</option>
       <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
       <option>Siddhesh</option><option>Ajay</option><option>Kritya</option>
     </select>
@@ -243,7 +243,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
           <select id="q-designer" onchange="onDesignerChange()">
             <option value="">Select your name</option>
             <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-            <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+            <option>Solo</option><option>Archana</option><option>Gauri</option>
             <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
             <option>Siddhesh</option><option>Ajay</option><option>Kritya</option>
           </select>
@@ -338,7 +338,7 @@ html,body { width:100%; min-height:100%; font-family:'Poppins',sans-serif; }
               <option value="">Pick who's uploading</option>
               <option>Viplav</option><option>Suriti</option><option>Kritya</option><option>Siddhesh</option>
               <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-              <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+              <option>Solo</option><option>Archana</option><option>Gauri</option>
               <option>Sonal</option><option>Vishvanath</option><option>Ajay</option>
             </select>
           </div>
@@ -601,6 +601,9 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      // NOTE: `rejected_files` is a misleading DB column name — it actually
+      // holds REWORK feedback. Studio reads it on rework re-upload to know
+      // which old files to delete from Dropbox. Rename deferred 2026-06-16.
       _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : []
     });
   }
@@ -1000,12 +1003,14 @@ window.fetch = function(url, options) {
 
 console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
-// Telegram notify helper — uses auth token from team portal login (shared localStorage)
+// Telegram notify helper — only Suriti is on Telegram (locked 2026-06-16).
+// Designers/SPOCs are silently no-op'd so existing callers don't need rewrites.
 function notifyTelegram(to, message) {
   if (!to || !message) return;
+  if (to !== 'Suriti' && to !== 'suriti' && to !== 'team') return;
   try {
     const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
-    if (!auth?.token) return; // silent — designer hasn't logged into team portal
+    if (!auth?.token) return;
     fetch(BACKEND + '/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth.token },

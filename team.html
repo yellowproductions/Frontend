@@ -384,7 +384,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
     <select id="login-select" onchange="onMonsterName()">
       <option value="">Select your name...</option>
       <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
-      <option>Prathamesh</option><option>Archana</option><option>Gauri</option>
+      <option>Solo</option><option>Archana</option><option>Gauri</option>
       <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
       <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
     </select>
@@ -612,7 +612,7 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <option value="Sandesh">Sandesh</option>
           <option value="Archana">Archana</option>
           <option value="Vishvanath">Vishvanath</option>
-          <option value="Prathamesh">Prathamesh</option>
+          <option value="Solo">Solo</option>
           <option value="Gauri">Gauri</option>
           <option value="Sonal">Sonal</option>
           <option value="Gayatri">Gayatri</option>
@@ -945,6 +945,10 @@ async function fetchSheetRows() {
       ClosedAt: c.client_decided_at || '',  // for 7-day window — when the creative was last decided on
       // Per-file thumbnail URLs (new model — Studio collects all files per session)
       _sb_file_urls: Array.isArray(c.file_urls) ? c.file_urls : [],
+      // NOTE: `rejected_files` is a misleading DB column name — it actually
+      // holds REWORK feedback entries (url + per-file comment + label + stamp)
+      // for files the reviewer wants the designer to fix, not terminal rejects.
+      // Rename deferred — see founder.html for the rationale. Locked 2026-06-16.
       _sb_rejected_files: Array.isArray(c.rejected_files) ? c.rejected_files : [],
       // SPOC mandate (2026-06-07): each creative now needs TWO approvals
       // before it can go to client — SPOC sign-off + proofread sign-off.
@@ -1437,13 +1441,15 @@ function onMonsterName() {
 const BACKEND_AUTH = 'https://yellowbackend.onrender.com/api/login';
 const BACKEND_NOTIFY = 'https://yellowbackend.onrender.com/api/notify';
 
-// Send a Telegram notification to one person or "team". Fire-and-forget — never blocks UI.
-// Backend will silently skip people who haven't registered their Telegram chat ID yet.
+// Send a Telegram notification — only Suriti is on Telegram (locked by her
+// 2026-06-16). Designers/SPOCs use in-app bell notifications instead. Any
+// other recipient is silently no-op'd so existing callers keep compiling.
 function notifyTelegram(to, message) {
   if (!to || !message) return;
+  if (to !== 'Suriti' && to !== 'suriti' && to !== 'team') return;  // gate
   try {
     const auth = JSON.parse(localStorage.getItem('yv-auth') || 'null');
-    if (!auth?.token) return; // can't notify without auth — user not logged in
+    if (!auth?.token) return;
     fetch(BACKEND_NOTIFY, {
       method: 'POST',
       headers: {
@@ -1451,7 +1457,7 @@ function notifyTelegram(to, message) {
         'Authorization': 'Bearer ' + auth.token
       },
       body: JSON.stringify({ to, message })
-    }).catch(() => {}); // swallow errors — notifications are best-effort
+    }).catch(() => {});
   } catch(e) {}
 }
 
@@ -1629,7 +1635,7 @@ function proceedToApp(name) {
   const roles = {
     Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
     Faizan:'Graphic Designer', Sandesh:'Graphic Designer', Gayatri:'Graphic Designer',
-    Prathamesh:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
+    Solo:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
     Sonal:'Graphic Designer', Vishvanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
   };
   document.getElementById('sidebar-role').textContent = roles[name] || 'Team Member';
@@ -1855,7 +1861,7 @@ function renderAgentMessage(role, text) {
   document.getElementById('agent-chat').scrollTop = document.getElementById('agent-chat').scrollHeight;
 }
 
-const VALID_TEAM = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const VALID_TEAM = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
 
 function detectReminder(text) {
   // Patterns: "remind me to/about X" or "remind <name> to/about X"
@@ -2620,7 +2626,7 @@ function updateChatUnread() {
 }
 
 // ===== @mention autocomplete =====
-const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Prathamesh','Gauri','Siddhesh','Sonal','Gayatri'];
+const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Gayatri'];
 
 function onChatInput(e) {
   const input = e.target;
@@ -2722,7 +2728,7 @@ const HOLIDAYS_2026 = [
   { date: '2026-08-19', name: 'Ganesh Chaturthi', type: 'fixed' },
   { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
   { date: '2026-09-17', name: '🎂 Viplav', type: 'sol' },
-  { date: '2026-09-27', name: '🎂 Prathamesh', type: 'sol' },
+  { date: '2026-09-27', name: '🎂 Solo', type: 'sol' },
   { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
   { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
   { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
@@ -4219,7 +4225,7 @@ async function saveTask(idx, encodedTask) {
 
 // =========== ATTENDANCE: SCHEDULE & SCHEDULE-AWARE STATUS ===========
 // Office team — come in 10:30 AM. WFH everyone else — start 9:30 AM.
-const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Prathamesh'];
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo'];
 
 // Users on sleep — hidden from login, attendance, idle calc, capacity, notifications
 const INACTIVE_USERS = ['Sam'];
@@ -4602,7 +4608,7 @@ const TEAM_ROSTER = [
   { name:'Faizan',     role:'Designer' },
   { name:'Sandesh',    role:'Designer' },
   { name:'Gayatri',    role:'Designer' },
-  { name:'Prathamesh', role:'Designer' },
+  { name:'Solo', role:'Designer' },
   { name:'Archana',    role:'Designer' },
   { name:'Gauri',      role:'Designer' },
   { name:'Sonal',      role:'Designer' },
@@ -5132,7 +5138,7 @@ async function submitReview(idx, action) {
 
   const DESIGNER_EMAILS = {
     Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
-    Faizan:'faizan@yellowproductions.co.in', Prathamesh:'prathamesh@yellowproductions.co.in',
+    Faizan:'faizan@yellowproductions.co.in', Solo:'solo@yellowproductions.co.in',
     Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
     Sonal:'sonal.j@perkyowl.com', Vishvanath:'vishvanath@perkyowl.com',
     Siddhesh:'siddhesh@yellowproductions.co.in', Ajay:'ajay@yellowproductions.co.in'
