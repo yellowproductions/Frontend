@@ -4874,17 +4874,18 @@ async function loadReviews() {
       (r.Status === 'Pending Review' || r.Status === 'Pending Viplav') &&
       r.Task && r.Task.includes('|')
     ) : [];
-    // SPOC mandate scoping (2026-06-07):
-    //  • Siddhesh / Kritya — see ONLY creatives whose parent task lists them as SPOC.
-    //  • Viplav — sees ALL (he's the proofreader, not a SPOC).
-    //  • Suriti — sees ALL (founder).
-    //  • Orphans (creatives with no SPOC on parent) — fall through to Suriti only.
-    const isSPOC = (currentUser === 'Siddhesh' || currentUser === 'Kritya');
-    const seesAll = (currentUser === 'Viplav' || currentUser === 'Suriti');
+    // SPOC scoping (2026-06-16 update — Suriti):
+    //  • Siddhesh / Kritya / Viplav — each is a SPOC. Sees + can approve
+    //    ONLY creatives whose parent task lists them as the SPOC.
+    //  • Suriti — founder. Sees ALL (orphan rescue path included).
+    //  • Anyone else (designers etc.) — empty queue; this panel isn't theirs.
+    const SPOCS  = ['Siddhesh', 'Kritya', 'Viplav'];
+    const isSPOC = SPOCS.includes(currentUser);
+    const seesAll = (currentUser === 'Suriti');
     reviewItems = base.filter(r => {
       if (seesAll) return true;
       if (isSPOC)  return (r._sb_spoc || '') === currentUser;
-      return false;  // anyone else (designers etc.) shouldn't be on this panel anyway
+      return false;
     });
 
     const badge = document.getElementById('review-badge');
