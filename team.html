@@ -3459,10 +3459,171 @@ function renderTaskRows(tasks, startIdx) {
             <div class="fos-link-row">
               ${renderLinkChips(t)}
             </div>
+            <!-- 2026-08-26 — Inline upload: anyone on the team can drop files
+                 into this task's Dropbox folder. Files land in /[Client]/[Task]/.
+                 Studio portal is being retired; this replaces its upload flow. -->
+            <div class="fos-upload-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+              <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:#0a5e2a;background:#dcf6e4;padding:6px 12px;border-radius:8px;border:1px solid #9adcb1;transition:opacity 0.15s">
+                <input type="file" multiple style="display:none"
+                  onchange="startTaskUpload(this, ${t._sb_id || 'null'}, '${jsq(t.Title || t.Task || '')}', '${jsq(t.Client || '')}')">
+                📤 Upload files
+              </label>
+              <div class="fos-upload-status" style="font-size:11px;color:#666;flex:1;min-width:0"></div>
+            </div>
           </div>
         </div>`;
       }).join('')}
     </div>`;
+}
+
+// ====== INLINE TASK UPLOAD (2026-08-26) ======
+// Suriti's simplification: designers upload files directly from the task row
+// in team.html — no more Studio portal. One folder per task at /[Client]/[Task]/.
+// Everything (brief, WIP, deliverables, source files) lives in that folder.
+// Anyone on the team can upload. Large files supported via chunked upload.
+function _sanitizeTaskFolderName(raw) {
+  return String(raw || 'Untitled')
+    .replace(/[‐-―]/g, '-')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[ ]/g, ' ')
+    .replace(/[^a-zA-Z0-9 _\-']/g, '')
+    .trim() || 'Untitled';
+}
+
+// Memory-safe chunked upload — ports the studio.html implementation with the
+// AUTH_EXPIRED detection from 2026-06-16. 8MB chunks via /api/dropbox-chunk.
+async function _uploadFileChunked(file, dropboxPath, onProgress) {
+  const CHUNK = 8 * 1024 * 1024;
+  const api = 'https://yellowbackend.onrender.com/api/dropbox-chunk';
+  let token = '';
+  try { token = (JSON.parse(localStorage.getItem('yv-auth') || '{}').token) || ''; } catch(e) {}
+  const auth = 'Bearer ' + token;
+  const parseResp = async (res, phase) => {
+    if (res.status === 401) {
+      const e = new Error(`Your session expired during the ${phase}.`);
+      e.code = 'AUTH_EXPIRED';
+      throw e;
+    }
+    let j;
+    try { j = await res.json(); }
+    catch(e) { throw new Error(`Backend returned non-JSON on ${phase} (status ${res.status}).`); }
+    return j;
+  };
+  const sres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'start', 'Authorization': auth } });
+  const sj = await parseResp(sres, 'upload start');
+  if (!sj.success || !sj.session_id) throw new Error(sj.error || `Upload could not start (status ${sres.status}).`);
+  const sid = sj.session_id;
+  let offset = 0;
+  for (let pos = 0; pos < file.size; pos += CHUNK) {
+    const blob = file.slice(pos, Math.min(pos + CHUNK, file.size));
+    let ok = false, lastErr;
+    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const r = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'append', 'X-Session-Id': sid, 'X-Offset': String(offset), 'Authorization': auth }, body: blob });
+        const j = await parseResp(r, `chunk ${Math.floor(pos/CHUNK)+1}`);
+        if (!j.success) throw new Error(j.error || `Chunk ${Math.floor(pos/CHUNK)+1} failed`);
+        ok = true;
+      } catch (e) {
+        if (e && e.code === 'AUTH_EXPIRED') throw e;
+        lastErr = e;
+      }
+    }
+    if (!ok) throw lastErr || new Error('Chunk upload failed after 3 retries.');
+    offset += blob.size;
+    if (onProgress) onProgress(Math.min(1, offset / Math.max(1, file.size)));
+  }
+  const fres = await fetch(api, { method: 'POST', headers: { 'X-Phase': 'finish', 'X-Session-Id': sid, 'X-Offset': String(offset), 'X-Path': encodeURIComponent(dropboxPath), 'Authorization': auth } });
+  const fj = await parseResp(fres, 'upload finalize');
+  if (!fj.success) throw new Error(fj.error || 'Upload finalize failed');
+  return fj;
+}
+
+// Kicked off by the "+ Upload" file input inside the expanded task detail.
+// Uploads every picked file into /[Client]/[Task]/ on Dropbox, then stamps
+// tasks.project_folder_link with the folder's share URL (if not already set)
+// so the "Project" chip lights up for everyone on the team.
+async function startTaskUpload(fileInput, sbId, taskTitle, clientName) {
+  const files = Array.from(fileInput.files || []);
+  if (!files.length) return;
+  if (!sbId) { alert('Cannot upload: task database id missing. Refresh and try again.'); return; }
+  if (!clientName || !String(clientName).trim()) {
+    alert(`Cannot upload: task has no client tagged yet. Tag a client on the task row first, then upload.`);
+    return;
+  }
+  const safeClient = String(clientName).trim();
+  const safeTitle  = _sanitizeTaskFolderName(taskTitle);
+  const folderPath = `/${safeClient}/${safeTitle}`;
+
+  // Find the status label inside the same task detail — the fileInput's
+  // wrapper anchor lets us paint feedback right where the user clicked.
+  const label = fileInput.closest('label');
+  const status = label ? label.parentElement.querySelector('.fos-upload-status') : null;
+  const setStatus = (html) => { if (status) status.innerHTML = html; };
+  fileInput.disabled = true;
+  if (label) label.style.opacity = '0.5';
+
+  const results = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const safeName = f.name.replace(/[^a-zA-Z0-9._\- ]/g, '_');
+    const dropboxPath = `${folderPath}/${safeName}`;
+    setStatus(`<span style="color:#666">Uploading ${i+1} of ${files.length}: <strong>${safeName}</strong> (0%)</span>`);
+    try {
+      const data = await _uploadFileChunked(f, dropboxPath, (pct) => {
+        setStatus(`<span style="color:#666">Uploading ${i+1} of ${files.length}: <strong>${safeName}</strong> (${Math.round(pct*100)}%)</span>`);
+      });
+      if (!data.success) throw new Error(data.error || 'upload failed');
+      results.push({ name: safeName, ok: true });
+    } catch(e) {
+      results.push({ name: safeName, ok: false, error: e.message || 'unknown error' });
+      if (e && e.code === 'AUTH_EXPIRED') {
+        if (typeof _forceTeamLogin === 'function') _forceTeamLogin('Your session expired mid-upload — please log in again, then re-upload.');
+        fileInput.disabled = false;
+        if (label) label.style.opacity = '1';
+        return;
+      }
+    }
+  }
+
+  const ok = results.filter(r => r.ok).length;
+  const fail = results.length - ok;
+
+  // Resolve folder share URL + stamp project_folder_link (only if not already set).
+  let folderUrl = '';
+  if (ok > 0) {
+    try {
+      const fr = await fetch('https://yellowbackend.onrender.com/api/dropbox-share-folder', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ folderPath })
+      });
+      const fd = await fr.json().catch(() => ({}));
+      if (fd.success && fd.url) folderUrl = fd.url;
+    } catch(e) { console.warn('share-folder failed:', e); }
+
+    if (folderUrl && sbId) {
+      try {
+        const cur = await sb.from('tasks').select('project_folder_link').eq('id', sbId).single();
+        if (!cur.error && (!cur.data || !cur.data.project_folder_link)) {
+          await sb.from('tasks').update({ project_folder_link: folderUrl }).eq('id', sbId);
+        }
+      } catch(e) { console.warn('project_folder_link stamp failed:', e); }
+    }
+  }
+
+  // Final status — success + a link to the folder, plus any failures.
+  const bits = [];
+  if (ok)   bits.push(`<span style="color:#15803d;font-weight:700">✅ ${ok} uploaded</span>`);
+  if (fail) bits.push(`<span style="color:#c0392b;font-weight:700">✕ ${fail} failed</span>`);
+  if (folderUrl) bits.push(`<a href="${folderUrl}" target="_blank" style="color:#a07419;text-decoration:none;font-weight:600">📁 Open folder ↗</a>`);
+  setStatus(bits.join(' · ') + (fail ? `<div style="font-size:10px;color:#c0392b;margin-top:4px">Failed: ${results.filter(r=>!r.ok).map(r=>r.name).join(', ')}</div>` : ''));
+
+  fileInput.disabled = false;
+  fileInput.value = '';
+  if (label) label.style.opacity = '1';
+  // Refresh so the Project chip lights up if it was just stamped.
+  if (ok > 0) setTimeout(() => { if (typeof loadTasks === 'function') loadTasks(); }, 800);
 }
 
 // ====== INLINE TASK RENAME (2026-06-16) ======
@@ -3539,6 +3700,14 @@ function toggleTeamRow(row, key) {
 }
 
 // ====== HELPERS ======
+// jsq: escape a string for use INSIDE single-quoted inline JS attributes.
+// Prevents apostrophes in task titles / client names from breaking the surrounding
+// string literal in onclick / onchange handlers.
+// Caller does: onchange="startTaskUpload(this, id, '${jsq(t.Title)}', '${jsq(t.Client)}')"
+function jsq(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function normalizeDate(d) {
   if (!d) return '';
   const s = String(d).trim();
