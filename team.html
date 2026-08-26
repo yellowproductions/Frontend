@@ -877,7 +877,19 @@ function _supaJoinUpdates(updates) {
 
 // =============== READ PATH ===============
 
+// 2026-06-16 — In-flight promise dedup. Every 60s the auto-refresh fires
+// loadTasks + loadReminders + loadChat + loadAttendance + loadLeave + loadReviews
+// + loadWorkload — each internally calls fetchSheetRows. Without dedup that's
+// 7 identical 6-table round-trips within milliseconds. With dedup, all 7
+// callers share ONE actual DB round-trip. Cuts poll bandwidth by ~85%.
+// The moment the first fetch resolves, _inFlightSheetRows clears, so any
+// user action after that (write → reload) gets fresh data.
+let _inFlightSheetRows = null;
+
 async function fetchSheetRows() {
+  if (_inFlightSheetRows) return _inFlightSheetRows;
+  _inFlightSheetRows = (async () => {
+  try {
   const [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR] = await Promise.all([
     sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
     sb.from('attendance').select('*').order('id', { ascending: true }),
@@ -979,6 +991,9 @@ async function fetchSheetRows() {
     });
   }
   return rows;
+  } finally { _inFlightSheetRows = null; }
+  })();
+  return _inFlightSheetRows;
 }
 
 // =============== WRITE PATH (mirror) ===============
@@ -1060,17 +1075,35 @@ async function _supaInsertRow(row) {
       const t = row.Title.padStart(5, '0');
       markedAt = `${row.Date}T${t}:00+05:30`;
     }
-    await sb.from('attendance').insert({
+    // 2026-07-08 — Suriti: "attendance not being marked". Root cause was
+    // the gateway silently returning {error:{...}} on the insert (same
+    // trap that hit tasks) — most commonly a UNIQUE(date,person) violation
+    // when someone tried to re-mark the same day. Now:
+    //   • Look up existing row for (date, person) — if present, UPDATE it
+    //     (later mark time / status win). If absent, INSERT fresh.
+    //   • Check .error on both paths and throw so the caller sees the
+    //     failure instead of a phantom success.
+    const existing = await sb.from('attendance')
+      .select('id').eq('date', row.Date).eq('person', row.Assignee).limit(1);
+    if (existing && existing.error) throw new Error(existing.error.message || 'attendance lookup failed');
+    const payload = {
       date: row.Date,
       person: row.Assignee,
       status: row.Status || 'Present',
       marked_at: markedAt,
       is_override: /override/i.test(row.Notes || ''),
       override_note: /override/i.test(row.Notes || '') ? row.Notes : null,
-    });
+    };
+    if (existing && Array.isArray(existing.data) && existing.data.length) {
+      const upd = await sb.from('attendance').update(payload).eq('id', existing.data[0].id);
+      if (upd && upd.error) throw new Error(upd.error.message || 'attendance update failed');
+    } else {
+      const ins = await sb.from('attendance').insert(payload);
+      if (ins && ins.error) throw new Error(ins.error.message || 'attendance insert failed');
+    }
   }
   else if (type === 'leave') {
-    await sb.from('leaves').insert({
+    const r = await sb.from('leaves').insert({
       person: row.Assignee,
       start_date: row.Task || row.Date,
       end_date: row.Task || row.Date,
@@ -1078,6 +1111,9 @@ async function _supaInsertRow(row) {
       status: row.Status || 'Pending',
       feedback: row.Notes || null,
     });
+    // Same silent-failure fix as attendance/tasks above — surface the
+    // real error instead of a phantom success.
+    if (r && r.error) throw new Error(r.error.message || 'leave insert failed');
   }
   else if (type === 'creative') {
     const taskField = row.Task || '';
@@ -4566,8 +4602,23 @@ async function loadAttendance() {
 }
 
 async function markAttendance() {
+  // 2026-08-26 — Suriti: "attendance is not being marked." Investigation
+  // showed inserts DO land — Vishvanath had 40+ rows for today. Real bug
+  // was no immediate UI feedback: click → 1.5s silent wait for loadAttendance
+  // → users assumed failure → clicked again and again. Now:
+  //   1. Instantly disable + repaint button (no double-click flood)
+  //   2. Hide button on successful fetch (don't wait for loadAttendance)
+  //   3. Snap the status pill to Present right away
+  //   4. loadAttendance still runs to hydrate the history strip
+  //   5. On failure → re-enable button + surface the actual error
+  const btn = document.getElementById('mark-btn');
+  const statusEl = document.getElementById('att-today-status');
   const ist = getISTNow();
   const status = computeAttendanceStatus(currentUser, ist.totalMin);
+  const originalLabel = btn ? btn.textContent : '';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Marking…'; btn.style.opacity = '0.6'; }
+
   try {
     const resp = await fetch(SHEETDB, {
       method: 'POST', headers: {'Content-Type':'text/plain'},
@@ -4586,6 +4637,8 @@ async function markAttendance() {
     if (!resp.ok) {
       let errMsg = 'Could not mark attendance';
       try { const j = await resp.json(); if (j && j.error) errMsg = j.error; } catch(e) {}
+      // Restore the button so they can retry.
+      if (btn) { btn.disabled = false; btn.textContent = originalLabel || '✅ Mark Attendance'; btn.style.opacity = '1'; }
       if (/not authenticated|unauthor|401/i.test(errMsg)) {
         _forceTeamLogin('Your session expired — please log in again, then mark attendance.');
         return;
@@ -4593,8 +4646,17 @@ async function markAttendance() {
       alert('Could not mark attendance: ' + errMsg);
       return;
     }
+    // ✅ Immediate visual confirmation — before loadAttendance runs.
+    if (btn) { btn.style.display = 'none'; }
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#15803d">✓ Present</span><span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${ist.hhmm}</span>`;
+    }
+    if (typeof setAttendancePill === 'function') setAttendancePill(status);
     setTimeout(loadAttendance, 1500);
-  } catch(e) { alert('Could not mark attendance: ' + (e.message || 'network error')); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel || '✅ Mark Attendance'; btn.style.opacity = '1'; }
+    alert('Could not mark attendance: ' + (e.message || 'network error'));
+  }
 }
 
 // ====== TEAM WORKLOAD ======
