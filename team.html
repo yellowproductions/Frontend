@@ -421,14 +421,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="nav-item" id="pitches-nav" style="display:none" onclick="openPitchesPortal()"><span>💡</span> Pitches & Ideas</div>
 
   <!-- Standalone Chat dock — sits above Logout, separate from nav -->
-  <div style="margin-top:auto;padding:14px 20px 0">
-    <button onclick="toggleChat()" id="chat-dock-btn" style="width:100%;background:#FEBC06;color:#000;border:none;border-radius:10px;padding:11px 14px;font-weight:600;font-size:13px;font-family:'Poppins',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.67 1.09-.086 2.17-.208 3.238-.365 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
-      <span>Team Chat</span>
-      <span id="chat-nav-badge" style="background:#dc2626;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;display:none;font-weight:700">0</span>
-    </button>
-  </div>
-  <div style="padding:10px 20px 16px;border-top:1px solid var(--border);margin-top:10px">
+  <!-- 2026-08-26 — Team Chat retired (Suriti: "remove chat completely").
+       Communication moved to WhatsApp. Chat panel + poll + fetch all removed. -->
+  <div style="padding:10px 20px 16px;margin-top:auto">
     <button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%">Logout</button>
   </div>
 </div>
@@ -452,45 +447,9 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   </div>
 </div>
 
-<!-- TEAM CHAT — Soft brand chat panel -->
-<div id="chat-panel" style="position:fixed;top:0;right:-420px;width:380px;height:100vh;background:#fbf7ef;z-index:9500;display:flex;flex-direction:column;overflow:hidden;box-shadow:-6px 0 24px rgba(0,0,0,0.12);border-left:1px solid #e6dfd0;transition:right 0.25s ease">
-  <!-- Header — clean cream with subtle accents -->
-  <div style="background:#ffffff;color:#1a1a1a;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid #ece6d8">
-    <div style="width:34px;height:34px;border-radius:50%;background:#FEBC06;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#1a1a1a">YV</div>
-    <div style="flex:1">
-      <div style="font-weight:700;font-size:14px">Team Made By Yellow</div>
-      <div style="font-size:11px;color:#888;font-weight:400">all team members</div>
-    </div>
-    <button onclick="toggleChatSearch()" id="chat-search-btn" title="Search messages" style="background:transparent;border:none;color:#666;cursor:pointer;padding:4px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    </button>
-    <button onclick="toggleChat()" style="background:transparent;border:none;color:#666;font-size:22px;cursor:pointer;line-height:1;padding:0 4px">×</button>
-  </div>
-  <!-- WhatsApp-style search bar (hidden by default) -->
-  <div id="chat-search-bar" style="display:none;background:#fbf7ef;padding:10px 12px;border-bottom:1px solid #ece6d8;flex-shrink:0;align-items:center;gap:8px">
-    <div style="flex:1;display:flex;align-items:center;background:#fff;border:1px solid #ece6d8;border-radius:18px;padding:6px 12px;gap:8px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="chat-search-input" placeholder="Search messages…" oninput="onChatSearchInput()" style="flex:1;border:none;outline:none;font-size:13px;font-family:'Poppins',sans-serif;background:transparent">
-      <span id="chat-search-count" style="font-size:11px;color:#888;flex-shrink:0"></span>
-    </div>
-    <button onclick="toggleChatSearch()" style="background:transparent;border:none;color:#666;font-size:18px;cursor:pointer;padding:4px">×</button>
-  </div>
-  <!-- Messages area — soft cream, no busy pattern -->
-  <div id="chat-messages" style="flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:6px;background:#fbf7ef"></div>
-  <!-- Mention dropdown -->
-  <div id="mention-dropdown" style="display:none;position:absolute;bottom:64px;left:10px;right:10px;background:#fff;border:1px solid #e6dfd0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:180px;overflow-y:auto;z-index:9501"></div>
-  <!-- File preview banner -->
-  <div id="chat-attach-preview" style="display:none;background:#fef9ee;border-top:1px solid #f0d080;padding:8px 12px;font-size:12px;color:#854f0b;flex-shrink:0;align-items:center;gap:8px;justify-content:space-between"></div>
-  <!-- Input bar -->
-  <div style="background:#ffffff;padding:10px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-top:1px solid #ece6d8">
-    <input type="file" id="chat-file-input" accept="image/*,.pdf" style="display:none" onchange="handleChatAttach(this)">
-    <button onclick="document.getElementById('chat-file-input').click()" id="chat-attach-btn" title="Attach image or PDF" style="background:#fbf7ef;border:1px solid #ece6d8;border-radius:50%;width:38px;height:38px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#666;padding:0">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
-    </button>
-    <textarea id="chat-input" placeholder="Type a message — @ to tag" rows="1" style="flex:1;border:1px solid #ece6d8;border-radius:20px;padding:9px 14px;font-family:'Poppins',sans-serif;font-size:13.5px;resize:none;max-height:100px;background:#fbf7ef;outline:none;line-height:1.4" oninput="onChatInput(event)" onkeydown="onChatKeydown(event)"></textarea>
-    <button onclick="sendChat()" id="chat-send-btn" style="background:#FEBC06;color:#1a1a1a;border:none;border-radius:20px;padding:9px 20px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;flex-shrink:0">Send</button>
-  </div>
-</div>
+<!-- TEAM CHAT retired 2026-08-26 (Suriti: "remove chat completely" —
+     comms moved to WhatsApp). Panel HTML deleted. Chat functions stubbed
+     as no-ops below so any leftover caller is harmless. -->
 
 <!-- MOBILE: hamburger menu button + backdrop (only visible on phones) -->
 <button id="mobile-menu-btn" onclick="toggleMobileMenu()" style="display:none;position:fixed;top:14px;left:14px;z-index:9501;width:40px;height:40px;border-radius:8px;background:#fff;border:1px solid #e6dfd0;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.10);padding:0">
@@ -890,15 +849,17 @@ async function fetchSheetRows() {
   if (_inFlightSheetRows) return _inFlightSheetRows;
   _inFlightSheetRows = (async () => {
   try {
-  const [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR] = await Promise.all([
+  // 2026-08-26 — chat_messages fetch dropped with team chat retirement.
+  // Downstream chat mapping loop stubbed to empty array so nothing else breaks.
+  const [tasksR, attendanceR, leavesR, creativesR, remindersR] = await Promise.all([
     sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
     sb.from('attendance').select('*').order('id', { ascending: true }),
     sb.from('leaves').select('*').order('id', { ascending: true }),
     sb.from('creatives').select('*').order('id', { ascending: true }),
-    sb.from('chat_messages').select('*').order('created_at', { ascending: true }),
     sb.from('reminders').select('*').order('id', { ascending: true }),
   ]);
-  for (const r of [tasksR, attendanceR, leavesR, creativesR, chatsR, remindersR]) {
+  const chatsR = { data: [], error: null };
+  for (const r of [tasksR, attendanceR, leavesR, creativesR, remindersR]) {
     if (r.error) throw new Error('Supabase read failed: ' + r.error.message);
   }
   const rows = [];
@@ -1137,11 +1098,8 @@ async function _supaInsertRow(row) {
     });
   }
   else if (type === 'chat') {
-    const text = row.Task || '';
-    const mentions = (text.match(/@(\w+)/g) || []).map(m => m.substring(1));
-    await sb.from('chat_messages').insert({
-      author: row.Title || 'unknown', text: text, mentions: mentions,
-    });
+    // 2026-08-26 — Team chat retired. Silently drop legacy chat writes.
+    return;
   }
   else if (type === 'reminder') {
     await sb.from('reminders').insert({
@@ -2327,400 +2285,30 @@ function startAutoRefresh() {
   }, 60 * 1000);
 }
 
-// ====== TEAM CHAT ======
+// ====== TEAM CHAT — retired 2026-08-26 ======
+// Suriti's simplification: chat moves to WhatsApp. Panel, poll, and 400+ lines
+// of logic (mentions, attachments, search, unread badges, sound) removed.
+// Stubs below keep any external caller compiling as a no-op — startChatPolling
+// still gets called from the login flow, some renderers might still poke
+// loadChat/toggleChat/updateChatUnread. Cheaper than hunting every callsite.
 let chatMessages = [];
-let lastSeenChatTimestamp = 0;
-let lastKnownMessageIds = new Set(); // separate first-load tracking for chat sounds
-let chatPollInterval = null;
-let chatFirstLoad = true;
-
-function showChatFab() {
-  // No-op now — chat is opened via sidebar nav, not a floating button.
-  try { lastSeenChatTimestamp = parseInt(localStorage.getItem('yv-chat-lastseen-' + currentUser) || '0'); } catch(e) {}
-}
-
-// Start chat polling on login — runs continuously regardless of panel state.
-// This way the unread badge stays in sync and notifications fire even when chat is closed.
-function startChatPolling() {
-  if (chatPollInterval) clearInterval(chatPollInterval);
-  loadChat(); // immediate first load
-  chatPollInterval = setInterval(loadChat, 8 * 1000); // 8s — snappy notifications
-}
-
-function toggleChat() {
-  const panel = document.getElementById('chat-panel');
-  const isOpen = panel.style.right === '0px';
-  // Find the yellow home dot in this page (defensive selector — anchor with the home glyph)
-  const homeDot = document.querySelector('a[title*="Made By Yellow" i]');
-  if (isOpen) {
-    panel.style.right = '-420px';
-    if (homeDot) homeDot.style.display = '';
-    // Polling keeps running — we want notifications even while chat is closed
-  } else {
-    panel.style.right = '0px';
-    if (homeDot) homeDot.style.display = 'none';   // prevent overlap with send button
-    loadChat(); // immediate fresh fetch on open
-    lastSeenChatTimestamp = Date.now();
-    try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
-    updateChatUnread();
-    setTimeout(() => document.getElementById('chat-input')?.focus(), 300);
-  }
-}
-
-async function loadChat() {
-  try {
-    const raw = await fetchSheetRows();
-    const rows = Array.isArray(raw) ? raw : [];
-    const fetched = rows
-      .filter(r => r.Type === 'chat')
-      .sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime())
-      .slice(-100);
-
-    // Detect new messages from others — independent of task tracking, fixes silent first-poll bug
-    if (!chatFirstLoad) {
-      const newOnes = fetched.filter(m => {
-        const id = `${m.Date}|${m.Title}|${m.Task}`;
-        const isNew = !lastKnownMessageIds.has(id);
-        const fromOther = m.Title !== currentUser;
-        return isNew && fromOther;
-      });
-      if (newOnes.length > 0) {
-        // Chat ping chime removed 2026-06-01 — bell + badge are the signal.
-      }
-    }
-    lastKnownMessageIds = new Set(fetched.map(m => `${m.Date}|${m.Title}|${m.Task}`));
-    chatFirstLoad = false;
-    chatMessages = fetched;
-    renderChat();
-
-    // If chat panel is currently open, the user IS reading — keep marking seen on every poll
-    // so the unread badge stays at 0. Without this, it would tick up while they're actively chatting.
-    const panel = document.getElementById('chat-panel');
-    if (panel && panel.style.right === '0px') {
-      lastSeenChatTimestamp = Date.now();
-      try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
-    }
-    updateChatUnread();
-  } catch(e) {}
-}
-
-// WhatsApp-style search state
-let chatSearchTerm = '';
-
-function toggleChatSearch() {
-  const bar = document.getElementById('chat-search-bar');
-  const input = document.getElementById('chat-search-input');
-  const isOpen = bar.style.display === 'flex';
-  if (isOpen) {
-    bar.style.display = 'none';
-    chatSearchTerm = '';
-    if (input) input.value = '';
-    document.getElementById('chat-search-count').textContent = '';
-    renderChat();
-  } else {
-    bar.style.display = 'flex';
-    setTimeout(() => input?.focus(), 50);
-  }
-}
-
-function onChatSearchInput() {
-  const input = document.getElementById('chat-search-input');
-  chatSearchTerm = (input?.value || '').trim().toLowerCase();
-  renderChat();
-}
-
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function renderChat() {
-  const wrap = document.getElementById('chat-messages');
-  if (!wrap) return;
-
-  // Filter when searching
-  const visible = chatSearchTerm
-    ? chatMessages.filter(m => (m.Task || '').toLowerCase().includes(chatSearchTerm))
-    : chatMessages;
-
-  // Update match count
-  const countEl = document.getElementById('chat-search-count');
-  if (countEl) {
-    countEl.textContent = chatSearchTerm
-      ? (visible.length === 0 ? 'No matches' : `${visible.length} match${visible.length === 1 ? '' : 'es'}`)
-      : '';
-  }
-
-  if (!visible.length) {
-    if (chatSearchTerm) {
-      wrap.innerHTML = '<div style="text-align:center;color:#999;font-size:12px;padding:30px 20px">No messages match "<strong>' + chatSearchTerm.replace(/</g, '&lt;') + '</strong>"</div>';
-    } else {
-      wrap.innerHTML = '<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 20px;background:#fff8c5;border-radius:10px;margin:20px auto;max-width:280px;line-height:1.6">👋 No messages yet.<br><span style="font-size:11px;color:#777">Type @ to tag · 📎 to attach</span></div>';
-    }
-    return;
-  }
-  let lastDate = '';
-  let html = '';
-  visible.forEach(m => {
-    const ts = new Date(m.Date);
-    const dateStr = ts.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-    if (dateStr !== lastDate) {
-      html += `<div style="text-align:center;margin:10px 0"><span style="background:#fff;color:#5a5a5a;font-size:11px;padding:4px 12px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,0.06);border:1px solid #e6dfd0">${dateStr}</span></div>`;
-      lastDate = dateStr;
-    }
-    const isMe = m.Title === currentUser;
-    const time = ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
-    const sender = m.Title || 'Someone';
-
-    // Pull file URLs from message — match full URL including query string
-    const text = m.Task || '';
-    const fileUrlMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp|pdf)(?:\?[^\s]*)?)/i);
-    const imageMatch = text.match(/(https?:\/\/[^\s]+?\.(?:jpe?g|png|gif|webp)(?:\?[^\s]*)?)/i);
-    const pdfMatch = text.match(/(https?:\/\/[^\s]+?\.pdf(?:\?[^\s]*)?)/i);
-    let textWithoutFile = text;
-    if (fileUrlMatch) textWithoutFile = text.replace(fileUrlMatch[0], '').trim();
-
-    // Convert Dropbox shared URL to a direct-serving variant so <img> renders inline
-    const dbxDirect = (url) => {
-      if (!url || !url.includes('dropbox.com')) return url;
-      // Replace dl=0 with raw=1 to serve the file directly
-      let u = url.replace(/[?&]dl=0\b/, m => m[0] + 'raw=1').replace(/\bdl=0\b/, 'raw=1');
-      // If URL has no raw=1 yet (no dl=0 was present), append it
-      if (!/[?&]raw=1\b/.test(u)) u = u + (u.includes('?') ? '&raw=1' : '?raw=1');
-      return u;
-    };
-
-    // Convert Dropbox URL to one that forces a direct download (?dl=1)
-    const dbxDownload = (url) => {
-      if (!url) return url;
-      if (!url.includes('dropbox.com')) return url;
-      if (url.includes('dl=0')) return url.replace('dl=0', 'dl=1');
-      if (url.includes('raw=1')) return url.replace('raw=1', 'dl=1');
-      return url + (url.includes('?') ? '&dl=1' : '?dl=1');
-    };
-
-    let safe = textWithoutFile.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:#0066cc">$1</a>');
-    safe = safe.replace(/@(\w+)/g, function(_, name) {
-      if (name.toLowerCase() === 'team') {
-        return `<span style="color:#dc2626;font-weight:700;background:#fee2e2;padding:1px 8px;border-radius:10px;border:1px solid #fca5a5">@team</span>`;
-      }
-      const cap = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-      const isSelf = cap === currentUser;
-      return `<span style="color:${isSelf ? '#dc2626' : '#854f0b'};font-weight:700">@${cap}</span>`;
-    });
-
-    // Highlight search matches (avoid breaking existing HTML tags by only matching outside <>)
-    if (chatSearchTerm && safe) {
-      const re = new RegExp('(' + escapeRegex(chatSearchTerm) + ')(?![^<]*>)', 'gi');
-      safe = safe.replace(re, '<mark style="background:#fde68a;color:#1a1a1a;padding:0 2px;border-radius:3px">$1</mark>');
-    }
-
-    let attachmentHtml = '';
-    if (imageMatch) {
-      const directSrc = dbxDirect(imageMatch[0]);
-      const dlUrl = dbxDownload(imageMatch[0]);
-      const fname = (imageMatch[0].split('/').pop().split('?')[0]) || 'image';
-      attachmentHtml = `<div style="position:relative;margin-bottom:${safe ? '6px' : '0'}">
-        <a href="${imageMatch[0]}" target="_blank" style="display:block"><img src="${directSrc}" style="max-width:100%;max-height:240px;border-radius:8px;display:block" loading="lazy" onerror="this.parentNode.parentNode.innerHTML='<div style=\\'background:#fef9ee;padding:10px;border-radius:8px;font-size:11px;color:#854f0b\\'>📎 Image — <a href=&quot;${imageMatch[0]}&quot; target=_blank style=&quot;color:#0066cc&quot;>open in browser</a></div>'"></a>
-        <a href="${dlUrl}" download="${fname}" title="Download" style="position:absolute;top:6px;right:6px;width:28px;height:28px;background:rgba(0,0,0,0.55);border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none;color:#fff" onclick="event.stopPropagation()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        </a>
-      </div>`;
-    } else if (pdfMatch) {
-      const fname = pdfMatch[0].split('/').pop().split('?')[0];
-      const dlUrl = dbxDownload(pdfMatch[0]);
-      attachmentHtml = `<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6dfd0;border-radius:8px;padding:8px 10px;margin-bottom:${safe ? '6px' : '0'}">
-        <a href="${pdfMatch[0]}" target="_blank" style="display:flex;align-items:center;gap:8px;flex:1;text-decoration:none;color:#1a1a1a;min-width:0">
-          <span style="font-size:18px;flex-shrink:0">📄</span>
-          <span style="font-size:12px;font-weight:600;word-break:break-all">${fname}</span>
-        </a>
-        <a href="${dlUrl}" download="${fname}" title="Download" style="flex-shrink:0;width:30px;height:30px;background:#fbf7ef;border:1px solid #e6dfd0;border-radius:50%;display:flex;align-items:center;justify-content:center;text-decoration:none;color:#666">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        </a>
-      </div>`;
-    }
-
-    const bg = isMe ? '#fef3c7' : '#ffffff';
-    const radius = isMe ? '14px 4px 14px 14px' : '4px 14px 14px 14px';
-    const justify = isMe ? 'flex-end' : 'flex-start';
-    const senderLine = isMe ? '' : `<div style="font-size:11px;font-weight:700;color:#854f0b;margin-bottom:3px">${sender}</div>`;
-
-    html += `<div style="display:flex;justify-content:${justify};margin:1px 0">
-      <div style="background:${bg};border-radius:${radius};padding:7px 10px 5px;max-width:80%;box-shadow:0 1px 0.5px rgba(0,0,0,0.08);position:relative;color:#1a1a1a;border:1px solid ${isMe ? '#fde68a' : '#ece6d8'}">
-        ${senderLine}
-        ${attachmentHtml}
-        ${safe ? `<div style="font-size:13.5px;line-height:1.4;word-wrap:break-word;padding-right:42px">${safe}</div>` : ''}
-        <div style="font-size:10px;color:#999;text-align:right;margin-top:${safe ? '-12px' : '2px'};margin-right:-2px">${time}</div>
-      </div>
-    </div>`;
-  });
-  wrap.innerHTML = html;
-  wrap.scrollTop = wrap.scrollHeight;
-}
-
-// File attachment handler
-let pendingAttachUrl = null;
-
-async function handleChatAttach(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const preview = document.getElementById('chat-attach-preview');
-  preview.style.display = 'flex';
-  preview.innerHTML = `<span>📎 Uploading <strong>${file.name}</strong>…</span><span style="color:var(--muted)">please wait</span>`;
-  try {
-    const formData = new FormData();
-    const ext = (file.name.split('.').pop() || 'bin');
-    const dropboxPath = `/CHAT/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
-    formData.append('file', file, file.name);
-    formData.append('dropboxPath', dropboxPath);
-    const res = await fetch('https://yellowbackend.onrender.com/api/dropbox-upload', { method:'POST', body: formData });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Upload failed');
-    pendingAttachUrl = data.url;
-    preview.innerHTML = `<span>📎 <strong>${file.name}</strong> ready to send</span><button onclick="cancelChatAttach()" style="background:transparent;border:none;color:#854f0b;cursor:pointer;font-size:14px;padding:0">×</button>`;
-  } catch(e) {
-    preview.innerHTML = `<span style="color:#dc2626">Upload failed</span><button onclick="cancelChatAttach()" style="background:transparent;border:none;color:#854f0b;cursor:pointer;font-size:14px;padding:0">×</button>`;
-    pendingAttachUrl = null;
-  }
-  input.value = ''; // reset so same file can be re-picked
-}
-
-function cancelChatAttach() {
-  pendingAttachUrl = null;
-  document.getElementById('chat-attach-preview').style.display = 'none';
-}
-
-async function sendChat() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  // Allow sending if either text OR an attachment is queued
-  if (!text && !pendingAttachUrl) return;
-  const btn = document.getElementById('chat-send-btn');
-  btn.disabled = true; btn.textContent = '...';
-
-  const messageBody = pendingAttachUrl
-    ? (text ? `${text} ${pendingAttachUrl}` : pendingAttachUrl)
-    : text;
-
-  const row = {
-    Date: new Date().toISOString(),
-    Title: currentUser,
-    Task: messageBody,
-    Assignee: 'all',
-    Type: 'chat'
-  };
-  chatMessages.push(row);
-  renderChat();
-  input.value = '';
-  pendingAttachUrl = null;
-  document.getElementById('chat-attach-preview').style.display = 'none';
-  hideMentionDropdown();
-  try {
-    await fetch(SHEETDB, {
-      method:'POST', headers:{'Content-Type':'text/plain'}, mode:'no-cors',
-      body: JSON.stringify({ sheet:'Type:tasks', data:[row] })
-    });
-    setTimeout(loadChat, 1500);
-
-    // ===== Telegram notify for @mentions =====
-    // Detect @Name patterns and notify each mentioned person.
-    // Special: @team notifies everyone registered.
-    const mentions = (messageBody.match(/@(\w+)/g) || []).map(m => m.slice(1));
-    const uniqueMentions = [...new Set(mentions)];
-    uniqueMentions.forEach(name => {
-      // Skip self-mentions, backend also dedupes
-      if (name === currentUser) return;
-      const msg = `💬 <b>${currentUser}</b> mentioned you in Made By Yellow\n\n${messageBody}\n\n<a href="https://madebyyellow.com/team.html">Open chat →</a>`;
-      notifyTelegram(name === 'team' ? 'team' : name, msg);
-      // In-app bell — skip the 'team' broadcast (broadcasts don't fit per-user bell)
-      if (name !== 'team') {
-        notifyInApp(name, 'tag', `${currentUser} mentioned you: "${messageBody}"`, { actor: currentUser });
-      }
-    });
-  } catch(e) {
-    chatMessages.pop();
-    renderChat();
-  }
-  btn.disabled = false; btn.textContent = 'Send';
-  lastSeenChatTimestamp = Date.now();
-  try { localStorage.setItem('yv-chat-lastseen-' + currentUser, String(lastSeenChatTimestamp)); } catch(e) {}
-}
-
-function updateChatUnread() {
-  const navBadge = document.getElementById('chat-nav-badge');
-  if (!navBadge) return;
-  const unread = chatMessages.filter(m => {
-    const t = new Date(m.Date).getTime();
-    return t > lastSeenChatTimestamp && m.Title !== currentUser;
-  }).length;
-  if (unread > 0) {
-    navBadge.textContent = unread > 99 ? '99+' : unread;
-    navBadge.style.display = 'inline-flex';
-  } else {
-    navBadge.style.display = 'none';
-  }
-}
-
-// ===== @mention autocomplete =====
-const TAGGABLE = ['team','Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Gayatri'];
-
-function onChatInput(e) {
-  const input = e.target;
-  const value = input.value;
-  const pos = input.selectionStart;
-  // Find an @ before the cursor with no whitespace between it and cursor
-  const upToCursor = value.slice(0, pos);
-  const m = upToCursor.match(/@(\w*)$/);
-  if (m) showMentionDropdown(m[1]);
-  else hideMentionDropdown();
-}
-
-function onChatKeydown(e) {
-  const dd = document.getElementById('mention-dropdown');
-  const isOpen = dd.style.display === 'block';
-  if (isOpen && (e.key === 'Escape' || e.key === ' ')) {
-    if (e.key === 'Escape') { hideMentionDropdown(); e.preventDefault(); }
-    if (e.key === ' ') hideMentionDropdown();
-    return;
-  }
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    if (isOpen) {
-      // Pick first match
-      const first = dd.querySelector('.mention-option');
-      if (first) first.click();
-    } else {
-      sendChat();
-    }
-  }
-}
-
-function showMentionDropdown(query) {
-  const dd = document.getElementById('mention-dropdown');
-  const matches = TAGGABLE.filter(n => n.toLowerCase().startsWith(query.toLowerCase())).slice(0, 6);
-  if (!matches.length) { hideMentionDropdown(); return; }
-  dd.innerHTML = matches.map(n =>
-    `<div class="mention-option" onclick="insertMention('${n}')" style="padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0eeea" onmouseover="this.style.background='#fef9ef'" onmouseout="this.style.background='#fff'">@${n}</div>`
-  ).join('');
-  dd.style.display = 'block';
-}
-
-function hideMentionDropdown() {
-  const dd = document.getElementById('mention-dropdown');
-  if (dd) dd.style.display = 'none';
-}
-
-function insertMention(name) {
-  const input = document.getElementById('chat-input');
-  const value = input.value;
-  const pos = input.selectionStart;
-  const before = value.slice(0, pos).replace(/@\w*$/, '@' + name + ' ');
-  const after = value.slice(pos);
-  input.value = before + after;
-  input.focus();
-  input.setSelectionRange(before.length, before.length);
-  hideMentionDropdown();
-}
+function startChatPolling() {}
+function toggleChat()        {}
+function loadChat()          { return Promise.resolve(); }
+function renderChat()        {}
+function sendChat()          {}
+function updateChatUnread()  {}
+function showChatFab()       {}
+function toggleChatSearch()  {}
+function onChatSearchInput() {}
+function onChatInput()       {}
+function onChatKeydown()     {}
+function handleChatAttach()  {}
+function cancelChatAttach()  {}
+function showMentionDropdown() {}
+function hideMentionDropdown() {}
+function insertMention()     {}
+function escapeRegex(s)      { return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
