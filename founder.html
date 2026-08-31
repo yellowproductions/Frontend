@@ -924,6 +924,16 @@
       <div id="attendance-today"><div class="empty-state" style="padding:20px">Loading...</div></div>
     </div>
 
+    <!-- 1b. Lates this month — Suriti's 2026-08-26 policy: OFFICE team,
+         3 Lates = 0.5 day salary deducted. Shows current-month running counts. -->
+    <div class="card" style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">Lates This Month <span style="font-size:11px;color:var(--muted);font-weight:400">(office team · 3 lates = 0.5 day salary)</span></div>
+        <span id="lates-month-label" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="lates-summary"><div class="empty-state" style="padding:14px">Loading...</div></div>
+    </div>
+
     <!-- 2. Leave Requests — needs your action first -->
     <div class="card" style="margin-bottom:18px">
       <div class="card-title">Leave Requests</div>
@@ -4888,6 +4898,64 @@ async function addTask() {
 // `skipFetch=true` re-renders using only the in-memory cache. Used by openAttendanceOverride
 // to show an instant local UI update without waiting for the sheet round-trip (which would
 // overwrite the optimistic cache with stale server data).
+// 2026-08-26 — Lates counter (Suriti's policy).
+// OFFICE team members (10:00 start, grace till 10:30) — 3 Lates in one
+// calendar month = 0.5 day salary deducted. Dedupes same-day duplicate
+// marks (a pre-existing bug that predated the mark-attendance dedup fix).
+function countLatesThisMonthFOS(name, allRows) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const monthPrefix = `${y}-${m}-`;
+  const key = (name || '').trim().toLowerCase();
+  const seenDates = new Set();
+  let lates = 0;
+  (allRows || []).forEach(r => {
+    if (r.Type !== 'attendance') return;
+    if ((r.Assignee || '').trim().toLowerCase() !== key) return;
+    if (!(r.Date || '').startsWith(monthPrefix)) return;
+    if ((r.Status || '') !== 'Late') return;
+    if (seenDates.has(r.Date)) return;
+    seenDates.add(r.Date);
+    lates++;
+  });
+  return {
+    lates,
+    deductionDays: Math.floor(lates / 3) * 0.5,
+    untilNext: lates % 3 === 0 && lates > 0 ? 3 : (3 - (lates % 3))
+  };
+}
+
+function renderLatesSummary(allRows) {
+  const wrap = document.getElementById('lates-summary');
+  const label = document.getElementById('lates-month-label');
+  if (!wrap) return;
+  const now = new Date();
+  const monthName = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  if (label) label.textContent = monthName;
+  const rows = OFFICE_TEAM
+    .filter(n => !isInactive(n))
+    .map(name => ({ name, ...countLatesThisMonthFOS(name, allRows) }))
+    .sort((a, b) => b.lates - a.lates);   // worst first
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-state" style="padding:14px">No office team members configured.</div>'; return; }
+  wrap.innerHTML = `<div style="display:grid;grid-template-columns:1.4fr 90px 130px 1fr;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700">
+    <span>Person</span><span>Lates</span><span>Salary deducted</span><span>Next deduction</span>
+  </div>` + rows.map(r => {
+    const color = r.deductionDays > 0 ? '#991b1b' : r.lates > 0 ? '#92640a' : '#15803d';
+    const nextText = r.deductionDays > 0
+      ? `${r.untilNext} more = next 0.5 day`
+      : r.lates > 0
+        ? `${r.untilNext} more = 0.5 day`
+        : '—';
+    return `<div style="display:grid;grid-template-columns:1.4fr 90px 130px 1fr;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);font-size:13px;align-items:center">
+      <span style="font-weight:600">${r.name}</span>
+      <span style="color:${color};font-weight:700">${r.lates}</span>
+      <span style="color:${color};font-weight:${r.deductionDays > 0 ? '700' : '400'}">${r.deductionDays > 0 ? r.deductionDays + ' day' : '—'}</span>
+      <span style="color:#666;font-size:12px">${nextText}</span>
+    </div>`;
+  }).join('');
+}
+
 async function loadHR(skipFetch) {
   // IST date — attendance rows are IST-dated, so keying "today" by UTC
   // (toISOString) dropped present marks during the 00:00–05:29 IST window and
@@ -4909,6 +4977,11 @@ async function loadHR(skipFetch) {
     // _allRowsCache (set above) for attendance lookups.
     const taskRows = data.filter(r => r.Type === 'task');
     renderCapacity(taskRows);
+
+    // 2026-08-26 — Lates-this-month summary. OFFICE team only; 3 lates in
+    // one calendar month = 0.5 day salary deducted. Sorted worst-first so
+    // Suriti sees who's about to hit a deduction at a glance.
+    renderLatesSummary(data);
 
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');

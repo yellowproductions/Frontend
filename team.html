@@ -4070,10 +4070,41 @@ function getApprovedLeaveForDate(name, dateStr, allRows) {
 
 // Returns the schedule rules for the current user
 function getSchedule(name) {
+  // Attendance policy (Suriti 2026-08-26):
+  //   OFFICE — 10:00 AM start, grace until 10:30 (marked after 10:30 = Late).
+  //   WFH    — unchanged: 9:30 AM start, grace until 9:45.
+  // Lates policy: 3 Late marks in one calendar month = 0.5 day salary
+  // deducted (surfaced in the attendance panel below + HR view).
   const isOffice = OFFICE_TEAM.includes(name);
   return isOffice
-    ? { type: 'OFFICE', start: '10:30 AM', onTimeBy: 10*60 + 45 }  // grace 15 min
+    ? { type: 'OFFICE', start: '10:00 AM', onTimeBy: 10*60 + 30 }  // grace 30 min
     : { type: 'WFH',    start: '9:30 AM',  onTimeBy:  9*60 + 45 }; // grace 15 min
+}
+
+// 2026-08-26 — Lates counter for the OFFICE policy. Every 3 Lates within
+// one CALENDAR MONTH = 0.5 day salary deducted. Runs off the same allRows
+// that loadAttendance already has, so no extra fetch.
+function countLatesThisMonth(name, allRows) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const monthPrefix = `${y}-${m}-`;
+  const key = (name || '').trim().toLowerCase();
+  const seenDates = new Set();
+  let lates = 0;
+  (allRows || []).forEach(r => {
+    if (r.Type !== 'attendance') return;
+    if ((r.Assignee || '').trim().toLowerCase() !== key) return;
+    if (!(r.Date || '').startsWith(monthPrefix)) return;
+    if ((r.Status || '') !== 'Late') return;
+    // Dedupe same-day duplicates (before the mark-attendance dedup fix landed).
+    if (seenDates.has(r.Date)) return;
+    seenDates.add(r.Date);
+    lates++;
+  });
+  const deductionDays = Math.floor(lates / 3) * 0.5;   // 3 lates = 0.5 day
+  const untilNextDeduction = lates % 3 === 0 ? 3 : (3 - (lates % 3));
+  return { lates, deductionDays, untilNextDeduction };
 }
 
 // Universal time cutoffs (apply to everyone regardless of schedule)
@@ -4212,7 +4243,25 @@ async function loadAttendance() {
     };
 
     if (scheduleEl) {
-      scheduleEl.innerHTML = `<strong>${schedule.type}</strong> · starts ${schedule.start} IST · 15 min grace`;
+      const graceMin = schedule.onTimeBy - (schedule.type === 'OFFICE' ? 10*60 : 9*60 + 30);
+      let scheduleLine = `<strong>${schedule.type}</strong> · starts ${schedule.start} IST · ${graceMin} min grace`;
+      // 2026-08-26 — Lates counter (OFFICE only). 3 Lates in a calendar
+      // month = 0.5 day salary deducted. Surfaced right below the schedule
+      // line so it's the second thing the person sees on the Attendance panel.
+      if (schedule.type === 'OFFICE') {
+        const lc = countLatesThisMonth(currentUser, data);
+        const monthName = new Date().toLocaleString('en-IN', { month: 'long' });
+        let bits;
+        if (lc.lates === 0) {
+          bits = `<span style="color:#15803d;font-weight:600">✨ No lates in ${monthName}</span>`;
+        } else if (lc.deductionDays > 0) {
+          bits = `<span style="color:#991b1b;font-weight:700">${lc.lates} lates · ${lc.deductionDays} day salary deducted</span> <span style="color:#888">· ${lc.untilNextDeduction} more = next 0.5 day</span>`;
+        } else {
+          bits = `<span style="color:#92640a;font-weight:700">${lc.lates} late${lc.lates===1?'':'s'} in ${monthName}</span> <span style="color:#888">· ${lc.untilNextDeduction} more = 0.5 day deducted</span>`;
+        }
+        scheduleLine += `<br>${bits}`;
+      }
+      scheduleEl.innerHTML = scheduleLine;
     }
 
     // Resolve today's effective status using all the rules (overrides applied)
