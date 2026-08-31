@@ -4281,11 +4281,28 @@ async function loadAttendance() {
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill('Off');
     }
-    // === MARKED (Present / Late / Half Day) — show as Present, retain time stamp ===
+    // === MARKED (Present / Late / Half Day) — show actual status + time. ===
+    // 2026-08-26 update (Suriti): if the mark is Late, show which late-of-the-month
+    // it is + how many more before the 0.5 day salary hit, right here on the panel.
     else if (['Present','Late','Half Day'].includes(effectiveStatus)) {
       const time = formatAttTimeTeam(todayAtt[0]?.Title || '');
-      const p = palette.Present;
-      if (statusEl) statusEl.innerHTML = `<span style="color:${p.color}">${p.icon} Present</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
+      const isLate = (effectiveStatus === 'Late') || (effectiveStatus === 'Half Day');
+      let mainHtml;
+      if (isLate) {
+        const lc = countLatesThisMonth(currentUser, data);
+        const ord = (n) => n + (['th','st','nd','rd'][(n%100 > 10 && n%100 < 14) ? 0 : (n%10 < 4 ? n%10 : 0)] || 'th');
+        const tag = effectiveStatus === 'Half Day' ? 'Half Day' : 'Late';
+        // Latest mark is counted in lc.lates. Show which one this is (ordinal),
+        // whether it triggered a salary deduction, and how many before the next one.
+        const trigger = lc.lates > 0 && lc.lates % 3 === 0
+          ? ` <span style="color:#991b1b;font-weight:700">⚠️ triggered 0.5 day salary deduction</span>`
+          : ` <span style="color:#666">· ${lc.untilNextDeduction} more = 0.5 day deducted</span>`;
+        mainHtml = `<span style="color:#92640a">⏰ ${tag} — ${ord(lc.lates)} of the month</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}<div style="font-size:12px;margin-top:4px">${trigger}</div>`;
+      } else {
+        const p = palette.Present;
+        mainHtml = `<span style="color:${p.color}">${p.icon} Present</span>${time ? `<span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${time}</span>` : ''}`;
+      }
+      if (statusEl) statusEl.innerHTML = mainHtml;
       if (btnEl) btnEl.style.display = 'none';
       setAttendancePill(effectiveStatus);
     }
@@ -4453,9 +4470,45 @@ async function markAttendance() {
       return;
     }
     // ✅ Immediate visual confirmation — before loadAttendance runs.
+    // 2026-08-26 update (Suriti): show Late/Half Day distinctly + which late of
+    // the month it is + how many more before the 0.5 day salary deduction hits.
+    // For Late, we need the CURRENT lates count INCLUDING this mark — do a quick
+    // targeted fetch of just this user's attendance rows so we don't wait on the
+    // full loadAttendance refresh (which is still queued at 1.5s).
     if (btn) { btn.style.display = 'none'; }
+    const isLate = (status === 'Late') || (status === 'Half Day');
     if (statusEl) {
-      statusEl.innerHTML = `<span style="color:#15803d">✓ Present</span><span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${ist.hhmm}</span>`;
+      if (isLate) {
+        // Optimistically compute the count = whatever's in DB + this new mark.
+        // The dedupe check inside markAttendance means at most ONE row per
+        // (date, person), so re-marking today doesn't over-count.
+        let latesCount = 1;   // fallback — assume this is at least the first
+        try {
+          const q = await sb.from('attendance')
+            .select('date, status')
+            .eq('person', currentUser)
+            .eq('status', 'Late');
+          const seen = new Set();
+          const now = new Date();
+          const monthPrefix = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-`;
+          latesCount = 0;
+          (q.data || []).forEach(r => {
+            if (!(r.date || '').startsWith(monthPrefix)) return;
+            if (seen.has(r.date)) return;
+            seen.add(r.date);
+            latesCount++;
+          });
+          if (!seen.has(ist.date)) latesCount++;  // include the mark we just made
+        } catch(e) { console.warn('lates lookup failed:', e); }
+        const ord = (n) => n + (['th','st','nd','rd'][(n%100 > 10 && n%100 < 14) ? 0 : (n%10 < 4 ? n%10 : 0)] || 'th');
+        const trigger = latesCount % 3 === 0
+          ? ` <span style="color:#991b1b;font-weight:700">⚠️ triggered 0.5 day salary deduction</span>`
+          : ` <span style="color:#666">· ${3 - (latesCount % 3)} more = 0.5 day deducted</span>`;
+        const tag = status === 'Half Day' ? 'Half Day' : 'Late';
+        statusEl.innerHTML = `<span style="color:#92640a">⏰ ${tag} — ${ord(latesCount)} of the month</span><span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${ist.hhmm}</span><div style="font-size:12px;margin-top:4px">${trigger}</div>`;
+      } else {
+        statusEl.innerHTML = `<span style="color:#15803d">✓ Present</span><span style="font-size:13px;color:#888;font-weight:500;margin-left:8px">marked at ${ist.hhmm}</span>`;
+      }
     }
     if (typeof setAttendancePill === 'function') setAttendancePill(status);
     setTimeout(loadAttendance, 1500);
