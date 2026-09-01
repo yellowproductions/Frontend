@@ -383,10 +383,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
   <div class="m-form" id="fbox">
     <select id="login-select" onchange="onMonsterName()">
       <option value="">Select your name...</option>
-      <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+      <option>Sandesh</option><option>Faizan</option>
       <option>Solo</option><option>Archana</option><option>Gauri</option>
-      <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
+      <option>Sonal</option><option>Vishvanath</option>
       <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
+      <option>Shubham</option><option>Ashish</option>
     </select>
     <input type="password" id="login-password" placeholder="Password..." onkeydown="if(event.key==='Enter')doLogin()">
     <div class="m-err" id="login-error">Wrong password!</div>
@@ -552,7 +553,6 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
             <option value="">— Select SPOC —</option>
             <option>Siddhesh</option>
             <option>Kritya</option>
-            <option>Viplav</option>
             <option>Suriti</option>
           </select>
         </div>
@@ -574,11 +574,11 @@ label { font-size:11px; color:var(--muted); margin-bottom:4px; display:block; te
           <option value="Solo">Solo</option>
           <option value="Gauri">Gauri</option>
           <option value="Sonal">Sonal</option>
-          <option value="Gayatri">Gayatri</option>
           <option value="Ajay">Ajay (video)</option>
-          <option value="Viplav">Viplav (copy)</option>
           <option value="Kritya">Kritya</option>
           <option value="Siddhesh">Siddhesh</option>
+          <option value="Shubham">Shubham (BD)</option>
+          <option value="Ashish">Ashish (BD)</option>
         </select>
       </div>
     </div>
@@ -1632,8 +1632,9 @@ function proceedToApp(name) {
   // hidden; loadNotifs() still populates the feed that the one bell shows.
   loadNotifs();
   const roles = {
-    Viplav:'Copywriter', Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
-    Faizan:'Graphic Designer', Sandesh:'Graphic Designer', Gayatri:'Graphic Designer',
+    Siddhesh:'CS & Strategy', Kritya:'CS & Strategy',
+    Shubham:'BD', Ashish:'BD',
+    Faizan:'Graphic Designer', Sandesh:'Graphic Designer',
     Solo:'Graphic Designer', Archana:'Graphic Designer', Gauri:'Graphic Designer',
     Sonal:'Graphic Designer', Vishvanath:'Graphic Designer', Ajay:'Video Editor', Sam:'BD'
   };
@@ -1651,8 +1652,8 @@ function proceedToApp(name) {
     if (hint) hint.textContent = 'Brief came in? Assign it to a designer.';
   }
 
-  // Pitches & Ideas portal — direct access for Viplav, Siddhesh, Kritya
-  const PITCHES_USERS = ['Viplav', 'Siddhesh', 'Kritya'];
+  // Pitches & Ideas portal — direct access for Siddhesh, Kritya, Shubham, Ashish
+  const PITCHES_USERS = ['Siddhesh', 'Kritya', 'Shubham', 'Ashish'];
   if (PITCHES_USERS.includes(name)) {
     const pn = document.getElementById('pitches-nav');
     if (pn) pn.style.display = 'flex';
@@ -1684,7 +1685,7 @@ function proceedToApp(name) {
 }
 
 // Anyone in this list sees the Review tab + can approve/send-back creatives
-const REVIEWERS = ['Viplav', 'Kritya', 'Siddhesh'];
+const REVIEWERS = ['Kritya', 'Siddhesh'];
 
 // Auto-restore session on page load — token must be valid + unexpired
 window.addEventListener('DOMContentLoaded', () => {
@@ -1860,7 +1861,7 @@ function renderAgentMessage(role, text) {
   document.getElementById('agent-chat').scrollTop = document.getElementById('agent-chat').scrollHeight;
 }
 
-const VALID_TEAM = ['Suriti','Viplav','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Gayatri','Sam'];
+const VALID_TEAM = ['Suriti','Faizan','Sandesh','Archana','Vishvanath','Ajay','Kritya','Solo','Gauri','Siddhesh','Sonal','Shubham','Ashish','Sam'];
 
 function detectReminder(text) {
   // Patterns: "remind me to/about X" or "remind <name> to/about X"
@@ -2356,10 +2357,8 @@ const HOLIDAYS_2026 = [
   { date: '2026-08-16', name: 'Janmashtami 🙏', type: 'fixed' },
   { date: '2026-08-19', name: 'Ganesh Chaturthi', type: 'fixed' },
   { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
-  { date: '2026-09-17', name: '🎂 Viplav', type: 'sol' },
   { date: '2026-09-27', name: '🎂 Solo', type: 'sol' },
   { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
-  { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
   { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
   { date: '2026-10-20', name: 'Diwali ✨', type: 'fixed' },
   { date: '2026-10-22', name: 'Bhai Dooj', type: 'optional' },
@@ -2735,7 +2734,7 @@ async function addCollaborator(encodedTask, sbId, name) {
     const upd = await sb.from('tasks').update({ collaborators: [...current, name] }).eq('id', sbId);
     if (upd && upd.error) throw new Error(upd.error.message || 'database write failed');
     // Telegram if the added person is a lead
-    if (['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
+    if (['Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
       notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\nTagged by: ${currentUser}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
       notifyInApp(name, 'tag', `${currentUser} added you as collaborator on: ${task.substring(0,80)}`, { actor: currentUser });
     }
@@ -2929,7 +2928,7 @@ function toggleQuickTaskForm() {
 function renderTaskRows(tasks, startIdx) {
   if (!tasks.length) return '<div class="empty-state">No tasks here.</div>';
   const today = new Date().toISOString().split('T')[0];
-  const isLead = ['Suriti','Viplav','Kritya','Siddhesh'].includes(currentUser);
+  const isLead = ['Suriti','Kritya','Siddhesh'].includes(currentUser);
   const esc = s => String(s == null ? '' : s).replace(/[<>]/g, c => c === '<' ? '&lt;' : '&gt;');
 
   // Update line prefix: legacy is [MM-DD], new format is [DD-MM]. Display both as [DD/MM].
@@ -4023,7 +4022,7 @@ async function saveTask(idx, encodedTask) {
 
 // =========== ATTENDANCE: SCHEDULE & SCHEDULE-AWARE STATUS ===========
 // Office team — come in 10:30 AM. WFH everyone else — start 9:30 AM.
-const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo'];
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo', 'Shubham', 'Ashish'];
 
 // Users on sleep — hidden from login, attendance, idle calc, capacity, notifications
 const INACTIVE_USERS = ['Sam'];
@@ -4541,13 +4540,14 @@ async function markAttendance() {
 // person (Closed + Rejected drop off), with overdue / due-today / in-review
 // breakdowns and a coloured bar. Helps Viplav/Kritya/Siddhesh assign well.
 const TEAM_ROSTER = [
-  { name:'Viplav',     role:'Copywriter' },
+  // 2026-09-01 — Gayatri + Viplav removed. Shubham + Ashish (BD) added.
   { name:'Kritya',     role:'CS & Strategy' },
   { name:'Siddhesh',   role:'CS & Strategy' },
+  { name:'Shubham',    role:'BD' },
+  { name:'Ashish',     role:'BD' },
   { name:'Faizan',     role:'Designer' },
   { name:'Sandesh',    role:'Designer' },
-  { name:'Gayatri',    role:'Designer' },
-  { name:'Solo', role:'Designer' },
+  { name:'Solo',       role:'Designer' },
   { name:'Archana',    role:'Designer' },
   { name:'Gauri',      role:'Designer' },
   { name:'Sonal',      role:'Designer' },
@@ -4818,7 +4818,7 @@ async function loadReviews() {
     //    ONLY creatives whose parent task lists them as the SPOC.
     //  • Suriti — founder. Sees ALL (orphan rescue path included).
     //  • Anyone else (designers etc.) — empty queue; this panel isn't theirs.
-    const SPOCS  = ['Siddhesh', 'Kritya', 'Viplav'];
+    const SPOCS  = ['Siddhesh', 'Kritya'];
     const isSPOC = SPOCS.includes(currentUser);
     const seesAll = (currentUser === 'Suriti');
     reviewItems = base.filter(r => {
@@ -5077,7 +5077,7 @@ async function submitReview(idx, action) {
   const filePath = item['Open File Link'] || '';
 
   const DESIGNER_EMAILS = {
-    Sandesh:'sandesh@perkyowl.com', Gayatri:'gayatri.v@perkyowl.com',
+    Sandesh:'sandesh@perkyowl.com',
     Faizan:'faizan@yellowproductions.co.in', Solo:'solo@yellowproductions.co.in',
     Archana:'archana@yellowproductions.co.in', Gauri:'gauri@perkyowl.com',
     Sonal:'sonal.j@perkyowl.com', Vishvanath:'vishvanath@perkyowl.com',

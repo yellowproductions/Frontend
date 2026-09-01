@@ -875,10 +875,11 @@
           <label>Assignee</label>
           <select id="task-assignee">
             <option value="">Select person</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Sandesh</option><option>Faizan</option>
             <option>Solo</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
+            <option>Shubham</option><option>Ashish</option>
           </select>
         </div>
         <div>
@@ -887,7 +888,6 @@
             <option value="">— Select SPOC —</option>
             <option>Siddhesh</option>
             <option>Kritya</option>
-            <option>Viplav</option>
             <option>Suriti</option>
           </select>
         </div>
@@ -1038,10 +1038,6 @@
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 20 August</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:13px;font-weight:700">Viplav</div>
-            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 9 September</div>
-          </div>
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
             <div style="font-size:13px;font-weight:700">Solo</div>
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 27 September</div>
           </div>
@@ -1056,10 +1052,6 @@
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
             <div style="font-size:13px;font-weight:700">Sonal</div>
             <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 14 December</div>
-          </div>
-          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
-            <div style="font-size:13px;font-weight:700">Gayatri</div>
-            <div style="font-size:11px;color:var(--yellow);margin-top:4px;font-weight:600">🎂 4 October</div>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
             <div style="font-size:13px;font-weight:700">Sam</div>
@@ -1234,7 +1226,7 @@
   <!-- REVIEW PANEL -->
   <div class="panel" id="panel-review">
     <div class="panel-title">Creative Review Queue</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Shared queue — you, Viplav, Kritya, and Siddhesh can all approve or send back. First to act wins.</p>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Shared queue — you, Kritya, and Siddhesh can all approve or send back. First to act wins.</p>
 
     <div class="card">
       <div class="card-title">Pending Review</div>
@@ -1298,10 +1290,11 @@
           <label>Team Member</label>
           <select id="perf-person">
             <option value="">Select</option>
-            <option>Sandesh</option><option>Gayatri</option><option>Faizan</option>
+            <option>Sandesh</option><option>Faizan</option>
             <option>Solo</option><option>Archana</option><option>Gauri</option>
-            <option>Sonal</option><option>Vishvanath</option><option>Viplav</option>
+            <option>Sonal</option><option>Vishvanath</option>
             <option>Siddhesh</option><option>Kritya</option><option>Ajay</option>
+            <option>Shubham</option><option>Ashish</option>
           </select>
         </div>
         <div>
@@ -2051,18 +2044,19 @@ window.fetch = function(url, options) {
 console.log('%c📊 Made By Yellow · Supabase-only data layer', 'color:#15803d;font-weight:bold');
 // ============================================================
 const TEAM = {
+  // 2026-09-01 — Gayatri + Viplav removed. Shubham + Ashish added as BD.
   Sandesh: 'sandesh@perkyowl.com',
-  Gayatri: 'gayatri.v@perkyowl.com',
   Faizan: 'faizan@yellowproductions.co.in',
   Solo: 'solo@yellowproductions.co.in',
   Archana: 'archana@yellowproductions.co.in',
   Gauri: 'gauri@perkyowl.com',
   Sonal: 'sonal.j@perkyowl.com',
   Vishvanath: 'vishvanath@perkyowl.com',
-  Viplav: 'viplav@yellowproductions.co.in',
   Siddhesh: 'siddhesh@yellowproductions.co.in',
   Kritya: 'kritya@yellowproductions.co.in',
   Ajay: 'ajay@yellowproductions.co.in',
+  Shubham: 'shubham@yellowproductions.co.in',   // BD
+  Ashish:  'ashish@yellowproductions.co.in',    // BD
   Sam: 'sam@yellowproductions.co.in'
 };
 
@@ -2075,7 +2069,7 @@ function isInactive(name) { return INACTIVE_USERS.includes(name); }
 // Active team = everyone except inactive — use this list everywhere instead of TEAM_LIST
 const ACTIVE_TEAM = TEAM_LIST.filter(n => !isInactive(n));
 
-const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo'];
+const OFFICE_TEAM = ['Faizan', 'Siddhesh', 'Archana', 'Ajay', 'Kritya', 'Solo', 'Shubham', 'Ashish'];
 const WORK_SCHEDULES = {
   Archana: [0, 1, 2, 3, 4],   // Sun–Thu
 };
@@ -2453,17 +2447,17 @@ Context about Suriti:
 
 Team (Mumbai unless noted):
 • Sandesh — hard working, concepts
-• Gayatri — precision, slow
 • Faizan — AI creatives, new age
 • Solo — AI, depends on Faizan
 • Archana — real estate, football league
 • Gauri — versatile
 • Sonal — moody, strong at posters/social when pushed
 • Vishvanath — adapt jobs, senior
-• Viplav — copywriter, underused, good ideas
 • Siddhesh — strategy, decks (CS)
 • Kritya — strategy, decks (CS, currently on bereavement leave)
 • Ajay — video editor
+• Shubham — BD (business development)
+• Ashish — BD (business development)
 • Sam — BD, Oman
 
 How to respond:
@@ -4178,7 +4172,7 @@ function renderTasks(tasks) {
           <select class="fos-mini-select" title="SPOC — client-servicing lead"
             onchange="updateTaskSpoc(${t._sb_id || 'null'}, this.value)">
             <option value="" ${!t.SPOC?'selected':''}>🎯 ${t.SPOC || 'SPOC —'}</option>
-            ${['Siddhesh','Kritya','Viplav','Suriti'].filter(n => n !== t.SPOC).map(n => `<option value="${n}">🎯 ${n}</option>`).join('')}
+            ${['Siddhesh','Kritya','Suriti'].filter(n => n !== t.SPOC).map(n => `<option value="${n}">🎯 ${n}</option>`).join('')}
             ${t.SPOC ? '<option value="">🎯 — clear —</option>' : ''}
           </select>
         </div>
@@ -4706,7 +4700,7 @@ async function addCollaborator(encodedTask, sbId, name) {
       renderTasks(allTasks);
     }
     // Telegram ping if the added person is a lead (designers don't use Telegram)
-    if (['Viplav', 'Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
+    if (['Kritya', 'Siddhesh', 'Suriti'].includes(name)) {
       notifyTelegram(name, `👥 <b>Added as collaborator</b>\n\nTask: ${task.substring(0, 80)}\n\n<a href="https://madebyyellow.com/team.html">Open team portal →</a>`);
     }
   } catch(e) {
@@ -6720,10 +6714,8 @@ const HOLIDAYS_2026 = [
   { date: '2026-08-16', name: 'Janmashtami 🙏', type: 'fixed' },
   { date: '2026-08-19', name: 'Ganesh Chaturthi', type: 'fixed' },
   { date: '2026-08-20', name: '🎂 Kritya', type: 'sol' },
-  { date: '2026-09-17', name: '🎂 Viplav', type: 'sol' },
   { date: '2026-10-02', name: 'Gandhi Jayanti / Dussehra', type: 'fixed' },
   { date: '2026-09-27', name: '🎂 Solo', type: 'sol' },
-  { date: '2026-10-04', name: '🎂 Gayatri', type: 'sol' },
   { date: '2026-10-17', name: '🎂 Gauri', type: 'sol' },
   { date: '2026-10-20', name: 'Diwali ✨', type: 'fixed' },
   { date: '2026-10-22', name: 'Bhai Dooj', type: 'optional' },
@@ -6790,11 +6782,14 @@ function renderCalendar() {
 }
 
 // ====== PERFORMANCE & VARIABLE PAY ======
+// 2026-09-01 — Gayatri + Viplav removed. Shubham + Ashish (BD) added
+// at placeholder salaries — Suriti to set actual numbers when known.
 const SALARIES = {
   Gauri: 140000, Sandesh: 100000, Archana: 140000,
   Solo: 40000, Siddhesh: 60000, Kritya: 100000,
-  Gayatri: 80000, Vishvanath: 70000, Sonal: 60000,
-  Viplav: 112201, Faizan: 75000, Ajay: 80000
+  Vishvanath: 70000, Sonal: 60000,
+  Faizan: 75000, Ajay: 80000,
+  Shubham: 0, Ashish: 0
 };
 
 let revenueGateMet = false;
