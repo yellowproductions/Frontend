@@ -4421,7 +4421,20 @@ async function loadAttendance() {
           </div>`;
         }).join('')
       : '<div class="empty-state">No history yet.</div>';
-  } catch(e) {}
+  } catch(e) {
+    // 2026-08-26 — Was catch(e){} which silently swallowed everything.
+    // Suriti reported "can't see attendance" — the panel just stuck on
+    // Loading. Now surface the actual error so we can diagnose next time.
+    console.error('loadAttendance failed:', e);
+    const statusEl = document.getElementById('att-today-status');
+    const historyEl = document.getElementById('attendance-history');
+    const msg = `<div style="color:#991b1b;font-size:12px;padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px">
+      <strong>Attendance panel error:</strong> ${(e && e.message) || String(e)}
+      <div style="font-size:11px;color:#666;margin-top:4px">Open browser console (Cmd+Opt+J) for the full stack.</div>
+    </div>`;
+    if (statusEl) statusEl.innerHTML = msg;
+    if (historyEl) historyEl.innerHTML = msg;
+  }
 }
 
 async function markAttendance() {

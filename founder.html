@@ -4981,7 +4981,14 @@ async function loadHR(skipFetch) {
     // 2026-08-26 — Lates-this-month summary. OFFICE team only; 3 lates in
     // one calendar month = 0.5 day salary deducted. Sorted worst-first so
     // Suriti sees who's about to hit a deduction at a glance.
-    renderLatesSummary(data);
+    // Wrapped defensively so a bug in the summary NEVER breaks the rest of
+    // the HR panel (Today's Attendance, Leave Requests, Capacity, etc).
+    try { renderLatesSummary(data); }
+    catch(e) {
+      console.error('renderLatesSummary failed:', e);
+      const wrap = document.getElementById('lates-summary');
+      if (wrap) wrap.innerHTML = `<div style="color:#991b1b;font-size:12px;padding:12px">Lates summary hit an error: ${(e && e.message) || String(e)}. The rest of the HR panel still works.</div>`;
+    }
 
     const attendance = data.filter(r => r.Type === 'attendance');
     const leaves = data.filter(r => r.Type === 'leave');
