@@ -1554,10 +1554,17 @@ function _supaJoinUpdates(updates) {
 async function fetchSheetRows() {
   // 2026-08-26 — chat_messages dropped with team chat retirement. chatsR stubbed
   // to empty so the mapping loop downstream keeps working without more surgery.
+  // 2026-09-01 — Suriti: "team is marking attendance but it's not showing on
+  // founder". Root cause: PostgREST caps at 1000 rows per request. Attendance
+  // has ~1600+ rows; sorted by id ASC, today's rows (highest ids) fell OUTSIDE
+  // the 1000-row page. Fix: filter to last 45 days AND sort DESC (newest
+  // first) so today is always in the response even if the window still
+  // over-fills. 45 days × ~15 people avg ≈ 400 rows — comfortably under cap.
+  const cutoff = new Date(Date.now() - 45*24*60*60*1000).toISOString().split('T')[0];
   const [tasksR, attendanceR, leavesR, creativesR, remindersR] = await Promise.all([
     sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
-    sb.from('attendance').select('*').order('id', { ascending: true }),
-    sb.from('leaves').select('*').order('id', { ascending: true }),
+    sb.from('attendance').select('*').gte('date', cutoff).order('id', { ascending: false }),
+    sb.from('leaves').select('*').gte('start_date', cutoff).order('id', { ascending: false }),
     sb.from('creatives').select('*').order('id', { ascending: true }),
     sb.from('reminders').select('*').order('id', { ascending: true }),
   ]);

@@ -851,10 +851,15 @@ async function fetchSheetRows() {
   try {
   // 2026-08-26 — chat_messages fetch dropped with team chat retirement.
   // Downstream chat mapping loop stubbed to empty array so nothing else breaks.
+  // 2026-09-01 — PostgREST caps at 1000 rows/request; attendance+leaves are
+  // long-tail tables (~1600+ rows total). Sorted ASC by id, today's rows fall
+  // OFF the end of the page → founder HR "cant see attendance" bug. Filter to
+  // last 45 days AND sort DESC so today's rows are always in the first 1000.
+  const cutoff = new Date(Date.now() - 45*24*60*60*1000).toISOString().split('T')[0];
   const [tasksR, attendanceR, leavesR, creativesR, remindersR] = await Promise.all([
     sb.from('tasks').select('*, task_updates(*)').order('id', { ascending: true }),
-    sb.from('attendance').select('*').order('id', { ascending: true }),
-    sb.from('leaves').select('*').order('id', { ascending: true }),
+    sb.from('attendance').select('*').gte('date', cutoff).order('id', { ascending: false }),
+    sb.from('leaves').select('*').gte('start_date', cutoff).order('id', { ascending: false }),
     sb.from('creatives').select('*').order('id', { ascending: true }),
     sb.from('reminders').select('*').order('id', { ascending: true }),
   ]);
